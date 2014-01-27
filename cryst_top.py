@@ -8,7 +8,7 @@ import itertools
 from sage.all import *
 from sage.plot.point import point
 from sage.plot.line import line
-
+from uuid import uuid4
 # try pygraphs cycle iterator
 sys.path.append("/home/pboyd/lib/python-graph/core/build/lib")
 from pygraph.algorithms.cycles import find_cycle
@@ -199,6 +199,82 @@ class GraphPlot(object):
             return p_edge 
         return pdotn/ldotn*l + p_edge 
 
+class SystreDB(dict):
+    """A dictionary which reads a file of the same format read by Systre"""
+    def __init__(self, filename="rcsr.arc"):
+        self.file = filename
+        self.voltages = {}
+        self._read_store_file()
+
+    def _read_store_file(self, file=None):
+        """Reads and stores the nets in the self.file file.
+        Note, this is specific to a systre.arc file and may be subject to
+        change in the future depending on the developments ODF makes on
+        Systre.
+
+        """
+        # this allows to read from other files than the default.
+        if file is None:
+            f = open(self.file, 'r')
+        else:
+            f = open(file, 'r')
+
+        while True:
+            line = f.readline()
+            if not line:
+                break
+            l = line.strip().split()
+            if l and l[0] == 'key':
+                k = l[1]
+                e = list(self.Nd_chunks([int(i) for i in l[2:]], 3))
+                # generate random unique uuid name for the dictionary
+                # incase the 'name' column isn't found
+                name = self.read_chunk(f)
+                g, v = self.gen_sage_graph_format(e)
+                self[name] = g
+                self.voltages[name] = v
+        print len(self.keys())
+
+    def read_chunk(self, fileobject):
+        name = uuid4()
+        for j in range(6):
+            r = fileobject.readline()
+            xline = r.strip().split()
+            if xline[0] == 'id':
+                name = xline[1]
+        return name
+
+    def Nd_chunks(self, list, dim):
+        n = 2+dim
+        for i in xrange(0, len(list), n):
+            yield tuple(list[i:i+n])
+
+    def gen_sage_graph_format(self, edges):
+        """Take the edges from a systre db file and convert 
+        to sage graph readable format.
+        
+        Assumes that the direction of the edge goes from
+        [node1] ---> [node2]
+        """
+        sage_dict = {}
+        voltages = []
+        for id, (v1, v2, e1, e2, e3) in enumerate(edges):
+            ename = 'e%i'%(id+1)
+            voltages.append((e1, e2, e3))
+            try:
+                n1 = chr(v1 + ord("A"))
+            except ValueError:
+                n1 = str(v1)
+            try:
+                n2 = chr(v2 + ord("A"))
+            except ValueError:
+                n2 = str(v2)
+
+            sage_dict.setdefault(n1, {})
+            sage_dict.setdefault(n2, {})
+            sage_dict[n1].setdefault(n2, [])
+            sage_dict[n1][n2].append(ename)
+        return (sage_dict, voltages)
 
 class Net(object):
 
@@ -625,9 +701,11 @@ def hcb():
 
 
 def main():
+    systre = SystreDB()
+
     #hcb()
     #qtz()
-    alpha_crystobalite()
+    #alpha_crystobalite()
     #bor()
 
 if __name__=="__main__":

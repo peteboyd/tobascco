@@ -63,6 +63,8 @@ class JobHandler(object):
             # sbu data is requested.. this can be changed.
             Terminate()
        
+        print self.sbu_pool
+        print self._topologies
         Terminate()
         for top in self.options.topologies:
             info("Starting with the topology: %s"%top)

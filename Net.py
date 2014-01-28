@@ -22,6 +22,7 @@ class SystreDB(dict):
         if file is None:
             return
 
+        f = open(file, 'r')
         while True:
             line = f.readline()
             if not line:

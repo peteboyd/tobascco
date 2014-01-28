@@ -14,9 +14,9 @@ class SystreDB(dict):
     def __init__(self, filename="rcsr.arc"):
         self.file = filename
         self.voltages = {}
-        self._read_store_file()
+        self.read_store_file()
 
-    def _read_store_file(self, file=None):
+    def read_store_file(self, file=None):
         """Reads and stores the nets in the self.file file.
         Note, this is specific to a systre.arc file and may be subject to
         change in the future depending on the developments ODF makes on

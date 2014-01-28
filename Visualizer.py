@@ -171,11 +171,11 @@ class GraphPlot(object):
         return pdotn/ldotn*l + p_edge 
     
     def view_graph(self):
-        self.net.show()
+        self.net.graph.show(edge_labels=True)
         raw_input("Wait for Xwindow, then press any key...\n")
 
-    def view_placement(self, init=np.zeros(3)):
-
+    def view_placement(self, init=(0., 0., 0.)):
+        init = np.array(init)
         # set the first node down at the init position
         V = self.net.graph.vertices()[0] 
         edges = self.net.graph.outgoing_edges(V) + self.net.graph.incoming_edges(V)

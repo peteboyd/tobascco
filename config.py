@@ -116,7 +116,8 @@ class Options(object):
         integers = ['organic_sbu_per_structure',
                     'metal_sbu_per_structure',
                     'max_structures']
-        lists = ['topologies', 'sbu_files', 'organic_sbus',
+        lists = ['topologies', 'sbu_files', 'topology_files',
+                'organic_sbus',
                  'metal_sbus']
         tuple_of_tuples = ['sbu_combinations']
         

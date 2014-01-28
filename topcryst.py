@@ -8,6 +8,7 @@ import glog
 import ConfigParser
 from CSV import CSV
 from Net import SystreDB, Net
+from Visualizer import GraphPlot
 from SecondaryBuildingUnit import SBU
 #from CreateInput import SBUFileRead
 from random import randint
@@ -62,9 +63,18 @@ class JobHandler(object):
             # Currently terminates without trying to build if a report on the 
             # sbu data is requested.. this can be changed.
             Terminate()
-       
-        print self.sbu_pool
-        print self._topologies
+
+        self._pop_unwanted_sbus()
+        self._pop_unwanted_topologies()
+        n = Net(self._topologies['pcu'])
+        n.voltage = self._topologies.voltages['pcu']
+        n.get_lattice_basis()
+        n.get_cycle_basis()
+        n.get_cocycle_basis()
+        n.barycentric_embedding()
+        s = GraphPlot(n)
+        s.view_graph()
+        s.view_placement((0.5, 0.5, 0.5))
         Terminate()
         for top in self.options.topologies:
             info("Starting with the topology: %s"%top)
@@ -159,7 +169,7 @@ class JobHandler(object):
         for file in self.options.topology_files:
             db = SystreDB(filename=file)
             for top in db.keys():
-                if top in self._topolgies.keys():
+                if top in self._topologies.keys():
                     warning("Duplicate topologies found! The topology %s"%(top)+
                              " will be represented from the file %s"%(file))
             self._topologies.update(db)
@@ -216,7 +226,15 @@ class JobHandler(object):
         for sbu_request in self.options.metal_sbus:
             if sbu_request not in [i.identifier for i in self.sbu_pool if i.is_metal]:
                 warning("SBU id %i is not in the metal SBU database"%(int(sbu_request)))
-    
+    def _pop_unwanted_topologies(self):
+        [self._topologies.pop(k, None) for k in self._topologies.keys()
+            if k not in self.options.topologies]
+        for k in self.options.topologies:
+            if k not in self._topologies.keys():
+                warning("Could not find the topology %s in the current "%(k) +
+                       "database of topology files. Try including a file "+
+                       "containing this topology to the input file.")
+
 def main():
     options = config.Options()
     log = glog.Log(options)

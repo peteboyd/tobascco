@@ -1,10 +1,4 @@
-#!/usr/bin/env python
-"""
-Genstruct 3.0 builds MOFs with a better user-interface, where one can
-instruct stopping criteria, have more control over output, and
-importantly, provide build instruction to the algorithm.
-
-"""
+#!/usr/bin/env sage-python 
 import logging
 import sys
 from logging import info, debug, warning, error, critical
@@ -12,11 +6,10 @@ import config
 from config import Terminate
 import glog
 import ConfigParser
-from Generator import Generate
-from SecondaryBuildingUnit import SBU
-from Builder import Build
 from CSV import CSV
-from CreateInput import SBUFileRead
+from Net import SystreDB, Net
+from SecondaryBuildingUnit import SBU
+#from CreateInput import SBUFileRead
 from random import randint
 import os
 
@@ -27,53 +20,50 @@ class JobHandler(object):
     """
     def __init__(self, options):
         self.options = options
-        self._topologies = {}
+        self._topologies = SystreDB()
         self.sbu_pool = []
 
     def direct_job(self):
         """Reads the options and decides what to do next."""
         
-        if self.options.create_sbu_input_files:
-            info("Creating input files")
+        # TODO(pboyd): problem reading in openbabel libraries for the inputfile
+        #  creation due to the use of a custom python implemented for sage.
 
-            job = SBUFileRead(self.options)
-            job.read_sbu_files()
-            job.sort_sbus()
-            job.write_file()
 
-            Terminate()
+        #if self.options.create_sbu_input_files:
+        #    info("Creating input files")
+        #    job = SBUFileRead(self.options)
+        #    job.read_sbu_files()
+        #    job.sort_sbus()
+        #    job.write_file()
+        #    Terminate()
 
         self._read_sbu_database_files()
-        self._separate_topologies()
+        self._read_topology_database_files()
         # failsafe in case no topology is requested in the input file.
         if not self.options.topologies:
             self.options.topologies = self._topologies.keys()
             debug("No topologies requested, trying all of the ones in the SBU database files." + 
                   " These are %s"%", ".join(self.options.topologies))
-         
-        for top in self.options.topologies:
-            assert top in self._topologies.keys(), "topology %s is not in the SBU list"%top
             
         # failsafe in case no organic sbus requested in the input file.
         if not self.options.organic_sbus:
-            self.options.organic_sbus = [sbu.identifier for t, l in
-                                         self._topologies.items() for sbu in l
+            self.options.organic_sbus = [sbu.identifier for sbu in self.sbu_pool 
                                          if not sbu.is_metal]
         # failsafe in case no metal sbus requested in the input file.
         if not self.options.metal_sbus:
-            self.options.metal_sbus = [sbu.identifier for t, l in
-                                       self._topologies.items() for sbu in l
+            self.options.metal_sbus = [sbu.identifier for sbu in self.sbu_pool 
                                        if sbu.is_metal]
         
         if self.options.calc_sbu_surface_area or self.options.calc_max_sbu_span:
             info("SBU report requested..")
             self._pop_unwanted_sbus()
             self._sbu_report()
-        
-        if not self.options.build_directives and not self.options.exhaustive:
-            info("Genstruct not requested to build structures.")
-            Terminate() 
-            
+            # Currently terminates without trying to build if a report on the 
+            # sbu data is requested.. this can be changed.
+            Terminate()
+       
+        Terminate()
         for top in self.options.topologies:
             info("Starting with the topology: %s"%top)
             # delete all SBUs that are not listed in the ini file if
@@ -113,16 +103,6 @@ class JobHandler(object):
                     d = directives.next()
                 except StopIteration:
                     break
-                #print_list = []
-                #for i in d:
-                #    if isinstance(i, SBU):
-                #        print_list.append(i.name)
-                #    elif isinstance(i, tuple):
-                #        sub_list = [i[0]]
-                #        sub_list.append(tuple([i[1][0].name,i[1][1].identifier]))
-                #        print_list.append(sub_list)
-                #print print_list
-                #continue
                 # pass the directive to a MOF building algorithm
                 gen = build.build_from_directives(d, combo)
                 gen_counter = gen_counter + 1 if gen else gen_counter
@@ -141,14 +121,11 @@ class JobHandler(object):
         
         met_sbus = {}
         org_sbus = {}
-        
-        for top in self.options.topologies:
-            for sbu in self._topologies[top]:
-                if sbu.is_metal:
-                    met_sbus[sbu.name] = sbu
-                else:
-                    org_sbus[sbu.name] = sbu
-                    
+        for sbu in self.sbu_pool:
+            if sbu.is_metal:
+                met_sbus[sbu.name] = sbu
+            else:
+                org_sbus[sbu.name] = sbu
         filename = os.path.join(self.options.job_dir,
                                 self.options.jobname + ".SBU_report.csv")
         report = CSV(name=filename)
@@ -175,7 +152,17 @@ class JobHandler(object):
             if self.options.calc_max_sbu_span:
                 report.add_data(sbu_span = sbu.max_span)
         report.write()
-                
+         
+    def _read_topology_database_files(self):
+        for file in self.options.topology_files:
+            db = SystreDB(filename=file)
+            for top in db.keys():
+                if top in self._topolgies.keys():
+                    warning("Duplicate topologies found! The topology %s"%(top)+
+                             " will be represented from the file %s"%(file))
+            self._topologies.update(db)
+            self._topologies.voltages.update(db.voltages)
+
     def _read_sbu_database_files(self):
         """Read in the files containing SBUs. Currently supports only the special
         Config .ini file types, but should be easily expandable to different input
@@ -203,38 +190,29 @@ class JobHandler(object):
                 rem.append(id)
         for x in reversed(sorted(rem)):
             self.sbu_pool.pop(x)
-
-    def _separate_topologies(self):
-        for sbu in self.sbu_pool:
-            self._topologies.setdefault(sbu.topology, []).append(sbu)
-        debug("%i topologies found in the database files"%(len(self._topologies.keys())))
     
     def _pop_unwanted_sbus(self):
         """Removes sbu indices not listed in the options."""
-        all_sbus = []
-        for top, sbu_list in self._topologies.items():
-            remove = []
-            all_sbus += sbu_list
-            # remove undesired organic SBUs
-            [remove.append(x) for x, sbu in enumerate(sbu_list) if
-             sbu.identifier not in self.options.organic_sbus and
-             not sbu.is_metal]
-            # remove undesired metal SBUs
-            [remove.append(x) for x, sbu in enumerate(sbu_list) if
-             sbu.identifier not in self.options.metal_sbus and
-             sbu.is_metal]
-            remove.sort()
-            for p in reversed(remove):
-                self._topologies[top].pop(p)
+        remove = []
+        # remove undesired organic SBUs
+        [remove.append(x) for x, sbu in enumerate(self.sbu_pool) if
+         sbu.identifier not in self.options.organic_sbus and
+         not sbu.is_metal]
+        # remove undesired metal SBUs
+        [remove.append(x) for x, sbu in enumerate(self.sbu_pool) if
+         sbu.identifier not in self.options.metal_sbus and
+         sbu.is_metal]
+        remove.sort()
+        for p in reversed(remove):
+            self.sbu_pool.pop(p)
                 
         # issue warning if some of the SBUs requested in the ini file are not in the
         # database
-        all_sbus = set(all_sbus)
         for sbu_request in self.options.organic_sbus:
-            if sbu_request not in [i.identifier for i in all_sbus if not i.is_metal]:
+            if sbu_request not in [i.identifier for i in self.sbu_pool if not i.is_metal]:
                 warning("SBU id %i is not in the organic SBU database"%(int(sbu_request)))
         for sbu_request in self.options.metal_sbus:
-            if sbu_request not in [i.identifier for i in all_sbus if i.is_metal]:
+            if sbu_request not in [i.identifier for i in self.sbu_pool if i.is_metal]:
                 warning("SBU id %i is not in the metal SBU database"%(int(sbu_request)))
     
 def main():

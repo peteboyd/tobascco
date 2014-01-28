@@ -103,19 +103,41 @@ class Net(object):
         """The orientation is important here!"""
         size = self._graph.order() - 1
         len = self._graph.size()
-        self.cocycle = np.zeros((size, len))
-        for ind, vert in enumerate(self._graph.vertices()[:-1]):
+        count = 0
+        for vert in self._graph.vertices():
+            if count == size:
+                break
+            vect = np.zeros(len)
             out_edges = self._graph.outgoing_edges(vert)
             inds = self.return_indices(out_edges)
             if inds:
-                self.cocycle[ind][inds] = 1.
+                vect[inds] = 1.
             in_edges = self._graph.incoming_edges(vert)
             inds = self.return_indices(in_edges)
             if inds:
-                self.cocycle[ind][inds] = -1.
+                vect[inds] = -1.
+            if self.cycle_cocycle_check(vect):
+                count += 1
+                v = np.reshape(vect, (1,self.shape))
+                if self.cocycle is None:
+                    self.cocycle = v 
+                else:
+                    self.cocycle = np.concatenate((self.cocycle,v))
+
+        if count != size:
+            print "ERROR - could not find a linear independent cocycle basis!"
+            sys.exit()
         self.cocycle = np.matrix(self.cocycle)
         self.cocycle_rep = np.matrix(np.zeros((size, self.ndim)))
   
+    def cycle_cocycle_check(self, vect):
+        if self.cocycle is None and self.cycle is None:
+            return True
+        elif self.cocycle is None and self.cycle is not None:
+            return self.check_linear_dependency(vect, self.cycle)
+        else:
+            return self.check_linear_dependency(vect, self.cycle_cocycle)
+
     def get_cycle_basis(self):
         """Find the basis for the cycle vectors. The total number of cycle vectors
         in the basis is E - V + 1 (see n below). Once this number of cycle vectors is found,
@@ -134,17 +156,10 @@ class Net(object):
                              cycle_baggage=[],
                              counter=0)
         n = self.shape - self.num_nodes + 1
-        self.cycle = []
-        self.cycle_rep = [] 
-        
         count = 0
         if self.lattice_basis is not None:
-            for id, (cyc, volt) in enumerate(zip(self.lattice_basis, np.identity(self.ndim))):
-                self.cycle.append(np.array(cyc))
-                self.cycle_rep.append(np.array(volt))
-                count += 1
-                if count >= n:
-                    break
+            self.cycle = self.add_to_matrix(self.lattice_basis, self.cycle)
+            self.cycle_rep = self.add_to_matrix(np.identity(self.ndim), self.cycle_rep)
 
         for id, cycle in enumerate(c):
             if count >= n:
@@ -152,45 +167,30 @@ class Net(object):
             vect = np.zeros(self.shape)
             vect[self.return_indices(cycle)] = self.return_coeff(cycle)
             volt = self.get_voltage(vect)
-            A = np.array(self.cycle + [vect])
-            U, s, V = np.linalg.svd(A)
-            if np.all(np.abs(volt) < 1.001) and np.all(s > 0.0001):
-                self.cycle.append(vect)
-                self.cycle_rep.append(volt)
+            # REPLACE WITH CHECK_LINEAR_DEPENDENCY()
+            check = self.cycle_cocycle_check(vect)
+            if np.all(np.abs(volt) < 1.001) and check:
+                self.add_to_matrix(vect, self.cycle)
+                self.add_to_matrix(volt, self.cycle_rep)
                 count += 1
         self.cycle = np.matrix(self.cycle)
         self.cycle_rep = np.matrix(self.cycle_rep)
         del c
 
+    def add_to_matrix(self, vect, rep):
+        """Works assuming the dimensions are the same"""
+        if len(vect.shape) == 1:
+            v = np.reshape(vect,(1,vect.shape[-1]))
+        else:
+            v = vect
+        if rep is None:
+            return v.copy()
+        else:
+            return np.concatenate((rep, v))
+
     def get_voltage(self, cycle):
         return np.array(cycle*self.voltage)[0]
 
-    def get_cycle_coefficients(self, nodes, cycle):
-        """Really gross way of obtaining the proper orientations of the 
-        edges for the DiGraph cycle basis.
-
-        """
-        edges = self.get_edges_from_index(cycle)
-        coefficients, recycle = [], []
-        vertices, reverse_flag = [],[]
-        for i, j, k in edges:
-            vertices.append(i)
-            vertices.append(j)
-            recycle.append(k)
-        vertices = set(vertices)
-        for v in vertices:
-            out = [i[2] for i in self._graph.outgoing_edges(v)]
-            d = list(set(out).intersection(set(recycle)))
-            if len(d) == 2:
-                reverse_flag.append(d[1])
-        for e in edges:
-            coeff = 1. if e[2] not in reverse_flag else -1.
-            coefficients.append(coeff)
-
-        for ind, i in enumerate(np.nonzero(cycle)[0]):
-            cycle[i] = coefficients[ind]
-        return cycle 
-   
     def debug_print(self, val, msg):
         print "%s[%d] %s"%("  "*val, val, msg)
 
@@ -275,14 +275,25 @@ class Net(object):
             volt = self.get_voltage(vect)
             for id, e in enumerate(np.identity(self.ndim)):
                 if np.allclose(np.abs(volt), e):
-                    if id not in basis_vectors:
+                    check = self.check_linear_dependency(vect, self.lattice_basis[basis_vectors])
+                    if id not in basis_vectors and check:
                         basis_vectors.append(id)
                         self.lattice_basis[id] = volt[id]*vect
-                    elif np.count_nonzero(vect) < np.count_nonzero(self.lattice_basis[id]):
+                    elif (np.count_nonzero(vect) < np.count_nonzero(self.lattice_basis[id])) and check:
                         self.lattice_basis[id] = volt[id]*vect
         if len(basis_vectors) != self.ndim:
             print "ERROR: could not find all cycle vectors for the lattice basis!"
             sys.exit()
+
+    def check_linear_dependency(self, vect, set):
+        if not np.any(set):
+            return True
+        else:
+            A = np.concatenate((set, np.reshape(vect, (1, self.shape))))
+        U, s, V = np.linalg.svd(A)
+        if np.all(s > 0.0001):
+            return True
+        return False
 
     def get_index(self, edge):
         return int(edge[2][1:])-1

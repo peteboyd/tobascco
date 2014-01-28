@@ -158,6 +158,9 @@ class Options(object):
             val = self.job.get(section, key)
         return val
 
-def Terminate():
-    info("Genstruct terminated normally")
-    sys.exit(1)
+def Terminate(errcode=None):
+    if errcode is None:
+        info("TopCryst terminated normally")
+    else:
+        warning("TopCryst terminated with errors!")
+    sys.exit()

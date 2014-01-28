@@ -232,8 +232,7 @@ class SystreDB(dict):
                 name = self.read_chunk(f)
                 g, v = self.gen_sage_graph_format(e)
                 self[name] = g
-                self.voltages[name] = v
-        print len(self.keys())
+                self.voltages[name] = np.matrix(v)
 
     def read_chunk(self, fileobject):
         name = uuid4()
@@ -262,13 +261,13 @@ class SystreDB(dict):
             ename = 'e%i'%(id+1)
             voltages.append((e1, e2, e3))
             try:
-                n1 = chr(v1 + ord("A"))
+                n1 = chr(v1-1 + ord("A"))
             except ValueError:
-                n1 = str(v1)
+                n1 = str(v1-1)
             try:
-                n2 = chr(v2 + ord("A"))
+                n2 = chr(v2-1 + ord("A"))
             except ValueError:
-                n2 = str(v2)
+                n2 = str(v2-1)
 
             sage_dict.setdefault(n1, {})
             sage_dict.setdefault(n2, {})
@@ -471,9 +470,12 @@ class Net(object):
             vect[self.return_indices(cycle)] = self.return_coeff(cycle)
             volt = self.get_voltage(vect)
             for id, e in enumerate(np.identity(self.ndim)):
-                if np.allclose(np.abs(volt), e) and id not in basis_vectors:
-                    basis_vectors.append(id)
-                    self.lattice_basis[id] = volt[id]*vect
+                if np.allclose(np.abs(volt), e):
+                    if id not in basis_vectors:
+                        basis_vectors.append(id)
+                        self.lattice_basis[id] = volt[id]*vect
+                    elif np.count_nonzero(vect) < np.count_nonzero(self.lattice_basis[id]):
+                        self.lattice_basis[id] = volt[id]*vect
         if len(basis_vectors) != self.ndim:
             print "ERROR: could not find all cycle vectors for the lattice basis!"
             sys.exit()
@@ -627,10 +629,28 @@ def qtz():
     qtz.get_lattice_basis()
     qtz.get_cocycle_basis()
     qtz.get_cycle_basis()
+    #qtz.lattice_basis = np.matrix([[0., 0., 1., -1., 0., 0.],
+    #                               [1., 0., 0., 0., 0., -1.],
+    #                               [0., 0., 0., 1., 1., 1.]])
+
+    #qtz.cycle = np.matrix([[1., 0., 0., 0., 0., -1.],
+    #                       [0., 1., 0., 0., -1., 0.],
+    #                       [0., 0., 1., -1., 0., 0.],
+    #                       [0., 0., 0., 1., 1., 1.]])
+
+    #qtz.cocycle = np.matrix([[1., 0., -1., -1., 0., 1.],
+    #                         [-1., 1., 0., 0., 1., -1.]])
+
+    #qtz.cycle_rep = np.matrix([[0., 1., 0.],
+    #                           [-1., -1., 0.],
+    #                           [1., 0., 0.],
+    #                           [0., 0., 1.]])
+
     qtz.barycentric_embedding()
     gp = GraphPlot(qtz)
     gp.plot(init=np.array([0., 0., 0.])) 
 
+    #print qtz.lattice_arcs*qtz.metric_tensor*qtz.lattice_arcs.T
 
 def bor():
     bor=Net()
@@ -699,10 +719,25 @@ def hcb():
     hcb_view.plot_2d_cell()
     hcb_view.plot()
 
+def test(net, volt):
+    testnet = Net()
+    testnet.graph = net
+    testnet.voltage = volt
+
+    testnet.get_lattice_basis()
+    testnet.get_cocycle_basis()
+    testnet.get_cycle_basis()
+
+    testnet.barycentric_embedding()
+    
+    #print testnet.lattice_arcs*testnet.metric_tensor*testnet.lattice_arcs.T
+
+    show = GraphPlot(testnet)
+    show.plot(init=np.array([0.5, 0.5, 0.5]))
 
 def main():
     systre = SystreDB()
-
+    test(systre['tbo'], systre.voltages['tbo'])
     #hcb()
     #qtz()
     #alpha_crystobalite()

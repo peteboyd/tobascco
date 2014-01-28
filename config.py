@@ -29,6 +29,8 @@ class Options(object):
         self.job_dir = os.getcwd()
         self.jobname = os.path.splitext(os.path.basename(
                                        self.input_file))[0]
+        # TODO: add command line argument to search here for database files
+        self.dot_dir = os.path.join(os.path.expanduser('~'), '.sbus')
 
     def _command_options(self):
         """Load data from the command line."""
@@ -107,7 +109,9 @@ class Options(object):
         """Returns the proper type based on the key used."""
         # known booleans
         booleans = ['verbose', 'quiet', 'silent',
-                    'create_sbu_input_files']
+                    'create_sbu_input_files',
+                    'calc_sbu_surface_area',
+                    'calc_max_sbu_span']
         floats = ['overlap_tolerance']
         integers = ['organic_sbu_per_structure',
                     'metal_sbu_per_structure',

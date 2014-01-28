@@ -6,12 +6,14 @@ import config
 from config import Terminate
 import glog
 import ConfigParser
+from Generator import Generate
 from CSV import CSV
 from Net import SystreDB, Net
 from Visualizer import GraphPlot
 from SecondaryBuildingUnit import SBU
 #from CreateInput import SBUFileRead
 from random import randint
+import numpy as np
 import os
 
 class JobHandler(object):
@@ -63,34 +65,16 @@ class JobHandler(object):
             # Currently terminates without trying to build if a report on the 
             # sbu data is requested.. this can be changed.
             Terminate()
-
         self._pop_unwanted_sbus()
         self._pop_unwanted_topologies()
-        n = Net(self._topologies['pcu'])
-        n.voltage = self._topologies.voltages['pcu']
-        n.get_lattice_basis()
-        n.get_cycle_basis()
-        n.get_cocycle_basis()
-        n.barycentric_embedding()
-        s = GraphPlot(n)
-        s.view_graph()
-        s.view_placement((0.5, 0.5, 0.5))
-        Terminate()
-        for top in self.options.topologies:
-            info("Starting with the topology: %s"%top)
-            # delete all SBUs that are not listed in the ini file if
-            # no specific combinations are requested.
-            if not self.options.sbu_combinations:
-                self._pop_unwanted_sbus()
-            sbu_list = self._topologies[top]
-            self._build_structures(sbu_list)
+        self._build_structures()
 
-    def _build_structures(self, sbu_list):
+    def _get_degrees(self, list):
+        return [i for i, j in enumerate(list) if j]
+
+    def _build_structures(self):
         """Pass the sbu combinations to a MOF building algorithm."""
-        if not sbu_list:
-            info("No SBUs found!")
-            return
-        run = Generate(self.options, sbu_list)
+        run = Generate(self.options, self.sbu_pool)
         # generate the combinations of SBUs to build
         if self.options.sbu_combinations:
             combinations = run.combinations_from_options()
@@ -100,6 +84,30 @@ class JobHandler(object):
 
         # generate the MOFs.
         for combo in combinations:
+            node_degree = [i.degree for i in set(combo)]
+            node_lin = [i.linear for i in set(combo)]
+            degree = [j for i, j in zip(node_lin, node_degree) if not i]
+            print degree
+            # find degrees of the sbus in the combo
+            for top in self._topologies.keys():
+                n = Net(self._topologies[top])
+                n.voltage = self._topologies.voltages[top]
+                if degree == self._get_degrees(n.graph.degree_histogram()):
+                    if n.shape > 18:
+                        pass
+                    else:
+                        print top
+                        n.get_lattice_basis()
+                        n.get_cycle_basis()
+                        n.get_cocycle_basis()
+                        print n.cycle_cocycle.shape
+                        print np.linalg.matrix_rank(n.cycle_cocycle)
+                        n.barycentric_embedding()
+                        print n.metric_tensor
+
+                    #g = GraphPlot(n)
+                    #g.view_placement()
+            Terminate()
             gen_counter = 0
             build = Build(self.options)
             extra = [j for i in combo for j in i.children]

@@ -118,17 +118,19 @@ class Net(object):
                 vect[inds] = -1.
             if self.cycle_cocycle_check(vect):
                 count += 1
-                v = np.reshape(vect, (1,self.shape))
-                if self.cocycle is None:
-                    self.cocycle = v 
-                else:
-                    self.cocycle = np.concatenate((self.cocycle,v))
+                self.cocycle = self.add_to_matrix(vect, self.cocycle)
 
         if count != size:
             print "ERROR - could not find a linear independent cocycle basis!"
             sys.exit()
-        self.cocycle = np.matrix(self.cocycle)
-        self.cocycle_rep = np.matrix(np.zeros((size, self.ndim)))
+        # special case - pcu
+        # NOTE : YOU WILL HAVE TO ADD 2 - coordinate nodes to pcu to get this to work!!!
+        if size == 0:
+            self.cocycle = None
+            self.cocycle_rep = None
+        else:
+            self.cocycle = np.matrix(self.cocycle)
+            self.cocycle_rep = np.matrix(np.zeros((size, self.ndim)))
   
     def cycle_cocycle_check(self, vect):
         if self.cocycle is None and self.cycle is None:
@@ -136,7 +138,8 @@ class Net(object):
         elif self.cocycle is None and self.cycle is not None:
             return self.check_linear_dependency(vect, self.cycle)
         else:
-            return self.check_linear_dependency(vect, self.cycle_cocycle)
+            return self.check_linear_dependency(vect, 
+                                self.add_to_matrix(self.cocycle, self.cycle))
 
     def get_cycle_basis(self):
         """Find the basis for the cycle vectors. The total number of cycle vectors
@@ -160,7 +163,7 @@ class Net(object):
         if self.lattice_basis is not None:
             self.cycle = self.add_to_matrix(self.lattice_basis, self.cycle)
             self.cycle_rep = self.add_to_matrix(np.identity(self.ndim), self.cycle_rep)
-
+            count += self.ndim
         for id, cycle in enumerate(c):
             if count >= n:
                 break
@@ -170,8 +173,8 @@ class Net(object):
             # REPLACE WITH CHECK_LINEAR_DEPENDENCY()
             check = self.cycle_cocycle_check(vect)
             if np.all(np.abs(volt) < 1.001) and check:
-                self.add_to_matrix(vect, self.cycle)
-                self.add_to_matrix(volt, self.cycle_rep)
+                self.cycle = self.add_to_matrix(vect, self.cycle)
+                self.cycle_rep = self.add_to_matrix(volt, self.cycle_rep)
                 count += 1
         self.cycle = np.matrix(self.cycle)
         self.cycle_rep = np.matrix(self.cycle_rep)
@@ -306,9 +309,12 @@ class Net(object):
         return [i[3] for i in edges]
 
     def get_arcs(self):
-        cocycle_rep = np.zeros((self.cocycle.shape[0], self.ndim))
-        return self.cycle_cocycle.I*np.concatenate((self.cycle_rep, cocycle_rep),
-                                                    axis=0)
+        if self.cocycle is not None:
+            cocycle_rep = np.zeros((self.cocycle.shape[0], self.ndim))
+            return self.cycle_cocycle.I*np.concatenate((self.cycle_rep, cocycle_rep),
+                                                       axis=0)
+        else:
+            return self.cycle_cocycle.I*self.cycle_rep
 
     def get_2d_params(self):
         self.metric_tensor = self.lattice_basis*self.projection*self.lattice_basis.T
@@ -347,10 +353,13 @@ class Net(object):
         #self.metric_tensor = self.lattice_basis*self.eon_projection*self.lattice_basis.T
 
     def barycentric_embedding(self):
-        self.cocycle_rep = np.zeros((self.cocycle.shape[0], 3))
-        self.periodic_rep = np.concatenate((self.cycle_rep,
+        if self.cocycle is not None:
+            self.cocycle_rep = np.zeros((self.cocycle.shape[0], 3))
+            self.periodic_rep = np.concatenate((self.cycle_rep,
                                             self.cocycle_rep),
                                             axis = 0)
+        else:
+            self.periodic_rep = self.cycle_rep
         self.get_metric_tensor()
         
 
@@ -424,6 +433,15 @@ class Net(object):
         try:
             return self._cycle_cocycle
         except AttributeError:
-            self._cycle_cocycle = np.concatenate((self.cycle, self.cocycle),
-                                                 axis = 0)
+            if self.cocycle is None and self.cycle is None:
+                raise AttributeError("Both the cycle and cocycle "+
+                                    "basis have not been allocated")
+            elif self.cocycle is None:
+                self._cycle_cocycle = self.cycle.copy()
+
+            elif self.cycle is None:
+                raise AttributeError("The cycle "+
+                                    "basis has not been allocated")
+            else:
+                self._cycle_cocycle = np.concatenate((self.cycle, self.cocycle))
             return self._cycle_cocycle

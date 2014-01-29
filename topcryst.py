@@ -87,11 +87,20 @@ class JobHandler(object):
             node_degree = [i.degree for i in set(combo)]
             node_lin = [i.linear for i in set(combo)]
             degree = [j for i, j in zip(node_lin, node_degree) if not i]
-            print degree
             # find degrees of the sbus in the combo
             for top in self._topologies.keys():
                 n = Net(self._topologies[top])
                 n.voltage = self._topologies.voltages[top]
+                #if n.shape < 25:
+                #    n.graph.show(edge_labels=True)
+                #    raw_input("Press any key\n")
+                #    n.voltage = self._topologies.voltages[top]
+                #    n.get_lattice_basis()
+                #    n.get_cycle_basis()
+                #    n.get_cocycle_basis()
+                #    n.barycentric_embedding()
+                #    g = GraphPlot(n)
+                #    g.view_placement(init=(0.2, 0.2, 0.3))
                 if degree == self._get_degrees(n.graph.degree_histogram()):
                     if n.shape > 18:
                         pass
@@ -100,13 +109,9 @@ class JobHandler(object):
                         n.get_lattice_basis()
                         n.get_cycle_basis()
                         n.get_cocycle_basis()
-                        print n.cycle_cocycle.shape
-                        print np.linalg.matrix_rank(n.cycle_cocycle)
                         n.barycentric_embedding()
-                        print n.metric_tensor
-
-                    #g = GraphPlot(n)
-                    #g.view_placement()
+                        g = GraphPlot(n)
+                        g.view_placement()
             Terminate()
             gen_counter = 0
             build = Build(self.options)

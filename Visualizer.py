@@ -103,18 +103,32 @@ class GraphPlot(object):
             self.cell = np.array([a_vec, b_vec, c_vec])
             
     def vertex_positions(self, edges, used, pos={}, bad_ones = {}):
-        """Recursive function to find the nodes in the unit cell."""
-        if len(pos) == self.net.graph.order() or not edges:
+        """Recursive function to find the nodes in the unit cell.
+        How it should be done:
+
+        Create a growing tree around the init placed vertex. Evaluate
+        which vertices wind up in the unit cell and place them.  Continue
+        growing from those vertices in the unit cell until all are found.
+        """
+        # NOTE: NOT WORKING
+        if len(pos.keys()) == self.net.graph.order() or not edges:
             # check if some of the nodes will naturally fall outside of the 
             # unit cell
-            if len(pos) != self.net.graph.order():
+            if len(pos.keys()) != self.net.graph.order():
                 fgtn = set(self.net.graph.vertices()).difference(pos.keys())
                 for node in fgtn:
                     poses = [e for e in bad_ones.keys() if node in e[:2]]
-                    # just take the first one.. who cares?
-                    pos.update({node:bad_ones[poses[0]]})
+                    # TODO(pboyd): find an edge which already has been placed
+                    # which corresponds to that node. then put it there
+                    if poses:
+                        # just take the first one.. who cares?
+                        pos.update({node:bad_ones[poses[0]]})
             return pos
         else:
+            # generate all positions from all edges growing outside of the current vertex
+            # iterate through each until an edge is found which leads to a vertex in the 
+            # unit cell.
+
             e = edges[0]
             if e[0] not in pos.keys() and e[1] not in pos.keys():
                 pass
@@ -137,7 +151,6 @@ class GraphPlot(object):
                 used.append(e)
                 edges = edges[1:]
             return self.vertex_positions(edges, used, pos, bad_ones)
-
 
     def powerset(self, iterable):
         s = list(iterable)

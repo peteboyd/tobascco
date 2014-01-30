@@ -70,7 +70,7 @@ class JobHandler(object):
         self._build_structures()
 
     def _get_degrees(self, list):
-        return [i for i, j in enumerate(list) if j]
+        return sorted([i for i, j in enumerate(list) if j])
 
     def _build_structures(self):
         """Pass the sbu combinations to a MOF building algorithm."""
@@ -86,12 +86,13 @@ class JobHandler(object):
         for combo in combinations:
             node_degree = [i.degree for i in set(combo)]
             node_lin = [i.linear for i in set(combo)]
-            degree = [j for i, j in zip(node_lin, node_degree) if not i]
+            degree = sorted([j for i, j in zip(node_lin, node_degree) if not i])
             # find degrees of the sbus in the combo
             for top in self._topologies.keys():
                 n = Net(self._topologies[top])
                 n.voltage = self._topologies.voltages[top]
                 #if n.shape < 25:
+                #    print top
                 #    n.graph.show(edge_labels=True)
                 #    raw_input("Press any key\n")
                 #    n.voltage = self._topologies.voltages[top]
@@ -102,9 +103,7 @@ class JobHandler(object):
                 #    g = GraphPlot(n)
                 #    g.view_placement(init=(0.2, 0.2, 0.3))
                 if degree == self._get_degrees(n.graph.degree_histogram()):
-                    if n.shape > 18:
-                        pass
-                    else:
+                    if n.shape < 26:
                         print top
                         n.get_lattice_basis()
                         n.get_cycle_basis()

@@ -8,8 +8,8 @@ import glog
 import ConfigParser
 from Generator import Generate
 from CSV import CSV
-from Net import SystreDB, Net
-from Visualizer import GraphPlot
+from Net import SystreDB
+from Builder import Build
 from SecondaryBuildingUnit import SBU
 #from CreateInput import SBUFileRead
 from random import randint
@@ -69,11 +69,14 @@ class JobHandler(object):
         self._pop_unwanted_topologies()
         self._build_structures()
 
-    def _get_degrees(self, list):
-        return sorted([i for i, j in enumerate(list) if j])
-
     def _build_structures(self):
         """Pass the sbu combinations to a MOF building algorithm."""
+        def combo_str(combo):
+            str = "("
+            for j in set(combo):
+                str += "%s, "%j.name
+            return str[:-2]+")"
+
         run = Generate(self.options, self.sbu_pool)
         # generate the combinations of SBUs to build
         if self.options.sbu_combinations:
@@ -84,13 +87,25 @@ class JobHandler(object):
 
         # generate the MOFs.
         for combo in combinations:
+            debug("Trying "+combo_str(combo))
             node_degree = [i.degree for i in set(combo)]
             node_lin = [i.linear for i in set(combo)]
             degree = sorted([j for i, j in zip(node_lin, node_degree) if not i])
+            build = Build()
+            build.sbus = list(set(combo))
             # find degrees of the sbus in the combo
             for top in self._topologies.keys():
-                n = Net(self._topologies[top])
-                n.voltage = self._topologies.voltages[top]
+                build.net = (self._topologies[top], self._topologies.voltages[top])
+                if build.check_net:
+                    info("Setting up %s"%(combo_str(combo)) +
+                            " with net %s"%(top))
+                    build.assign_vertices()
+                    build.assign_edges()
+
+                else:
+                    debug("Net %s does not support the same"%(top)+
+                            " connectivity offered by the SBUs")
+                Terminate()
                 #if n.shape < 25:
                 #    print top
                 #    n.graph.show(edge_labels=True)
@@ -104,6 +119,8 @@ class JobHandler(object):
                 #    g.view_placement(init=(0.2, 0.2, 0.3))
                 if degree == self._get_degrees(n.graph.degree_histogram()):
                     if n.shape < 26:
+                        build = Build()
+
                         print top
                         n.get_lattice_basis()
                         n.get_cycle_basis()

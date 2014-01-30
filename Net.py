@@ -154,6 +154,8 @@ class Net(object):
         """
 
         c = self.iter_cycles(node=self._graph.vertices()[0],
+                             edge=None,
+                             cycle=[],
                              used=[],
                              nodes_visited=[],
                              cycle_baggage=[],
@@ -267,6 +269,8 @@ class Net(object):
         """
         basis_vectors = []
         c = self.iter_cycles(node=self._graph.vertices()[0],
+                             edge=None,
+                             cycle=[],
                              used=[],
                              nodes_visited=[],
                              cycle_baggage=[],
@@ -274,7 +278,10 @@ class Net(object):
         self.lattice_basis = np.zeros((self.ndim, self.shape))
         for cycle in c:
             vect = np.zeros(self.shape)
-            vect[self.return_indices(cycle)] = self.return_coeff(cycle)
+            try:
+                vect[self.return_indices(cycle)] = self.return_coeff(cycle)
+            except IndexError:
+                print vect
             volt = self.get_voltage(vect)
             for id, e in enumerate(np.identity(self.ndim)):
                 if np.allclose(np.abs(volt), e):
@@ -378,6 +385,8 @@ class Net(object):
             return self._kernel
         except AttributeError:
             c = self.iter_cycles(node=self._graph.vertices()[0],
+                                 edge=None,
+                                 cycle=[],
                                  used=[],
                                  nodes_visited=[],
                                  cycle_baggage=[],

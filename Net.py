@@ -1,9 +1,12 @@
 import math
 import sys
 from sage.all import *
+import itertools
 from uuid import uuid4
 import numpy as np
-from scipy.optimize import fmin, minimize 
+from scipy.optimize import fmin_l_bfgs_b, minimize, anneal, brute, basinhopping, fsolve, root 
+sys.path.append('/home/pboyd/lib/lmfit-0.7.2')
+from lmfit import minimize, Parameters
 
 class SystreDB(dict):
     """A dictionary which reads a file of the same format read by Systre"""
@@ -330,29 +333,209 @@ class Net(object):
         gamma=math.acos(self.metric_tensor[1,0]/lena/lenb)*360/(2*math.pi)
         return lena, lenb, gamma
 
-    def min_function(self, cocyc_proj):
-        cocyc_rep = np.reshape(cocyc_proj, (self.cocycle.shape[0], 3))
-        self.periodic_rep = np.concatenate((self.cycle_rep,
-                                            cocyc_rep),
-                                           axis = 0)
+    def min_function_scalar(self, cocyc_proj):
+        cocyc_rep = np.reshape(cocyc_proj, (self.cocycle.shape[0], self.ndim))
+        self.periodic_rep = np.concatenate((self.cycle_rep,cocyc_rep))
         M = self._lattice_arcs*\
                 (self.lattice_basis*self.projection*self.lattice_basis.T)\
                 *self._lattice_arcs.T
-         
-        nz = np.nonzero(self.cocycle.T*self.cocycle)
-        return np.sum(np.absolute(M[nz] - self.colattice_dotmatrix[nz]))
+
+        nz = np.nonzero(self.colattice_dotmatrix)
+        # SF?
+        scale_factor = M.max()
+        sol = np.sum(np.absolute(np.absolute(M[nz]/scale_factor) - np.absolute(self.colattice_dotmatrix[nz])))
+        return sol
+    
+    def to_ind(self, str_obj):
+        return tuple([int(i) for i in str_obj.split('_')[1:]])
+
+    def min_function_lmfit(self, params):
+        rep = np.matrix(np.zeros((self.shape, self.ndim)))
+        mt = np.matrix(np.zeros((self.ndim,self.ndim)))
+        for p in params:
+            if p[0] == 'm':
+                i,j = self.to_ind(p)
+                mt[i,j] = params[p].value
+                mt[j,i] = params[p].value
+            elif p[0] == 'c':
+                rep[self.to_ind(p)] = params[p].value
+        #M = self._lattice_arcs*\
+        #        (self.lattice_basis*self.projection*self.lattice_basis.T)\
+        #        *self._lattice_arcs.T
+        la = self.cycle_cocycle.I*rep
+        M = la*mt*la.T
+        scale_factor = M.max()
+        for (i, j) in zip(*np.triu_indices_from(M)):
+            val = M[i,j]
+            if i != j:
+                v = val/np.sqrt(M[i,i])/np.sqrt(M[j,j])
+                M[i,j] = v
+                M[j,i] = v
+        for i, val in np.ndenumerate(np.diag(M)):
+            M[i,i] = val/scale_factor
+        nz = np.nonzero(np.triu(self.colattice_dotmatrix))
+        sol = np.array(np.absolute(M[nz]) - np.absolute(self.colattice_dotmatrix[nz]))
+        #sol = np.array(M[nz] - self.colattice_dotmatrix[nz])
+        return sol.flatten()
+
+    def min_function_array(self, cocyc_proj):
+        def _obtain_dp_sum(self, v, M):
+            edges = self.graph.outgoing_edges(v) + self.graph.incoming_edges(v)
+            inds = self.return_indices(edges)
+            combos = list(itertools.combinations_with_replacement(inds, 2))
+            t = tuple(map(tuple, np.array(combos).T))
+            #return np.sum(np.absolute(M[t]))
+            return np.array(M[t]).flatten()[:self.ndim]
+
+        cocyc_rep = np.reshape(cocyc_proj, (self.cocycle.shape[0], self.ndim))
+        self.periodic_rep = np.concatenate((self.cycle_rep,cocyc_rep))
+        M = self._lattice_arcs*\
+                (self.lattice_basis*self.projection*self.lattice_basis.T)\
+                *self._lattice_arcs.T
+
+        # For some reason the root finding functions require that the 
+        # return array be the same dimension as the input array...
+        # WHY is a mystery to me.
+        dp_sum = np.array([_obtain_dp_sum(i,M) for i in self.graph.vertices()[:-1]]).flatten()
+        dd_ = np.array([_obtain_dp_sum(i,self.colattice_dotmatrix) for i in self.graph.vertices()[:-1]]).flatten()
+
+        #nz = np.nonzero(self.colattice_dotmatrix)
+        #sol = np.array(M[nz] - self.colattice_dotmatrix[nz]).flatten()
+        sol = np.absolute(np.absolute(dp_sum) - np.absolute(dd_))
+        return sol
+
+    def init_params(self, init_guess):
+        params = Parameters()
+        for (i,j) in zip(*np.triu_indices_from(self.metric_tensor)):
+            val = self.metric_tensor[i,j]
+            if i == j:
+                params.add("m_%i_%i"%(i,j), value=val, vary=False, min=0.001) # NOT SURE WHAT THE MIN/MAX should be here!
+            else: 
+                params.add("m_%i_%i"%(i,j), value=val, vary=False, min=-1, max=1) # NOT SURE WHAT THE MIN/MAX should be here!
+        for (i,j), val in np.ndenumerate(self.cycle_rep.copy()):
+            if val == 0.:
+                params.add("cy_%i_%i"%(i,j), value=val, vary=False, min=0, max=1)
+            elif val == 1.:
+                params.add("cy_%i_%i"%(i,j), value=val, vary=False, min=0, max=1)
+            elif val == -1.:
+                params.add("cy_%i_%i"%(i,j), value=val, vary=False, min=-1, max=0)
+        pp = self.cycle_rep.shape[0]
+        for (i,j), val in np.ndenumerate(init_guess):
+            params.add("co_%i_%i"%(i+pp,j), value=val, vary=False, min=-1, max=1)
+        return params
+
+    def vary_cycle_rep_intonly(self, params):
+        for p in params:
+            if p.split("_")[0] == 'cy':
+                i,j = self.to_ind(p)
+                if abs(self.cycle_rep[i,j]) == 1.:
+                    params[p].vary = True
+                else:
+                    params[p].vary = False
+            else:
+                params[p].vary = False
+    
+    def vary_cycle_rep_all(self, params):
+        for p in params:
+            if p.split("_")[0] == 'cy':
+                params[p].vary = True
+            else:
+                params[p].vary = False
+
+    def vary_metric_tensor(self, params):
+        for p in params:
+            if p[0] == 'm':
+                params[p].vary = True
+            else:
+                params[p].vary = False
+
+    def vary_cocycle_rep(self, params):
+        for p in params:
+            if p.split("_")[0] == 'co':
+                params[p].vary = True
+            else:
+                params[p].vary = False
+
+    def vary_coc_mt(self, params):
+        for p in params:
+            if p.split("_")[0] == "co":
+                params[p].vary = True
+            elif p[0] == 'm':
+                params[p].vary = True
+            else:
+                params[p].vary = False
+
+    def vary_cyc_coc_mt(self, params):
+        for p in params:
+            if p.split("_")[0] == "cy":
+                i,j = self.to_ind(p)
+                if abs(self.cycle_rep[i,j]) == 1.:
+                    params[p].vary = True
+                else:
+                    params[p].vary = False
+            else:
+                params[p].vary = True
+    
+    def vary_all(self, params):
+        for p in params:
+            params[p].vary = True
 
     def get_embedding(self, init_guess=None):
+        self.barycentric_embedding()
         if init_guess is None:
-            init_guess = (np.zeros((self.cocycle.shape[0], 3))).flatten()
-        #cocycle = fmin(self.min_function, init_guess, maxfun=1e5, 
-        #                xtol=0.0000001, ftol=0.0000001)
+            init_guess = (np.zeros((self.num_nodes-1, self.ndim)))
+        # questionable bounds there boyd.
+        bounds = [(-1.,1.)]*(self.num_nodes-1)*self.ndim
+        #bounds = None
+        #cocycle = root(self.min_function_array,
+        #               init_guess)
+        # set up parameters class for the minimize function
+        params = self.init_params(init_guess)
+        #self.vary_cyc_coc_mt(params)
+        #nz = np.nonzero(self.colattice_dotmatrix)
+        #print self.colattice_dotmatrix[nz]
+        #print (self.lattice_arcs*self.metric_tensor*self.lattice_arcs.T)[nz]/0.125 
+        #for i in range(8):
+        #    if i%2 == 0:
+        #        self.vary_cocycle_rep(params)
+        #    else:
+        #        self.vary_metric_tensor(params)
+        #    cocycle = minimize(self.min_function_lmfit, params, method='leastsq')
+        #self.vary_metric_tensor(params)
+        #self.vary_cocycle_rep(params)
+        #self.vary_cyc_coc_mt(params)
+        self.vary_coc_mt(params)
+        #self.vary_all(params)
+        cocycle = minimize(self.min_function_lmfit, params, method='lbfgsb')
+        #self.vary_coc_mt(params)
+        #cocycle = minimize(self.min_function_lmfit, params, method='lbfgsb')
+        #q = np.empty((self.cocycle.shape[0], self.ndim))
+        q = np.empty((self.shape, self.ndim))
+        mt = np.empty((self.ndim, self.ndim))
+        for j in params:
+            print j, params[j].value
+            if j[0] == 'm':
+                i, k = self.to_ind(j)
+                mt[i,k] = params[j].value
+                mt[k,i] = params[j].value
+            elif j[0] == 'c':
+                q[self.to_ind(j)] = params[j].value
 
-        bounds = [(-1,1), (-1,1), (-1,1), (-1,1), (-1,1), (-1,1), (-1,1), (-1,1), (-1,1)]
-        cocycle = minimize(self.min_function, init_guess, method="L-BFGS-B", 
-                            tol=0.0000001, bounds=bounds)
+        #cocycle = minimize(self.min_function_scalar,
+        #                   init_guess,
+        #                   method="L-BFGS-B",
+        #                   bounds=bounds,
+        #                   options=self.lbfgsb_params
+        #                   )
+        #BRUTE DOES NOT SUPPORT VARIABLES > 32
+        #cocycle = brute(self.min_function_scalar, bounds, Ns=20, finish=None, disp=True)
+
+        #cocycle = basinhopping(self.min_function_scalar, init_guess)
+        #q = cocycle.x
+        #q = cocycle[0]
+        return np.matrix(mt.copy()), np.matrix(q.copy())
         return np.concatenate((self.cycle_rep, 
-                        np.reshape(cocycle.x, (self.cocycle.shape[0],3))),
+                        np.reshape(q, (self.cocycle.shape[0],3))),
                         axis=0)
 
     def get_metric_tensor(self):
@@ -361,14 +544,18 @@ class Net(object):
 
     def barycentric_embedding(self):
         if self.cocycle is not None:
-            self.cocycle_rep = np.zeros((self.cocycle.shape[0], 3))
+            self.cocycle_rep = np.zeros((self.num_nodes-1, self.ndim))
             self.periodic_rep = np.concatenate((self.cycle_rep,
                                             self.cocycle_rep),
                                             axis = 0)
         else:
             self.periodic_rep = self.cycle_rep
         self.get_metric_tensor()
-        
+    
+    def user_defined_embedding(self, cocycle_array):
+        self.cocycle_rep = cocycle_array.reshape(self.num_nodes-1, self.ndim)
+        self.periodic_rep = np.concatenate((self.cycle_rep, self.cocycle_rep))
+        self.get_metric_tensor()
 
     def get_3d_params(self):
         lena = math.sqrt(self.metric_tensor[0,0])
@@ -433,6 +620,7 @@ class Net(object):
     @property
     def graph(self):
         return self._graph
+    
     @graph.setter
     def graph(self, g):
         self._graph = DiGraph(g, multiedges=True, loops=True)
@@ -454,3 +642,32 @@ class Net(object):
             else:
                 self._cycle_cocycle = np.concatenate((self.cycle, self.cocycle))
             return self._cycle_cocycle
+
+    @property
+    def anneal_params(self):
+        return {
+            'schedule'      : 'boltzmann',
+            'maxfev'        : None,
+            'maxiter'       : 500,
+            'maxaccept'     : None,
+            'ftol'          : 1e-6,
+            'T0'            : None,
+            'Tf'            : 1e-12,
+            'boltzmann'     : 1.0,
+            'learn_rate'    : 0.5,
+            'quench'        : 1.0,
+            'm'             : 1.0,
+            'n'             : 1.0,
+            'lower'         : -100,
+            'upper'         : 100,
+            'dwell'         : 250,
+            'disp'          : True
+            }
+
+    @property
+    def lbfgsb_params(self):
+        return {
+            'ftol'          : 0.00001,
+            'gtol'          : 0.001,
+            'maxiter'       : 15000,
+            }

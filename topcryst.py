@@ -101,6 +101,8 @@ class JobHandler(object):
                             " with net %s"%(top))
                     build.assign_vertices()
                     build.assign_edges()
+                    build.obtain_embedding()
+                    #build.show()
 
                 else:
                     debug("Net %s does not support the same"%(top)+

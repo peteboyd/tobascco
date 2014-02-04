@@ -9,7 +9,7 @@ class ConnectPoint(object):
         """
         null = np.array([0., 0., 0., 1.])
         self.identifier = None
-        self.origin = null.copy()
+        self.origin = np.zeros(4) 
         self.y = null.copy()
         self.z = null.copy()
         # flag to determine if the point has been attached
@@ -51,17 +51,3 @@ class ConnectPoint(object):
     
     def translate(self, vector):
         self.origin[:3] += vector
-    
-    def __neg__(self):
-        self.z[:3] = -self.z[:3]
-        return self
-        
-    @property
-    def normal(self):
-        try:
-            return self._normal
-        except AttributeError:
-            normal = np.cross(self.y[:3], self.z[:3])
-            self._normal = normal / np.linalg.norm(normal)
-            return self._normal
-    

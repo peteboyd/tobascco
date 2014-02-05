@@ -4,6 +4,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import itertools
 from sage.all import *
+import Net
 
 DEG2RAD = np.pi / 180.0
 
@@ -102,56 +103,6 @@ class GraphPlot(object):
             c_vec = np.array([c_x, c_y, (c_mag**2 - c_x**2 - c_y**2)**0.5])
             self.cell = np.array([a_vec, b_vec, c_vec])
             
-    def vertex_positions(self, edges, used, pos={}, bad_ones = {}):
-        """Recursive function to find the nodes in the unit cell.
-        How it should be done:
-
-        Create a growing tree around the init placed vertex. Evaluate
-        which vertices wind up in the unit cell and place them.  Continue
-        growing from those vertices in the unit cell until all are found.
-        """
-        # NOTE: NOT WORKING
-        if len(pos.keys()) == self.net.graph.order() or not edges:
-            # check if some of the nodes will naturally fall outside of the 
-            # unit cell
-            if len(pos.keys()) != self.net.graph.order():
-                fgtn = set(self.net.graph.vertices()).difference(pos.keys())
-                for node in fgtn:
-                    poses = [e for e in bad_ones.keys() if node in e[:2]]
-                    # TODO(pboyd): find an edge which already has been placed
-                    # which corresponds to that node. then put it there
-                    if poses:
-                        # just take the first one.. who cares?
-                        pos.update({node:bad_ones[poses[0]]})
-            return pos
-        else:
-            # generate all positions from all edges growing outside of the current vertex
-            # iterate through each until an edge is found which leads to a vertex in the 
-            # unit cell.
-
-            e = edges[0]
-            if e[0] not in pos.keys() and e[1] not in pos.keys():
-                pass
-            elif e[0] not in pos.keys() or e[1] not in pos.keys():
-                from_v = e[0] if e[0] in pos.keys() else e[1]
-                to_v = e[1] if e[1] not in pos.keys() else e[0]
-                coeff = 1. if e in self.net.graph.outgoing_edges(from_v) else -1.
-                index = self.net.get_index(e)
-                to_pos = coeff*np.array(self.net.lattice_arcs)[index] + pos[from_v]
-                newedges = []
-                if np.all(np.where((to_pos >= -0.00001) & (to_pos < 1.00001), True, False)):
-                    pos.update({to_v:to_pos})
-                    used.append(e)
-                    ee = self.net.graph.outgoing_edges(to_v) + self.net.graph.incoming_edges(to_v)
-                    newedges = [i for i in ee if i not in used and i not in edges]
-                else:
-                    bad_ones.update({e:to_pos})
-                edges = newedges + edges[1:]
-            else:
-                used.append(e)
-                edges = edges[1:]
-            return self.vertex_positions(edges, used, pos, bad_ones)
-
     def powerset(self, iterable):
         s = list(iterable)
         return itertools.chain.from_iterable(itertools.combinations(s, r) for r in range(len(s)+1))
@@ -192,7 +143,7 @@ class GraphPlot(object):
         # set the first node down at the init position
         V = self.net.graph.vertices()[0] 
         edges = self.net.graph.outgoing_edges(V) + self.net.graph.incoming_edges(V)
-        unit_cell_vertices = self.vertex_positions(edges, [], pos={V:init})
+        unit_cell_vertices = self.net.vertex_positions(edges, [], pos={V:init})
         for key, value in unit_cell_vertices.items():
             self.add_point(p=np.array(value), label=key)
             for edge in self.net.graph.outgoing_edges(key):

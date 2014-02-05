@@ -19,6 +19,15 @@ def calc_angle(v1, v2):
             return np.pi
     return angle
 
+def calc_axis(v1, v2):
+    v1_u = v1[:3] / np.linalg.norm(v1[:3])
+    v2_u = v2[:3] / np.linalg.norm(v2[:3])
+    if np.allclose(v1_u, v2_u) or \
+                np.allclose(v1_u, -v2_u): 
+        return np.array([1., 0., 0.])
+    a = np.cross(v1_u, v2_u)
+    return a / np.linalg.norm(a)
+
 def rotation_matrix(axis, angle, point=None):
     """
     returns a 3x3 rotation matrix based on the

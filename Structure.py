@@ -238,21 +238,17 @@ class Cell(object):
         self._params[3:6] = [LinAlg.calc_angle(i, j) for i, j in
                             reversed(list(itertools.combinations(self.lattice, 2)))]
 
-    def reorient_lattice(self):
-        self.__mkparam()
-        a, b, c = self._params[:3]
-        al, be, ga = self._params[3:]
-        cos_be = np.cos(be)
-        cos_ga = np.cos(ga)
-        sin_ga = np.sin(ga)
-        cos_al = np.cos(al)
-        c_x = c*cos_be
-        c_y = c*(cos_al - cos_ga*cos_be)/sin_ga
-        c_z = np.sqrt(c**2 - c_x**2 - c_y**2)
-        self.lattice = np.array([[a, 0., 0.],
-                                [b*cos_ga, b*sin_ga, 0.],
-                                [c_x, c_y, c_z]])
-        del self._ilattice # re-compute the inverse
+    def __mkcell(self, params):
+        """Update the cell representation to match the parameters. Currently only 
+        builds a 3d cell."""
+        a_mag, b_mag, c_mag = params[:3]
+        alpha, beta, gamma = [x * DEG2RAD for x in params[3:]]
+        a_vec = np.array([a_mag, 0.0, 0.0])
+        b_vec = np.array([b_mag * np.cos(gamma), b_mag * np.sin(gamma), 0.0])
+        c_x = c_mag * np.cos(beta)
+        c_y = c_mag * (np.cos(alpha) - np.cos(gamma) * np.cos(beta)) / np.sin(gamma)
+        c_vec = np.array([c_x, c_y, (c_mag**2 - c_x**2 - c_y**2)**0.5])
+        self.lattice = np.array([a_vec, b_vec, c_vec])
 
     @property
     def a(self):

@@ -6,8 +6,6 @@ import itertools
 from sage.all import *
 import Net
 
-DEG2RAD = np.pi / 180.0
-
 
 class GraphPlot(object):
     
@@ -89,13 +87,13 @@ class GraphPlot(object):
         """Update the cell representation to match the parameters."""
         if self.two_dimensional:
             a_mag, b_mag = self.params[:2]
-            gamma = DEG2RAD * self.params[2]
+            gamma = self.params[2]
             a_vec = np.array([a_mag, 0.])
             b_vec = np.array([b_mag * np.cos(gamma), b_mag * np.sin(gamma)])
             self.cell = np.array([a_vec, b_vec])
         else:
             a_mag, b_mag, c_mag = self.params[:3]
-            alpha, beta, gamma = [x * DEG2RAD for x in self.params[3:]]
+            alpha, beta, gamma = self.params[3:]
             a_vec = np.array([a_mag, 0.0, 0.0])
             b_vec = np.array([b_mag * np.cos(gamma), b_mag * np.sin(gamma), 0.0])
             c_x = c_mag * np.cos(beta)

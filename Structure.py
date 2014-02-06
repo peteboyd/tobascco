@@ -2,22 +2,41 @@
 import numpy as np
 import itertools
 from scipy.spatial import distance
-from LinAlg import LinAlg, RAD2DEG
+from LinAlg import DEG2RAD, RAD2DEG
 from element_properties import Radii
 from CIFer import CIF
 
 class Structure(object):
     """Structure class contains atom info for MOF."""
     
-    def __init__(self, options, name=None):
+    def __init__(self, options, name=None, **kwargs):
         self.name = name
         self.options = options
-        self.cell = Cell()
+        try:
+            self.cell = Cell()
+            self.cell.mkcell(kwargs['params'])
+        except KeyError:
+            self.cell = Cell()
         self.atoms = []
         self.bonds = {}
         self.fragments = [] 
         self.build_directives = None
         self.charge = 0
+        self.sbu_count = 0
+        self.atom_count = 0
+
+    def add_sbu(self, sbu_obj):
+        sbu_obj.update_atoms(self.atom_count, self.sbu_count)
+        self.charge += sbu_obj.charge
+        self.fragments.append((sbu_obj.name, self.sbu_count))
+        self.atoms += sbu_obj.atoms
+        if any([i in self.bonds.keys() for i in sbu_obj.bonds.keys()]):
+            warning("Two bonds with the same indices found when forming"+
+                    " the bonding table for the structure! Check the final"+
+                    " atom bonding to determine any anomalies.")
+        self.bonds.update(sbu_obj.bonds)
+        self.sbu_count += 1
+        self.atom_count += len(sbu_obj)
 
     def from_build(self, build_obj):
         """Build structure up from the builder object"""
@@ -112,15 +131,6 @@ class Structure(object):
     def detect_symmetry(self):
         pass
 
-    def re_orient(self):
-        """Adjusts cell vectors to lie in the standard directions."""
-        frac_coords = [i.in_cell_scaled(self.cell.inverse) 
-                        for i in self.atoms]
-        self.cell.reorient_lattice()
-        for id, atom in enumerate(self.atoms):
-            atom.coordinates[:3] = np.dot(frac_coords[id],
-                                          self.cell.lattice)
-
     def write_cif(self):
         """Write structure information to a cif file."""
         self._compute_bond_info()
@@ -132,7 +142,7 @@ class Structure(object):
         c.add_data("data", _audit_creation_date=
                             CIF.label(c.get_time()))
         c.add_data("data", _audit_creation_method=
-                            CIF.label("Genstruct v.%4.3f"%(
+                            CIF.label("TopCryst v.%s"%(
                                     self.options.version)))
         if self.charge:
             c.add_data("data", _chemical_properties_physical=
@@ -173,7 +183,8 @@ class Structure(object):
             c.add_data("atoms", _atom_site_description=
                                     CIF.atom_site_description(atom.force_field_type))
             c.add_data("atoms", _atom_site_fragment=CIF.atom_site_fragment(atom.sbu_order))
-            fc = atom.scaled_pos(self.cell.inverse)
+            #fc = atom.scaled_pos(self.cell.inverse)
+            fc = atom.in_cell_scaled(self.cell.inverse)
             c.add_data("atoms", _atom_site_fract_x=
                                     CIF.atom_site_fract_x(fc[0]))
             c.add_data("atoms", _atom_site_fract_y=
@@ -238,11 +249,12 @@ class Cell(object):
         self._params[3:6] = [LinAlg.calc_angle(i, j) for i, j in
                             reversed(list(itertools.combinations(self.lattice, 2)))]
 
-    def __mkcell(self, params):
+    def mkcell(self, params):
         """Update the cell representation to match the parameters. Currently only 
         builds a 3d cell."""
+        self._params = params 
         a_mag, b_mag, c_mag = params[:3]
-        alpha, beta, gamma = [x * DEG2RAD for x in params[3:]]
+        alpha, beta, gamma = params[3:] 
         a_vec = np.array([a_mag, 0.0, 0.0])
         b_vec = np.array([b_mag * np.cos(gamma), b_mag * np.sin(gamma), 0.0])
         c_x = c_mag * np.cos(beta)

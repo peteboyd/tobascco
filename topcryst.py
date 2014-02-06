@@ -107,7 +107,6 @@ class JobHandler(object):
                             " with net %s"%(top))
                     build.assign_vertices()
                     build.assign_edges()
-                    build.obtain_embedding()
                     rep = np.array([[ 1.    ,  0.    ,  0.    ],
                                     [ 0.    ,  1.    ,  0.    ],
                                     [ 0.    ,  0.    ,  1.    ],
@@ -137,6 +136,7 @@ class JobHandler(object):
                                    [   0.0132, 436.544 ,   0.057 ],
                                    [  -0.009 ,   0.057 , 436.5215]])
 
+                    build.obtain_embedding()
                     #build.custom_embedding(rep, mt)
                     #build.show()
 

@@ -6,7 +6,7 @@ from uuid import uuid4
 import numpy as np
 from scipy.optimize import fmin_l_bfgs_b, minimize, anneal, brute, basinhopping, fsolve, root 
 sys.path.append('/home/pboyd/lib/lmfit-0.7.2')
-from lmfit import minimize, Parameters
+from lmfit import minimize, Parameters, Minimizer
 
 class SystreDB(dict):
     """A dictionary which reads a file of the same format read by Systre"""
@@ -499,7 +499,9 @@ class Net(object):
         #self.vary_cyc_coc_mt(params)
         self.vary_coc_mt(params)
         #self.vary_all(params)
-        cocycle = minimize(self.min_function_lmfit, params, method='lbfgsb')
+        #cocycle = minimize(self.min_function_lmfit, params, method='lbfgsb')
+        cocycle = Minimizer(self.min_function_lmfit, params)
+        cocycle.lbfgsb(factr=1.)
         #self.vary_coc_mt(params)
         #cocycle = minimize(self.min_function_lmfit, params, method='lbfgsb')
         #q = np.empty((self.cocycle.shape[0], self.ndim))
@@ -574,7 +576,7 @@ class Net(object):
         which vertices wind up in the unit cell and place them.  Continue
         growing from those vertices in the unit cell until all are found.
         """
-        # NOTE: NOT WORKING
+        # NOTE: NOT WORKING - FIX!!!
         if len(pos.keys()) == self.graph.order() or not edges:
             # check if some of the nodes will naturally fall outside of the 
             # unit cell

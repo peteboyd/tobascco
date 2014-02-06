@@ -29,6 +29,8 @@ class Structure(object):
         sbu_obj.update_atoms(self.atom_count, self.sbu_count)
         self.charge += sbu_obj.charge
         self.fragments.append((sbu_obj.name, self.sbu_count))
+        for atom in sbu_obj.atoms:
+            atom.coordinates = atom.in_cell(self.cell.lattice, self.cell.inverse)
         self.atoms += sbu_obj.atoms
         if any([i in self.bonds.keys() for i in sbu_obj.bonds.keys()]):
             warning("Two bonds with the same indices found when forming"+
@@ -183,8 +185,7 @@ class Structure(object):
             c.add_data("atoms", _atom_site_description=
                                     CIF.atom_site_description(atom.force_field_type))
             c.add_data("atoms", _atom_site_fragment=CIF.atom_site_fragment(atom.sbu_order))
-            #fc = atom.scaled_pos(self.cell.inverse)
-            fc = atom.in_cell_scaled(self.cell.inverse)
+            fc = atom.scaled_pos(self.cell.inverse)
             c.add_data("atoms", _atom_site_fract_x=
                                     CIF.atom_site_fract_x(fc[0]))
             c.add_data("atoms", _atom_site_fract_y=

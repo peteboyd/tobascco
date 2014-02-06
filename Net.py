@@ -326,13 +326,6 @@ class Net(object):
         else:
             return self.cycle_cocycle.I*self.cycle_rep
 
-    def get_2d_params(self):
-        self.metric_tensor = self.lattice_basis*self.projection*self.lattice_basis.T
-        lena=math.sqrt(self.metric_tensor[0,0])
-        lenb=math.sqrt(self.metric_tensor[1,1])
-        gamma=math.acos(self.metric_tensor[1,0]/lena/lenb)*360/(2*math.pi)
-        return lena, lenb, gamma
-
     def min_function_scalar(self, cocyc_proj):
         cocyc_rep = np.reshape(cocyc_proj, (self.cocycle.shape[0], self.ndim))
         self.periodic_rep = np.concatenate((self.cycle_rep,cocyc_rep))
@@ -513,7 +506,7 @@ class Net(object):
         q = np.empty((self.shape, self.ndim))
         mt = np.empty((self.ndim, self.ndim))
         for j in params:
-            print j, params[j].value
+            #print j, params[j].value
             if j[0] == 'm':
                 i, k = self.to_ind(j)
                 mt[i,k] = params[j].value
@@ -557,13 +550,20 @@ class Net(object):
         self.periodic_rep = np.concatenate((self.cycle_rep, self.cocycle_rep))
         self.get_metric_tensor()
 
+    def get_2d_params(self):
+        self.metric_tensor = self.lattice_basis*self.projection*self.lattice_basis.T
+        lena=math.sqrt(self.metric_tensor[0,0])
+        lenb=math.sqrt(self.metric_tensor[1,1])
+        gamma=math.acos(self.metric_tensor[1,0]/lena/lenb)
+        return lena, lenb, gamma
+
     def get_3d_params(self):
         lena = math.sqrt(self.metric_tensor[0,0])
         lenb = math.sqrt(self.metric_tensor[1,1])
         lenc = math.sqrt(self.metric_tensor[2,2])
-        gamma = math.acos(self.metric_tensor[0,1]/lena/lenb)*360./(2.*math.pi)
-        beta = math.acos(self.metric_tensor[0,2]/lena/lenc)*360./(2.*math.pi)
-        alpha = math.acos(self.metric_tensor[1,2]/lenb/lenc)*360./(2.*math.pi)
+        gamma = math.acos(self.metric_tensor[0,1]/lena/lenb)
+        beta = math.acos(self.metric_tensor[0,2]/lena/lenc)
+        alpha = math.acos(self.metric_tensor[1,2]/lenb/lenc)
         return lena, lenb, lenc, alpha, beta, gamma
    
     def vertex_positions(self, edges, used, pos={}, bad_ones = {}):

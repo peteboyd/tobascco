@@ -1,5 +1,8 @@
 import numpy as np
 
+RAD2DEG = 180./np.pi 
+DEG2RAD = np.pi/180.
+
 def calc_angle(v1, v2):
     """Returns the angle in radians between vectors 'v1' and 'v2'"""
     v1_u = v1[:3] / np.linalg.norm(v1[:3])
@@ -10,7 +13,7 @@ def calc_angle(v1, v2):
     if np.allclose(v1_u, v2_u): 
         return 0.0
     elif np.allclose(v1_u, -v2_u): 
-        return np.pi 
+        return np.pi
     angle = np.arccos(np.dot(v1_u, v2_u))
     if np.isnan(angle):
         if np.allclose(v1_u, v2_u):

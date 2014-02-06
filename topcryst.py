@@ -16,6 +16,12 @@ from random import randint
 import numpy as np
 import os
 
+try:
+    __version_info__ = (0, 0, 0, int("$Revision$".strip("$Revision: ")))
+except ValueError:
+    __version_info__ = (0, 0, 0, 0)
+__version__ = "%i.%i.%i.%i"%__version_info__
+
 class JobHandler(object):
     """determines what job(s) to run based on arguments from the
     options class.
@@ -91,7 +97,7 @@ class JobHandler(object):
             node_degree = [i.degree for i in set(combo)]
             node_lin = [i.linear for i in set(combo)]
             degree = sorted([j for i, j in zip(node_lin, node_degree) if not i])
-            build = Build()
+            build = Build(self.options)
             build.sbus = list(set(combo))
             # find degrees of the sbus in the combo
             for top in self._topologies.keys():
@@ -102,6 +108,36 @@ class JobHandler(object):
                     build.assign_vertices()
                     build.assign_edges()
                     build.obtain_embedding()
+                    rep = np.array([[ 1.    ,  0.    ,  0.    ],
+                                    [ 0.    ,  1.    ,  0.    ],
+                                    [ 0.    ,  0.    ,  1.    ],
+                                    [ 0.    ,  1.    ,  1.    ],
+                                    [ 1.    ,  1.    ,  1.    ],
+                                    [-1.    ,  1.    ,  1.    ],
+                                    [ 0.    ,  1.    ,  1.    ],
+                                    [ 0.    ,  0.    ,  1.    ],
+                                    [ 0.    ,  1.    ,  1.    ],
+                                    [ 0.    ,  0.    ,  1.    ],
+                                    [ 1.    ,  0.    ,  1.    ],
+                                    [-0.    , -0.0001,  0.0266],
+                                    [ 0.0212, -0.0209,  0.0209],
+                                    [-0.0212, -0.0209,  0.0212],
+                                    [ 0.0212,  0.0212,  0.021 ],
+                                    [-0.021 ,  0.0211,  0.0207],
+                                    [ 0.0262, -0.    ,  0.0001],
+                                    [ 0.0001, -0.0265, -0.    ],
+                                    [-0.0261, -0.    ,  0.0001],
+                                    [ 0.    ,  0.0261,  0.0001],
+                                    [ 0.0209,  0.0211, -0.0209],
+                                    [ 0.021 , -0.0212, -0.021 ],
+                                    [-0.0212, -0.0209, -0.0209],
+                                    [-0.0212,  0.0211, -0.0214]])
+
+                    mt = np.array([[ 436.5189,   0.0132,  -0.009 ],
+                                   [   0.0132, 436.544 ,   0.057 ],
+                                   [  -0.009 ,   0.057 , 436.5215]])
+
+                    #build.custom_embedding(rep, mt)
                     #build.show()
 
                 else:
@@ -268,10 +304,10 @@ class JobHandler(object):
 
 def main():
     options = config.Options()
+    options.version = __version__
     log = glog.Log(options)
     jerb = JobHandler(options)
     jerb.direct_job()
     
 if __name__ == '__main__':
     main()
-

@@ -1,6 +1,7 @@
 #!/usr/bin/env sage-python
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from logging import info, debug, warning, error
 import numpy as np
 import itertools
 from sage.all import *
@@ -134,7 +135,8 @@ class GraphPlot(object):
     
     def view_graph(self):
         self.net.graph.show(edge_labels=True)
-        raw_input("Wait for Xwindow, then press any key...\n")
+        info("Wait for Xwindow, then press any key...")
+        raw_input("")
 
     def view_placement(self, init=(0., 0., 0.)):
         init = np.array(init)
@@ -148,9 +150,13 @@ class GraphPlot(object):
                 ind = self.net.get_index(edge)
                 arc = np.array(self.net.lattice_arcs)[ind]
                 self.add_edge(arc, origin=np.array(value), label=edge[2])
+            for edge in self.net.graph.incoming_edges(key):
+                ind = self.net.get_index(edge)
+                arc = -np.array(self.net.lattice_arcs)[ind]
+                self.add_edge(arc, origin=np.array(value), label=edge[2])
         mx = max(self.params[:3])
         self.ax.set_xlim3d(0,mx)
         self.ax.set_ylim3d(0,mx)
         self.ax.set_zlim3d(0,mx)
         plt.show()
-
+        #plt.savefig('name.png')

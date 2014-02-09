@@ -342,35 +342,6 @@ class Net(object):
     def to_ind(self, str_obj):
         return tuple([int(i) for i in str_obj.split('_')[1:]])
 
-    def min_function_lmfit(self, params):
-        rep = np.matrix(np.zeros((self.shape, self.ndim)))
-        mt = np.matrix(np.zeros((self.ndim,self.ndim)))
-        for p in params:
-            if p[0] == 'm':
-                i,j = self.to_ind(p)
-                mt[i,j] = params[p].value
-                mt[j,i] = params[p].value
-            elif p[0] == 'c':
-                rep[self.to_ind(p)] = params[p].value
-        #M = self._lattice_arcs*\
-        #        (self.lattice_basis*self.projection*self.lattice_basis.T)\
-        #        *self._lattice_arcs.T
-        la = self.cycle_cocycle.I*rep
-        M = la*mt*la.T
-        scale_factor = M.max()
-        for (i, j) in zip(*np.triu_indices_from(M)):
-            val = M[i,j]
-            if i != j:
-                v = val/np.sqrt(M[i,i])/np.sqrt(M[j,j])
-                M[i,j] = v
-                M[j,i] = v
-        for i, val in np.ndenumerate(np.diag(M)):
-            M[i,i] = val/scale_factor
-        nz = np.nonzero(np.triu(self.colattice_dotmatrix))
-        sol = np.array(np.absolute(M[nz]) - np.absolute(self.colattice_dotmatrix[nz]))
-        #sol = np.array(M[nz] - self.colattice_dotmatrix[nz])
-        return sol.flatten()
-
     def min_function_array(self, cocyc_proj):
         def _obtain_dp_sum(self, v, M):
             edges = self.graph.outgoing_edges(v) + self.graph.incoming_edges(v)
@@ -401,10 +372,14 @@ class Net(object):
         params = Parameters()
         for (i,j) in zip(*np.triu_indices_from(self.metric_tensor)):
             val = self.metric_tensor[i,j]
+            #val = np.identity(3)[i,j]
             if i == j:
                 params.add("m_%i_%i"%(i,j), value=val, vary=False, min=0.001) # NOT SURE WHAT THE MIN/MAX should be here!
-            else: 
-                params.add("m_%i_%i"%(i,j), value=val, vary=False, min=-1, max=1) # NOT SURE WHAT THE MIN/MAX should be here!
+            else:
+                #NB the inner products of <a,b> should not be limited to the range [-1,1]! The code is well behaved
+                # with these constraints so un-comment the line below if things go awry.
+                #params.add("m_%i_%i"%(i,j), value=val, vary=False, min=-1, max=1) # NOT SURE WHAT THE MIN/MAX should be here!
+                params.add("m_%i_%i"%(i,j), value=val, vary=False)
         for (i,j), val in np.ndenumerate(self.cycle_rep.copy()):
             if val == 0.:
                 params.add("cy_%i_%i"%(i,j), value=val, vary=False, min=0, max=1)
@@ -472,6 +447,38 @@ class Net(object):
     def vary_all(self, params):
         for p in params:
             params[p].vary = True
+    
+    def min_function_lmfit(self, params):
+        rep = np.matrix(np.zeros((self.shape, self.ndim)))
+        mt = np.matrix(np.zeros((self.ndim,self.ndim)))
+        for p in params:
+            if p[0] == 'm':
+                i,j = self.to_ind(p)
+                mt[i,j] = params[p].value
+                mt[j,i] = params[p].value
+            elif p[0] == 'c':
+                rep[self.to_ind(p)] = params[p].value
+        #M = self._lattice_arcs*\
+        #        (self.lattice_basis*self.projection*self.lattice_basis.T)\
+        #        *self._lattice_arcs.T
+        la = self.cycle_cocycle.I*rep
+        M = la*mt*la.T
+        scale_factor = M.max()
+        for (i, j) in zip(*np.triu_indices_from(M)):
+            val = M[i,j]
+            if i != j:
+                v = val/np.sqrt(M[i,i])/np.sqrt(M[j,j])
+                M[i,j] = v
+                M[j,i] = v
+        for i, val in np.ndenumerate(np.diag(M)):
+            M[i,i] = val/scale_factor
+        nz = np.nonzero(np.triu(self.colattice_dotmatrix))
+        # THIS WORKS UNCOMMENT IF HAVING PROBLEMS but can give arbitrary angles 
+        #sol = np.array(np.absolute(M[nz]) - np.absolute(self.colattice_dotmatrix[nz]))
+        sol = (np.array(M[nz] - self.colattice_dotmatrix[nz]))
+        #sol = (np.array(self.colattice_dotmatrix[nz] - M[nz]))
+        return sol.flatten()
+
 
     def get_embedding(self, init_guess=None):
         self.barycentric_embedding()
@@ -500,8 +507,9 @@ class Net(object):
         self.vary_coc_mt(params)
         #self.vary_all(params)
         #cocycle = minimize(self.min_function_lmfit, params, method='lbfgsb')
-        cocycle = Minimizer(self.min_function_lmfit, params)
-        cocycle.lbfgsb(factr=1.)
+        min = Minimizer(self.min_function_lmfit, params)
+        min.lbfgsb(factr=0.1, epsilon=1e-5, pgtol=1e-6)
+        #min.leastsq(xtol=1.e-7, ftol=1.e-8)
         #self.vary_coc_mt(params)
         #cocycle = minimize(self.min_function_lmfit, params, method='lbfgsb')
         #q = np.empty((self.cocycle.shape[0], self.ndim))
@@ -567,7 +575,7 @@ class Net(object):
         beta = math.acos(self.metric_tensor[0,2]/lena/lenc)
         alpha = math.acos(self.metric_tensor[1,2]/lenb/lenc)
         return lena, lenb, lenc, alpha, beta, gamma
-   
+    
     def vertex_positions(self, edges, used, pos={}, bad_ones = {}):
         """Recursive function to find the nodes in the unit cell.
         How it should be done:
@@ -577,24 +585,12 @@ class Net(object):
         growing from those vertices in the unit cell until all are found.
         """
         # NOTE: NOT WORKING - FIX!!!
-        if len(pos.keys()) == self.graph.order() or not edges:
-            # check if some of the nodes will naturally fall outside of the 
-            # unit cell
-            if len(pos.keys()) != self.graph.order():
-                fgtn = set(self.graph.vertices()).difference(pos.keys())
-                for node in fgtn:
-                    poses = [e for e in bad_ones.keys() if node in e[:2]]
-                    # TODO(pboyd): find an edge which already has been placed
-                    # which corresponds to that node. then put it there
-                    if poses:
-                        # just take the first one.. who cares?
-                        pos.update({node:bad_ones[poses[0]]})
+        if len(pos.keys()) == self.graph.order():
             return pos
         else:
             # generate all positions from all edges growing outside of the current vertex
             # iterate through each until an edge is found which leads to a vertex in the 
             # unit cell.
-
             e = edges[0]
             if e[0] not in pos.keys() and e[1] not in pos.keys():
                 pass
@@ -605,13 +601,12 @@ class Net(object):
                 index = self.get_index(e)
                 to_pos = coeff*np.array(self.lattice_arcs)[index] + pos[from_v]
                 newedges = []
-                if np.all(np.where((to_pos >= -0.00001) & (to_pos < 1.00001), True, False)):
-                    pos.update({to_v:to_pos})
-                    used.append(e)
-                    ee = self.graph.outgoing_edges(to_v) + self.graph.incoming_edges(to_v)
-                    newedges = [i for i in ee if i not in used and i not in edges]
-                else:
-                    bad_ones.update({e:to_pos})
+                #FROM HERE REMOVED IN-CELL CHECK
+                to_pos = np.array([i%1 for i in to_pos])
+                pos.update({to_v:to_pos})
+                used.append(e)
+                ee = self.graph.outgoing_edges(to_v) + self.graph.incoming_edges(to_v)
+                newedges = [i for i in ee if i not in used and i not in edges]
                 edges = newedges + edges[1:]
             else:
                 used.append(e)

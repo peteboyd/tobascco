@@ -51,3 +51,7 @@ class ConnectPoint(object):
     
     def translate(self, vector):
         self.origin[:3] += vector
+
+    def __mul__(self, val):
+        self.origin[:3] *= val
+        self.z[:3] *= val

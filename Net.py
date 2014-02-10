@@ -3,10 +3,12 @@ import sys
 from sage.all import *
 import itertools
 from uuid import uuid4
+from logging import info, debug, warning, error
 import numpy as np
 from scipy.optimize import fmin_l_bfgs_b, minimize, anneal, brute, basinhopping, fsolve, root 
 sys.path.append('/home/pboyd/lib/lmfit-0.7.2')
 from lmfit import minimize, Parameters, Minimizer
+from config import Terminate
 
 class SystreDB(dict):
     """A dictionary which reads a file of the same format read by Systre"""
@@ -124,8 +126,8 @@ class Net(object):
                 self.cocycle = self.add_to_matrix(vect, self.cocycle)
 
         if count != size:
-            print "ERROR - could not find a linear independent cocycle basis!"
-            sys.exit()
+            print "ERROR - could not find a linearly independent cocycle basis!"
+            Terminate(errcode=1) 
         # special case - pcu
         # NOTE : YOU WILL HAVE TO ADD 2 - coordinate nodes to pcu to get this to work!!!
         if size == 0:
@@ -509,6 +511,8 @@ class Net(object):
         #cocycle = minimize(self.min_function_lmfit, params, method='lbfgsb')
         min = Minimizer(self.min_function_lmfit, params)
         min.lbfgsb(factr=0.1, epsilon=1e-5, pgtol=1e-6)
+        fit = self.min_function_lmfit(params)
+        self.report_errors(fit)
         #min.leastsq(xtol=1.e-7, ftol=1.e-8)
         #self.vary_coc_mt(params)
         #cocycle = minimize(self.min_function_lmfit, params, method='lbfgsb')
@@ -540,6 +544,22 @@ class Net(object):
         return np.concatenate((self.cycle_rep, 
                         np.reshape(q, (self.cocycle.shape[0],3))),
                         axis=0)
+
+    def report_errors(self, fit):
+        edge_lengths = []
+        angles = []
+        nz = np.nonzero(np.triu(np.array(self.colattice_dotmatrix)))
+        count = 0
+        for (i, j) in zip(*nz):
+            if i != j:
+                angles.append(fit[count])
+            else:
+                edge_lengths.append(fit[count])
+            count += 1
+        edge_average, edge_std = np.mean(edge_lengths), np.std(edge_lengths)
+        debug("Average error in edge length: %12.5f +/- %9.5f"%(edge_average, edge_std))
+        angle_average, angle_std = np.mean(angles), np.std(angles)
+        debug("Average error in edge angles: %12.5f +/- %9.5f"%(angle_average, angle_std))
 
     def get_metric_tensor(self):
         self.metric_tensor = self.lattice_basis*self.projection*self.lattice_basis.T

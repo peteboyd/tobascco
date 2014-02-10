@@ -4,7 +4,7 @@ from Net import Net
 import sys
 import itertools
 from Visualizer import GraphPlot
-from LinAlg import rotation_matrix, calc_angle, calc_axis
+from LinAlg import rotation_matrix, calc_angle, calc_axis, DEG2RAD
 from Structure import Structure, Cell
 import numpy as np
 from logging import info, debug, warning, error
@@ -124,8 +124,6 @@ class Build(object):
         # In cases where there are more than 3 edges, assignment can 
         # get tricky.
         edges = {}
-        max_len = 0.
-
         for v in self._net.graph.vertex_iterator():
             for e, c in self.assign_edge_labels(v).items():
                 self._edge_assign.setdefault(e, []).append((v,c))
@@ -224,8 +222,6 @@ class Build(object):
 
     def build_structure_from_net(self, init_placement):
         """Orient SBUs to the nodes on the net, create bonds where needed, etc.."""
-        # get the real cell
-        # get the real edges
         struct = Structure(self.options, name="test", params=self._net.get_3d_params())
         cell = struct.cell.lattice
         V = self.net.graph.vertices()[0] 
@@ -244,21 +240,17 @@ class Build(object):
         axis = np.array((params['a1'].value, params['a2'].value, params['a3'].value))
         angle = params['angle'].value
         R = rotation_matrix(axis, angle)
-        #res = np.dot(sbu_vects, R[:3,:3])
         res = np.dot(R[:3,:3], sbu_vects.T)
         norms = np.apply_along_axis(np.linalg.norm, 1, res.T)
         v = res.T / norms.reshape(-1, 1)
-        angles = np.array([calc_angle(v1, v2) for v1, v2 in zip(v, data)])
-        print angles
         return (v - data).flatten()
-        #return angles 
 
     def sbu_orient(self, v, cell):
         """Optimize the rotation to match vectors"""
         sbu = self._vertex_assign[v]
         edges = self._net.graph.outgoing_edges(v) + self._net.graph.incoming_edges(v)
-        # re index the edges to match the order of the connect points in the sbu list
-        #print "SBU", sbu.name
+        debug("Orienting SBU: %i, %s on vertex %s"%(sbu.identifier, sbu.name, v))
+        # re-index the edges to match the order of the connect points in the sbu list
         indexed_edges = []
         for cp in sbu.connect_points:
             for e in edges:
@@ -283,27 +275,36 @@ class Build(object):
         # **********************MAY BREAK STUFF
         arcs = np.array(arcs / norms.reshape(-1, 1)) * coefficients[:,None]
         # **********************MAY BREAK STUFF 
-        print "Normalized inner product matrix of the arcs from the net embedding"
-        print np.matrix(arcs)*np.matrix(arcs).T
         sbu_vects = np.array([self.vector_from_cp(cp) 
                                 for cp in sbu.connect_points])
         norms = np.apply_along_axis(np.linalg.norm, 1, sbu_vects)
         sbu_vects = sbu_vects / norms.reshape(-1, 1)
-        print "Normalized inner product matrix of the sbu vectors"
-        print np.matrix(sbu_vects)*np.matrix(sbu_vects).T
+        
         params = Parameters()
         params.add('a1', value=0.001, min=-1., max=1.)
         params.add('a2', value=0.001, min=-1., max=1.)
         params.add('a3', value=0.001, min=-1., max=1.)
         params.add('angle', value=0.1, min=0., max=np.pi)
+        
         min = Minimizer(self.rotation_function, params, fcn_args=(sbu_vects, arcs))
         #min.lbfgsb(factr=10., epsilon=1e-5, pgtol=1e-4)
         min.leastsq(xtol=1.e-5, ftol=1.e-6)
-        #minimize(self.rotation_function, params, args=(sbu_vects, arcs), method='lbfgsb')
+
         axis = np.array([params['a1'].value, params['a2'].value, params['a3'].value])
         angle = params['angle'].value
+        
+        self.report_fit(axis, angle, sbu_vects, arcs)
         R = rotation_matrix(axis, angle)
         sbu.rotate(R)
+
+    def report_fit(self, axis, angle, sbu_vects, arcs):
+        r = rotation_matrix(axis, angle)
+        rotation = np.dot(r[:3,:3], sbu_vects.T)
+        norms = np.apply_along_axis(np.linalg.norm, 1, rotation.T)
+        v = rotation.T / norms.reshape(-1, 1)
+        angles = np.array([calc_angle(v1, v2) for v1, v2 in zip(v, arcs)])
+        mean, std = np.mean(angles), np.std(angles)
+        debug("Average orientation error: %12.6f +/- %9.6f degrees"%(mean/DEG2RAD, std/DEG2RAD))
 
     def sbu_translate(self, v, trans):
         sbu = self._vertex_assign[v]

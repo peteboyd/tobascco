@@ -4,13 +4,13 @@ from Net import Net
 import sys
 import itertools
 from Visualizer import GraphPlot
-from LinAlg import rotation_matrix, calc_angle, calc_axis, DEG2RAD
+from LinAlg import rotation_from_vectors, rotation_matrix, calc_angle, calc_axis, DEG2RAD
 from Structure import Structure, Cell
 import numpy as np
 from logging import info, debug, warning, error
 from copy import deepcopy
 sys.path.append('/home/pboyd/lib/lmfit-0.7.2')
-from lmfit import Minimizer, minimize, Parameters
+from lmfit import Minimizer, minimize, Parameters, report_errors
 
 np.set_printoptions(threshold=np.nan, precision=4, suppress=True, linewidth=185)
 
@@ -26,20 +26,51 @@ class Build(object):
         self._sbu_degrees = None
         self._inner_product_matrix = None
 
-    def _obtain_lattice_arcs(self):
+    def _obtain_cycle_bases(self):
         self._net.get_lattice_basis()
         self._net.get_cycle_basis()
         self._net.get_cocycle_basis()
-        self._net.lattice_arcs
 
     def assign_vertices(self):
         """Assign SBUs to particular vertices in the graph"""
+        # TODO(pboyd): assign sbus intelligently, based on edge lengths
+        # and independent cycles in the net... ugh
         for vert in self._net.graph.vertex_iterator():
+            # is there a way to determine the symmetry operations applicable
+            # to a vertex?
+            # if so, we could compare with SBUs...
             vert_deg = self._net.graph.degree(vert)
             sbu_match = [i for i in self._sbus if i.degree == vert_deg]
-            # TODO(pboyd): assign sbus intelligently, based on edge lengths
-            # and independent cycles in the net... ugh
-            self._vertex_assign[vert] = deepcopy(sbu_match[0])
+            # match tensor product matrices
+            if len(sbu_match) > 1:
+                self._vertex_assign[vert] = self.select_sbu(vert, sbu_match)
+            else:
+                self._vertex_assign[vert] = deepcopy(sbu_match[0])
+
+    def select_sbu(self, v, sbus):
+        """This is a hackneyed way of selecting the right SBU,
+        will use until it breaks something.
+
+        """
+        edges = self._net.graph.outgoing_edges(v) + self._net.graph.incoming_edges(v)
+        indices = self._net.return_indices(edges)
+        lattice_arcs = self._net.lattice_arcs[indices]
+        ipv = lattice_arcs*self._net.metric_tensor*lattice_arcs.T
+        ipv = self.scaled_ipmatrix(ipv)
+        # just take the max and min angles... 
+        inds = np.triu_indices(ipv.shape[0], k=1) 
+        max, min = np.absolute(ipv[inds]).max(), np.absolute(ipv[inds]).min()
+        minmag = 15000.
+        for sbu in sbus:
+            vects = np.array([self.vector_from_cp(cp) for cp in 
+                              sbu.connect_points])
+            ipc = self.scaled_ipmatrix(np.inner(vects, vects))
+            imax, imin = np.absolute(ipc[inds]).max(), np.absolute(ipc[inds]).min()
+            mm = np.sum(np.absolute([max-imax, min-imin]))
+            if mm < minmag:
+                minmag = mm
+                assign = sbu
+        return deepcopy(assign)
 
     def obtain_edge_vector(self, cp1, cp2):
         """Create an edge vector from two sbu 'connect points'"""
@@ -51,6 +82,20 @@ class Build(object):
         e = dir*(len1+len2)
         return e
 
+    def scaled_ipmatrix(self, ipmat):
+        """Like normalized inner product matrix, however the 
+        diagonal is scaled to the longest vector."""
+        ret = np.empty_like(ipmat)
+        max = np.diag(ipmat).max()
+        for (i,j), val in np.ndenumerate(ipmat):
+            if i==j:
+                ret[i,j] = val/max
+            else:
+                v = val/np.sqrt(ipmat[i,i])/np.sqrt(ipmat[j,j])
+                ret[i,j] = v
+                ret[j,i] = v
+        return ret 
+
     def normalized_ipmatrix(self, vectors):
         norms = np.apply_along_axis(np.linalg.norm, 1, vectors)
         v = vectors / norms.reshape(-1, 1)
@@ -60,47 +105,39 @@ class Build(object):
         """Edge assignment is geometry dependent. This will try to 
         find the best assignment based on inner product comparison
         with the non-placed lattice arcs."""
-        self._net.barycentric_embedding()
         local_arcs = self._vertex_assign[vertex].connect_points
         edges = self._net.graph.outgoing_edges(vertex) + \
                     self._net.graph.incoming_edges(vertex)
         indices = self._net.return_indices(edges)
-        lattice_arcs = self._net.lattice_arcs[indices]
-        #self._edge_assign[e] = (cp1.identifier, cp2.identifier)
+        lattice_arcs = self._net.lattice_arcs
         e_assign = {}
         vects = [self.vector_from_cp(cp) for cp in local_arcs]
         li = self.normalized_ipmatrix(vects)
-        min=15000
+        min=15000.
         cc, assign = None, None
         #print "new batch"
         for e in itertools.permutations(edges):
             indices = self._net.return_indices(e)
-            lattice_arcs = self._net.lattice_arcs[indices]*\
-                    self._net.metric_tensor*self._net.lattice_arcs[indices].T
-            max = lattice_arcs.max()
+            node_arcs = lattice_arcs[indices]*\
+                    self._net.metric_tensor*lattice_arcs[indices].T
+            max = node_arcs.max()
             la = np.empty((len(indices),len(indices)))
-            for (i,j), val in np.ndenumerate(lattice_arcs):
+            for (i,j), val in np.ndenumerate(node_arcs):
                 if i==j:
-                    la[i,j] == val/max
+                    la[i,j] = val/max
                 else:
-                    v = val/np.sqrt(lattice_arcs[i,i])/np.sqrt(lattice_arcs[j,j])
+                    v = val/np.sqrt(node_arcs[i,i])/np.sqrt(node_arcs[j,j])
                     la[i,j] = v
                     la[j,i] = v
-            # don't know orientations yet!
-            mm = np.sum(np.absolute(np.absolute(li)-np.absolute(la)))
-            
             # using tensor product of the incidences
             coeff = np.array([-1. if j in self._net.graph.incoming_edges(vertex)
                                else 1. for j in e])
             td = np.tensordot(coeff, coeff, axes=0)
             mm = np.sum(np.absolute(np.multiply(li, td) - la))
-            #mm = np.sum(np.absolute(li-la))
-            #print mm
             if mm < min:
                 cc = coeff
                 min = mm
                 assign = e
-        #print "min = ", min
         # NB special MULT function for connect points
         return {e[2]:cp for (e,cp) in zip(assign, local_arcs)}
 
@@ -127,17 +164,6 @@ class Build(object):
         for v in self._net.graph.vertex_iterator():
             for e, c in self.assign_edge_labels(v).items():
                 self._edge_assign.setdefault(e, []).append((v,c))
-
-        max_len = (None, 0.) 
-        for e, ((v,cp1), (v,cp2)) in self._edge_assign.items():
-            assert len(self._edge_assign[e]) == 2
-            edge_vect = self.obtain_edge_vector(cp1, cp2)
-            edges[e] = edge_vect
-            leng = np.linalg.norm(edge_vect)
-            if leng > max_len[1]:
-                max_len = (int(e[1:])-1, leng)
-
-        self.scale = max_len
         # obtain inner product matrix
         self._inner_product_matrix = np.zeros((self.net.shape, self.net.shape))
         for v in self._net.graph.vertex_iterator():
@@ -165,12 +191,9 @@ class Build(object):
                 if e2 in self._net.graph.incoming_edges(v):
                     edge2 = -edge2
                 # **********************MAY BREAK STUFF
-                if i1 != i2:
-                    en = np.dot(edge1, edge2)/np.linalg.norm(edge1)/np.linalg.norm(edge2)
-                else:
-                    en = np.dot(edge1, edge2)/max_len[1]/max_len[1]
-                self._inner_product_matrix[i1,i2] = en 
-                self._inner_product_matrix[i2,i1] = en
+                dp = np.dot(edge1, edge2)
+                self._inner_product_matrix[i1,i2] = dp 
+                self._inner_product_matrix[i2,i1] = dp
         self._inner_product_matrix = np.asmatrix(self._inner_product_matrix)
         
     def net_degrees(self):
@@ -185,26 +208,14 @@ class Build(object):
         # We first need to normalize the edge lengths of the net. This will be
         # done initially by setting the longest vector equal to the longest
         # vector of the barycentric embedding.
-        self._net.colattice_dotmatrix = np.matrix(
-                                        self._inner_product_matrix.copy())
+        self._net.assign_ip_matrix(np.matrix(self._inner_product_matrix))
 
         # this calls the optimization routine to match the tensor product matrix
         # of the SBUs and the net.
-        self._net.metric_tensor, self._net.periodic_rep = self._net.get_embedding()
-        la = self._net.cycle_cocycle.I*self._net.periodic_rep
-        # obtain the length to normalize by from the custom embedding...
-        msf = np.sqrt((la*self._net.metric_tensor*la.T)[self.scale[0], self.scale[0]])
-        # self.scale stores the length of the longest SBU-SBU bond. The final
-        # scale factor is len(SBU-SBU)/len(msf)
-        sf = self.scale[1]/msf
-        # the real metric tensor is obtained by multiplying by the scaling factor^2
-        self._net.metric_tensor*=sf**2
-        mt = self._net.metric_tensor
-        self._net._lattice_arcs = la.copy()
+        self._net.get_embedding()
         test = np.array([0.5, 0.5, 0.5])
         self.build_structure_from_net(test)
         self.show()
-        #print self._net.metric_tensor
 
     def test_angle(self, index1, index2, mat):
         return np.arccos(mat[index1, index2]/np.sqrt(mat[index1, index1])/np.sqrt(mat[index2, index2]))*180./np.pi
@@ -216,7 +227,6 @@ class Build(object):
         ip = la*mt*la.T
         ipsbu = self._inner_product_matrix
         nz = np.nonzero(np.triu(ipsbu))
-
         self.build_structure_from_net(np.zeros(self._net.ndim))
         self.show()
 
@@ -245,8 +255,67 @@ class Build(object):
         v = res.T / norms.reshape(-1, 1)
         return (v - data).flatten()
 
+    #def sbu_orient(self, v, cell):
+    #    """Optimize the rotation to match vectors"""
+    #    sbu = self._vertex_assign[v]
+    #    edges = self._net.graph.outgoing_edges(v) + self._net.graph.incoming_edges(v)
+    #    debug("Orienting SBU: %i, %s on vertex %s"%(sbu.identifier, sbu.name, v))
+    #    # re-index the edges to match the order of the connect points in the sbu list
+    #    indexed_edges = []
+    #    for cp in sbu.connect_points:
+    #        for e in edges:
+    #            if e in self._net.graph.outgoing_edges(v):
+    #                coeff = 1.
+    #            else:
+    #                coeff = -1.
+    #            (v1, cp1),(v2, cp2) = self._edge_assign[e[2]]
+    #            if v1 == v and cp1.identifier == cp.identifier:
+    #                indexed_edges.append((coeff, e))
+    #            elif v2 == v and cp2.identifier == cp.identifier:
+    #                indexed_edges.append((coeff, e))
+    #    if len(indexed_edges) != sbu.degree:
+    #        error("There was an error assigning edges "+
+    #                    "to the sbu %s"%(sbu.name))
+    #        Terminate(errcode=1)
+    #    inds = self._net.return_indices([m[1] for m in indexed_edges])
+    #    coefficients = np.array([m[0] for m in indexed_edges])
+    #    arcs = np.dot(self._net.lattice_arcs[inds], cell)
+    #    norms = np.apply_along_axis(np.linalg.norm, 1, arcs)
+    #    # get the right orientation of the arcs (all pointing away from the node)
+    #    # **********************MAY BREAK STUFF
+    #    arcs = np.array(arcs / norms.reshape(-1, 1)) * coefficients[:,None]
+    #    # **********************MAY BREAK STUFF 
+    #    sbu_vects = np.array([self.vector_from_cp(cp) 
+    #                            for cp in sbu.connect_points])
+    #    norms = np.apply_along_axis(np.linalg.norm, 1, sbu_vects)
+    #    sbu_vects = sbu_vects / norms.reshape(-1, 1)
+    #    params = Parameters()
+    #    params.add('a1', value=0.001, min=-1., max=1.)
+    #    params.add('a2', value=0.001, min=-1., max=1.)
+    #    params.add('a3', value=0.001, min=-1., max=1.)
+    #    # make sure that the angle range covers all 3d rotations...
+    #    params.add('angle', value=0.01, min=0., max=np.pi)
+    #    
+    #    min = Minimizer(self.rotation_function, params, fcn_args=(sbu_vects, arcs))
+    #    min.lbfgsb(factr=10., epsilon=1e-5, pgtol=1e-4)
+    #    #print report_errors(params)
+    #    #min = minimize(self.rotation_function, params, args=(sbu_vects, arcs), method='anneal')
+    #    #min.leastsq(xtol=1.e-8, ftol=1.e-7)
+    #    #min.fmin()
+    #    axis = np.array([params['a1'].value, params['a2'].value, params['a3'].value])
+    #    angle = params['angle'].value
+    #    
+    #    self.report_errors(sbu_vects, arcs, axis=axis, angle=angle)
+    #    R = rotation_matrix(axis, angle)
+    #    sbu.rotate(R)
+
     def sbu_orient(self, v, cell):
-        """Optimize the rotation to match vectors"""
+        """Least squares optimization of orientation matrix.
+        Obtained from:
+        Soderkvist & Wedin
+        'Determining the movements of the skeleton using well configured markers'
+        J. Biomech. 26, 12, 1993, 1473-1477.
+        DOI: 10.1016/0021-9290(93)90098-Y"""
         sbu = self._vertex_assign[v]
         edges = self._net.graph.outgoing_edges(v) + self._net.graph.incoming_edges(v)
         debug("Orienting SBU: %i, %s on vertex %s"%(sbu.identifier, sbu.name, v))
@@ -269,7 +338,8 @@ class Build(object):
             Terminate(errcode=1)
         inds = self._net.return_indices([m[1] for m in indexed_edges])
         coefficients = np.array([m[0] for m in indexed_edges])
-        arcs = np.dot(self._net.lattice_arcs[inds], cell)
+        arcs = np.dot(np.array(self._net.lattice_arcs[inds]), cell)
+
         norms = np.apply_along_axis(np.linalg.norm, 1, arcs)
         # get the right orientation of the arcs (all pointing away from the node)
         # **********************MAY BREAK STUFF
@@ -279,27 +349,22 @@ class Build(object):
                                 for cp in sbu.connect_points])
         norms = np.apply_along_axis(np.linalg.norm, 1, sbu_vects)
         sbu_vects = sbu_vects / norms.reshape(-1, 1)
-        
-        params = Parameters()
-        params.add('a1', value=0.001, min=-1., max=1.)
-        params.add('a2', value=0.001, min=-1., max=1.)
-        params.add('a3', value=0.001, min=-1., max=1.)
-        params.add('angle', value=0.1, min=0., max=np.pi)
-        
-        min = Minimizer(self.rotation_function, params, fcn_args=(sbu_vects, arcs))
-        #min.lbfgsb(factr=10., epsilon=1e-5, pgtol=1e-4)
-        min.leastsq(xtol=1.e-5, ftol=1.e-6)
+        #print np.dot(arcs, arcs.T)
+        #sf = self._net.scale_factor
+        #la = self._net.lattice_arcs
+        #mt = self._net.metric_tensor/sf
+        #obj = la*mt*la.T
+        #print obj
+        #sys.exit()
 
-        axis = np.array([params['a1'].value, params['a2'].value, params['a3'].value])
-        angle = params['angle'].value
-        
-        self.report_fit(axis, angle, sbu_vects, arcs)
-        R = rotation_matrix(axis, angle)
+        R = rotation_from_vectors(sbu_vects, arcs) 
+        self.report_errors(sbu_vects, arcs, rot_mat=R)
         sbu.rotate(R)
 
-    def report_fit(self, axis, angle, sbu_vects, arcs):
-        r = rotation_matrix(axis, angle)
-        rotation = np.dot(r[:3,:3], sbu_vects.T)
+    def report_errors(self, sbu_vects, arcs, rot_mat=None, axis=None, angle=None):
+        if rot_mat is None:
+            rot_mat = rotation_matrix(axis, angle)
+        rotation = np.dot(rot_mat[:3,:3], sbu_vects.T)
         norms = np.apply_along_axis(np.linalg.norm, 1, rotation.T)
         v = rotation.T / norms.reshape(-1, 1)
         angles = np.array([calc_angle(v1, v2) for v1, v2 in zip(v, arcs)])
@@ -331,7 +396,9 @@ class Build(object):
         else:
             deg = [i.degree for i in self._sbus]
             lin = [i.linear for i in self._sbus]
-            self._sbu_degrees = sorted([j for i,j in zip(lin,deg) if not i])
+            # added a 'set' here in case two different SBUs have the same
+            # coordination number
+            self._sbu_degrees = sorted(set([j for i,j in zip(lin,deg) if not i]))
             return self._sbu_degrees
 
     @property
@@ -342,7 +409,25 @@ class Build(object):
     def net(self, (graph, volt)):
         self._net = Net(graph)
         self._net.voltage = volt
-        self._obtain_lattice_arcs()
+
+        #print self._net.graph.to_undirected().automorphism_group()
+        #print self._net.graph.vertices()
+        #print self._net.graph.edges()
+        
+        print len(self._net.graph.edges())
+        for e in self._net.graph.edges():
+            # creates two new vertices.
+            # must re-name the vertices, and re-name the edges.
+            self._net.graph.subdivide_edge(e, 2)
+
+        print len(self._net.graph.edges())
+        self._net.graph.show(edge_labels=True)
+        raw_input("p\n")
+        sys.exit()
+        self._obtain_cycle_bases()
+        # start off with the barycentric embedding
+        self._net.barycentric_embedding()
+        self.show()
 
     @property
     def sbus(self):

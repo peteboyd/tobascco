@@ -5,9 +5,10 @@ import itertools
 from uuid import uuid4
 from logging import info, debug, warning, error
 import numpy as np
+from LinAlg import DEG2RAD
 from scipy.optimize import fmin_l_bfgs_b, minimize, anneal, brute, basinhopping, fsolve, root 
 sys.path.append('/home/pboyd/lib/lmfit-0.7.2')
-from lmfit import minimize, Parameters, Minimizer
+from lmfit import minimize, Parameters, Minimizer, report_errors
 from config import Terminate
 
 class SystreDB(dict):
@@ -15,6 +16,10 @@ class SystreDB(dict):
     def __init__(self, filename=None):
         self.voltages = {}
         self.read_store_file(filename)
+        # scale holds the index and value of the maximum length^2 for the 
+        # real vectors associated with edges of the net.  This is only
+        # found after SBUs have been assigned to nodes and edges.
+        self.scale = (None, None)
 
     def read_store_file(self, file=None):
         """Reads and stores the nets in the self.file file.
@@ -255,18 +260,6 @@ class Net(object):
                 cycle.pop(-1)
                 used.pop(-1)
 
-    def get_edges_from_index(self, cycle):
-        edge_names = ['e%i'%(i+1) for i in np.nonzero(cycle)[0]]
-        ret = []
-        for n in edge_names:
-            ed = None
-            for edge in self._graph.edges():
-                if edge[2] == n:
-                    ed = edge
-                    break
-            ret.append(ed)
-        return ret
-
     def get_lattice_basis(self):
         """Obtains a lattice basis by iterating over all the cycles and finding
         ones with net voltages satisifying one of the n dimensional basis vectors.
@@ -320,58 +313,16 @@ class Net(object):
         assert edges[0][3]
         return [i[3] for i in edges]
 
-    def get_arcs(self):
-        if self.cocycle is not None:
-            cocycle_rep = np.zeros((self.cocycle.shape[0], self.ndim))
-            return self.cycle_cocycle.I*np.concatenate((self.cycle_rep, cocycle_rep),
-                                                       axis=0)
-        else:
-            return self.cycle_cocycle.I*self.cycle_rep
-
-    def min_function_scalar(self, cocyc_proj):
-        cocyc_rep = np.reshape(cocyc_proj, (self.cocycle.shape[0], self.ndim))
-        self.periodic_rep = np.concatenate((self.cycle_rep,cocyc_rep))
-        M = self._lattice_arcs*\
-                (self.lattice_basis*self.projection*self.lattice_basis.T)\
-                *self._lattice_arcs.T
-
-        nz = np.nonzero(self.colattice_dotmatrix)
-        # SF?
-        scale_factor = M.max()
-        sol = np.sum(np.absolute(np.absolute(M[nz]/scale_factor) - np.absolute(self.colattice_dotmatrix[nz])))
-        return sol
     
+    def get_arcs(self):
+        return self.cycle_cocycle.I*np.concatenate((self.cycle_rep, cocycle_rep),
+                                                       axis=0)
     def to_ind(self, str_obj):
         return tuple([int(i) for i in str_obj.split('_')[1:]])
 
-    def min_function_array(self, cocyc_proj):
-        def _obtain_dp_sum(self, v, M):
-            edges = self.graph.outgoing_edges(v) + self.graph.incoming_edges(v)
-            inds = self.return_indices(edges)
-            combos = list(itertools.combinations_with_replacement(inds, 2))
-            t = tuple(map(tuple, np.array(combos).T))
-            #return np.sum(np.absolute(M[t]))
-            return np.array(M[t]).flatten()[:self.ndim]
-
-        cocyc_rep = np.reshape(cocyc_proj, (self.cocycle.shape[0], self.ndim))
-        self.periodic_rep = np.concatenate((self.cycle_rep,cocyc_rep))
-        M = self._lattice_arcs*\
-                (self.lattice_basis*self.projection*self.lattice_basis.T)\
-                *self._lattice_arcs.T
-
-        # For some reason the root finding functions require that the 
-        # return array be the same dimension as the input array...
-        # WHY is a mystery to me.
-        dp_sum = np.array([_obtain_dp_sum(i,M) for i in self.graph.vertices()[:-1]]).flatten()
-        dd_ = np.array([_obtain_dp_sum(i,self.colattice_dotmatrix) for i in self.graph.vertices()[:-1]]).flatten()
-
-        #nz = np.nonzero(self.colattice_dotmatrix)
-        #sol = np.array(M[nz] - self.colattice_dotmatrix[nz]).flatten()
-        sol = np.absolute(np.absolute(dp_sum) - np.absolute(dd_))
-        return sol
-
     def init_params(self, init_guess):
         params = Parameters()
+        self.barycentric_embedding()
         for (i,j) in zip(*np.triu_indices_from(self.metric_tensor)):
             val = self.metric_tensor[i,j]
             #val = np.identity(3)[i,j]
@@ -460,9 +411,6 @@ class Net(object):
                 mt[j,i] = params[p].value
             elif p[0] == 'c':
                 rep[self.to_ind(p)] = params[p].value
-        #M = self._lattice_arcs*\
-        #        (self.lattice_basis*self.projection*self.lattice_basis.T)\
-        #        *self._lattice_arcs.T
         la = self.cycle_cocycle.I*rep
         M = la*mt*la.T
         scale_factor = M.max()
@@ -475,75 +423,57 @@ class Net(object):
         for i, val in np.ndenumerate(np.diag(M)):
             M[i,i] = val/scale_factor
         nz = np.nonzero(np.triu(self.colattice_dotmatrix))
-        # THIS WORKS UNCOMMENT IF HAVING PROBLEMS but can give arbitrary angles 
-        #sol = np.array(np.absolute(M[nz]) - np.absolute(self.colattice_dotmatrix[nz]))
         sol = (np.array(M[nz] - self.colattice_dotmatrix[nz]))
-        #sol = (np.array(self.colattice_dotmatrix[nz] - M[nz]))
         return sol.flatten()
 
+    def assign_ip_matrix(self, mat):
+        """Get the colattice dot matrix from Builder.py. This is an inner 
+        product matrix of all the SBUs assigned to particular nodes.
+        """
+        max_ind, max_val = np.diag(mat).argmax(), np.diag(mat).max()
+        self.scale = (max_ind, max_val)
+        # this sbu_tensor_matrix is probably not needed...
+        self.sbu_tensor_matrix = mat
+        self.colattice_dotmatrix = np.zeros((mat.shape[0], mat.shape[1]))
+        for (i, j) in zip(*np.triu_indices_from(mat)):
+            if i == j:
+                self.colattice_dotmatrix[i,j] = mat[i,j]/max_val
+            else:
+                val = mat[i,j] / np.sqrt(mat[i,i]) / np.sqrt(mat[j,j])
+                self.colattice_dotmatrix[i,j] = val 
+                self.colattice_dotmatrix[j,i] = val
 
     def get_embedding(self, init_guess=None):
-        self.barycentric_embedding()
         if init_guess is None:
             init_guess = (np.zeros((self.num_nodes-1, self.ndim)))
-        # questionable bounds there boyd.
-        bounds = [(-1.,1.)]*(self.num_nodes-1)*self.ndim
-        #bounds = None
-        #cocycle = root(self.min_function_array,
-        #               init_guess)
         # set up parameters class for the minimize function
         params = self.init_params(init_guess)
-        #self.vary_cyc_coc_mt(params)
-        #nz = np.nonzero(self.colattice_dotmatrix)
-        #print self.colattice_dotmatrix[nz]
-        #print (self.lattice_arcs*self.metric_tensor*self.lattice_arcs.T)[nz]/0.125 
-        #for i in range(8):
-        #    if i%2 == 0:
-        #        self.vary_cocycle_rep(params)
-        #    else:
-        #        self.vary_metric_tensor(params)
-        #    cocycle = minimize(self.min_function_lmfit, params, method='leastsq')
-        #self.vary_metric_tensor(params)
-        #self.vary_cocycle_rep(params)
-        #self.vary_cyc_coc_mt(params)
         self.vary_coc_mt(params)
-        #self.vary_all(params)
-        #cocycle = minimize(self.min_function_lmfit, params, method='lbfgsb')
         min = Minimizer(self.min_function_lmfit, params)
         min.lbfgsb(factr=0.1, epsilon=1e-5, pgtol=1e-6)
+        #min.leastsq(xtol=1.e-7, ftol=1.e-8)
         fit = self.min_function_lmfit(params)
         self.report_errors(fit)
-        #min.leastsq(xtol=1.e-7, ftol=1.e-8)
-        #self.vary_coc_mt(params)
-        #cocycle = minimize(self.min_function_lmfit, params, method='lbfgsb')
-        #q = np.empty((self.cocycle.shape[0], self.ndim))
+        #print report_errors(params)
         q = np.empty((self.shape, self.ndim))
         mt = np.empty((self.ndim, self.ndim))
         for j in params:
-            #print j, params[j].value
             if j[0] == 'm':
                 i, k = self.to_ind(j)
                 mt[i,k] = params[j].value
                 mt[k,i] = params[j].value
             elif j[0] == 'c':
                 q[self.to_ind(j)] = params[j].value
-
-        #cocycle = minimize(self.min_function_scalar,
-        #                   init_guess,
-        #                   method="L-BFGS-B",
-        #                   bounds=bounds,
-        #                   options=self.lbfgsb_params
-        #                   )
-        #BRUTE DOES NOT SUPPORT VARIABLES > 32
-        #cocycle = brute(self.min_function_scalar, bounds, Ns=20, finish=None, disp=True)
-
-        #cocycle = basinhopping(self.min_function_scalar, init_guess)
-        #q = cocycle.x
-        #q = cocycle[0]
-        return np.matrix(mt.copy()), np.matrix(q.copy())
-        return np.concatenate((self.cycle_rep, 
-                        np.reshape(q, (self.cocycle.shape[0],3))),
-                        axis=0)
+        
+        self.periodic_rep = q
+        self.metric_tensor = mt
+        la = self.lattice_arcs
+        scind = self.scale[0]
+        sclen = self.scale[1]
+        self.scale_factor = sclen/np.diag(self.lattice_arcs*self.metric_tensor*self.lattice_arcs.T)[scind]
+        self.metric_tensor *= self.scale_factor
+        #print la*mt*la.T
+        #print self.sbu_tensor_matrix
 
     def report_errors(self, fit):
         edge_lengths = []
@@ -557,9 +487,14 @@ class Net(object):
                 edge_lengths.append(fit[count])
             count += 1
         edge_average, edge_std = np.mean(edge_lengths), np.std(edge_lengths)
-        debug("Average error in edge length: %12.5f +/- %9.5f"%(edge_average, edge_std))
+        debug("Average error in edge length: %12.5f +/- %9.5f Angstroms"%(
+                                    math.copysign(1, edge_average)*
+                                    np.sqrt(abs(edge_average)*self.scale[1]),
+                                    math.copysign(1, edge_std)*
+                                    np.sqrt(abs(edge_std)*self.scale[1])))
         angle_average, angle_std = np.mean(angles), np.std(angles)
-        debug("Average error in edge angles: %12.5f +/- %9.5f"%(angle_average, angle_std))
+        debug("Average error in edge angles: %12.5f +/- %9.5f degrees"%(
+                        angle_average/DEG2RAD, angle_std/DEG2RAD))
 
     def get_metric_tensor(self):
         self.metric_tensor = self.lattice_basis*self.projection*self.lattice_basis.T
@@ -575,11 +510,6 @@ class Net(object):
             self.periodic_rep = self.cycle_rep
         self.get_metric_tensor()
     
-    def user_defined_embedding(self, cocycle_array):
-        self.cocycle_rep = cocycle_array.reshape(self.num_nodes-1, self.ndim)
-        self.periodic_rep = np.concatenate((self.cycle_rep, self.cocycle_rep))
-        self.get_metric_tensor()
-
     def get_2d_params(self):
         self.metric_tensor = self.lattice_basis*self.projection*self.lattice_basis.T
         lena=math.sqrt(self.metric_tensor[0,0])
@@ -605,6 +535,7 @@ class Net(object):
         growing from those vertices in the unit cell until all are found.
         """
         # NOTE: NOT WORKING - FIX!!!
+        lattice_arcs = self.lattice_arcs
         if len(pos.keys()) == self.graph.order():
             return pos
         else:
@@ -619,7 +550,7 @@ class Net(object):
                 to_v = e[1] if e[1] not in pos.keys() else e[0]
                 coeff = 1. if e in self.graph.outgoing_edges(from_v) else -1.
                 index = self.get_index(e)
-                to_pos = coeff*np.array(self.lattice_arcs)[index] + pos[from_v]
+                to_pos = coeff*np.array(lattice_arcs)[index] + pos[from_v]
                 newedges = []
                 #FROM HERE REMOVED IN-CELL CHECK
                 to_pos = np.array([i%1 for i in to_pos])
@@ -665,16 +596,12 @@ class Net(object):
    
     @property
     def projection(self):
-        xx = (self.cycle_cocycle.I*self.periodic_rep)
-        return xx*(xx.T*xx).I*xx.T
+        la = self.lattice_arcs
+        return la*(la.T*la).I*la.T
        
     @property
     def lattice_arcs(self):
-        try:
-            return self._lattice_arcs
-        except AttributeError:
-            self._lattice_arcs = self.get_arcs()
-            return self._lattice_arcs
+        return self.cycle_cocycle.I*self.periodic_rep
 
     @property
     def shape(self):
@@ -710,31 +637,3 @@ class Net(object):
                 self._cycle_cocycle = np.concatenate((self.cycle, self.cocycle))
             return self._cycle_cocycle
 
-    @property
-    def anneal_params(self):
-        return {
-            'schedule'      : 'boltzmann',
-            'maxfev'        : None,
-            'maxiter'       : 500,
-            'maxaccept'     : None,
-            'ftol'          : 1e-6,
-            'T0'            : None,
-            'Tf'            : 1e-12,
-            'boltzmann'     : 1.0,
-            'learn_rate'    : 0.5,
-            'quench'        : 1.0,
-            'm'             : 1.0,
-            'n'             : 1.0,
-            'lower'         : -100,
-            'upper'         : 100,
-            'dwell'         : 250,
-            'disp'          : True
-            }
-
-    @property
-    def lbfgsb_params(self):
-        return {
-            'ftol'          : 0.00001,
-            'gtol'          : 0.001,
-            'maxiter'       : 15000,
-            }

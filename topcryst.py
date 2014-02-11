@@ -8,7 +8,7 @@ import glog
 import ConfigParser
 from Generator import Generate
 from CSV import CSV
-from Net import SystreDB
+from Net import SystreDB, Net
 from Builder import Build
 from SecondaryBuildingUnit import SBU
 #from CreateInput import SBUFileRead
@@ -107,35 +107,6 @@ class JobHandler(object):
                             " with net %s"%(top))
                     build.assign_vertices()
                     build.assign_edges()
-                    rep = np.array([[ 1.    ,  0.    ,  0.    ],
-                                    [ 0.    ,  1.    ,  0.    ],
-                                    [ 0.    ,  0.    ,  1.    ],
-                                    [ 0.    ,  1.    ,  0.    ],
-                                    [ 1.    ,  0.    ,  0.    ],
-                                    [ 0.    ,  0.    ,  0.    ],
-                                    [ 0.    ,  1.    ,  0.    ],
-                                    [-1.    ,  1.    ,  1.    ],
-                                    [-1.    ,  1.    ,  0.    ],
-                                    [-1.    ,  1.    ,  0.    ],
-                                    [-1.    ,  1.    ,  1.    ],
-                                    [-0.0001,  0.    , -0.0001],
-                                    [-0.0915, -0.0456,  0.0459],
-                                    [ 0.0915, -0.0456, -0.1371],
-                                    [-0.0912,  0.0456,  0.1371],
-                                    [ 0.0915,  0.0456, -0.0456],
-                                    [-0.    ,  0.    , -0.0003],
-                                    [-0.    , -0.0001, -0.0001],
-                                    [-0.0002,  0.    , -0.0001],
-                                    [-0.0001, -0.0002,  0.    ],
-                                    [ 0.0915, -0.1371, -0.0456],
-                                    [-0.0915,  0.1371,  0.0459],
-                                    [ 0.0915, -0.0456,  0.0456],
-                                    [-0.0915,  0.0459, -0.0456]])
-
-                    mt = np.array([[ 1107.0356,  553.5124,  553.5099],
-                                   [  553.5124, 1107.0582,    0.0028],
-                                   [  553.5099,    0.0028, 1107.0485]])
-
                     build.obtain_embedding()
                     #build.custom_embedding(rep, mt)
 

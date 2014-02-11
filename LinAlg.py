@@ -31,6 +31,30 @@ def calc_axis(v1, v2):
     a = np.cross(v1_u, v2_u)
     return a / np.linalg.norm(a)
 
+def rotation_from_vectors(v1, v2, point=None):
+    """Obtain rotation matrix from sets of vectors.
+    the original set is v1 and the vectors to rotate
+    to are v2.
+
+    """
+
+    # v2 = transformed, v1 = neutral
+    ua = np.array([np.mean(v1.T[0]), np.mean(v1.T[1]), np.mean(v1.T[2])])
+    ub = np.array([np.mean(v2.T[0]), np.mean(v2.T[1]), np.mean(v2.T[2])])
+
+    Covar = np.dot((v2 - ub).T, (v1 - ua))
+
+    u, s, v = np.linalg.svd(Covar)
+    uv = np.dot(u,v)
+    d = np.identity(3) 
+    d[2,2] = np.linalg.det(uv) # ensures non-reflected solution
+    M = np.dot(np.dot(u,d), v)
+    R = np.identity(4)
+    R[:3,:3] = M
+    if point is not None:
+        R[:3,:3] = point - np.dot(M, point)
+    return R
+
 def rotation_matrix(axis, angle, point=None):
     """
     returns a 3x3 rotation matrix based on the

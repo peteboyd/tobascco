@@ -112,7 +112,8 @@ class Options(object):
                     'create_sbu_input_files',
                     'calc_sbu_surface_area',
                     'calc_max_sbu_span']
-        floats = ['overlap_tolerance']
+        floats = ['overlap_tolerance',
+                  'sbu_bond_length']
         integers = ['organic_sbu_per_structure',
                     'metal_sbu_per_structure',
                     'max_structures']

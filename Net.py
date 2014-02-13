@@ -488,7 +488,7 @@ class Net(object):
         params = self.init_params(init_guess)
         self.vary_coc_mt(params)
         min = Minimizer(self.min_function_lmfit, params)
-        min.lbfgsb(factr=0.1, epsilon=1e-5, pgtol=1e-6)
+        min.lbfgsb(factr=10., epsilon=1e-4, pgtol=1e-4)
         #min.leastsq(xtol=1.e-7, ftol=1.e-8)
         fit = self.min_function_lmfit(params)
         self.report_errors(fit)

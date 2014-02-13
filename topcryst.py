@@ -128,7 +128,6 @@ class JobHandler(object):
                 if degree == self._get_degrees(n.graph.degree_histogram()):
                     if n.shape < 26:
                         build = Build()
-
                         print top
                         n.get_lattice_basis()
                         n.get_cycle_basis()

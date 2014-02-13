@@ -19,6 +19,7 @@ class ConnectPoint(object):
         self.constraint = None
         self.special = None
         self.symmetry = 1
+        self.vertex_assign = None
         
     def from_config(self, line):
         """ Obtain the connectivity information from the config .ini file."""

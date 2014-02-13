@@ -414,16 +414,14 @@ class Build(object):
         #print self._net.graph.vertices()
         #print self._net.graph.edges()
         
-        print len(self._net.graph.edges())
         for e in self._net.graph.edges():
-            # creates two new vertices.
-            # must re-name the vertices, and re-name the edges.
-            self._net.graph.subdivide_edge(e, 2)
+            if e in self._net.graph.loop_edges():
+                self._net.add_edges_between(e, 5)
+            else:
+                self._net.add_edges_between(e, 2)
 
-        print len(self._net.graph.edges())
         self._net.graph.show(edge_labels=True)
-        raw_input("p\n")
-        sys.exit()
+        #raw_input("p\n")
         self._obtain_cycle_bases()
         # start off with the barycentric embedding
         self._net.barycentric_embedding()

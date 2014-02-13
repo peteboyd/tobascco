@@ -108,6 +108,8 @@ class Net(object):
         self.ndim = dim
         if graph is not None:
             self._graph = DiGraph(graph, multiedges=True, loops=True)
+            # Keep an original for reference purposes.
+            self.original_graph = DiGraph(graph, multiedges=True, loops=True)
 
     def get_cocycle_basis(self):
         """The orientation is important here!"""
@@ -142,6 +144,39 @@ class Net(object):
             self.cocycle = np.matrix(self.cocycle)
             self.cocycle_rep = np.matrix(np.zeros((size, self.ndim)))
 
+    def add_name(self):
+        try:
+            name = chr(self.order + ord("A"))
+        except ValueError:
+            name = str(self.order)
+        return name
+
+    def insert_and_join(self, vfrom, vto, edge_label=None):
+        if edge_label is None:
+            edge_label = "e%i"%(self.shape)
+        self.graph.add_vertex(vto)
+        self.graph.add_edge(vfrom, vto, edge_label)
+
+    def add_edges_between(self, edge, N):
+        V1 = edge[0] if edge in self.graph.outgoing_edges(edge[0]) \
+                else edge[1]
+        V2 = edge[1] if edge in self.graph.incoming_edges(edge[1]) \
+                else edge[0]
+        name = self.add_name()
+        self.insert_and_join(V1, name, edge_label=edge[2])
+        vfrom = name
+        d = self.ndim
+        for i in range(N-1):
+            name = self.add_name()
+            self.insert_and_join(vfrom, name)
+            vfrom = name
+            self.voltage = np.concatenate((self.voltage,np.zeros(d).reshape(1,d)))
+
+        # final edge to V2
+        self.graph.add_edge(vfrom, V2, "e%i"%(self.shape))
+        self.graph.delete_edge(edge)
+        self.voltage = np.concatenate((self.voltage,np.zeros(d).reshape(1,d)))
+
     def cycle_cocycle_check(self, vect):
         if self.cocycle is None and self.cycle is None:
             return True
@@ -170,7 +205,7 @@ class Net(object):
                              nodes_visited=[],
                              cycle_baggage=[],
                              counter=0)
-        n = self.shape - self.num_nodes + 1
+        n = self.shape - self.order + 1
         count = 0
         if self.lattice_basis is not None:
             self.cycle = self.add_to_matrix(self.lattice_basis, self.cycle)
@@ -445,7 +480,7 @@ class Net(object):
 
     def get_embedding(self, init_guess=None):
         if init_guess is None:
-            init_guess = (np.zeros((self.num_nodes-1, self.ndim)))
+            init_guess = (np.zeros((self.order-1, self.ndim)))
         # set up parameters class for the minimize function
         params = self.init_params(init_guess)
         self.vary_coc_mt(params)
@@ -502,7 +537,7 @@ class Net(object):
 
     def barycentric_embedding(self):
         if self.cocycle is not None:
-            self.cocycle_rep = np.zeros((self.num_nodes-1, self.ndim))
+            self.cocycle_rep = np.zeros((self.order-1, self.ndim))
             self.periodic_rep = np.concatenate((self.cycle_rep,
                                             self.cocycle_rep),
                                             axis = 0)
@@ -608,7 +643,7 @@ class Net(object):
         return self._graph.size()
 
     @property
-    def num_nodes(self):
+    def order(self):
         return self._graph.order() 
 
     @property

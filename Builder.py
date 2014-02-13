@@ -31,6 +31,16 @@ class Build(object):
         self._net.get_cycle_basis()
         self._net.get_cocycle_basis()
 
+    def assign(self):
+        """
+        Each vertex needs an assignment to an SBU COM or 
+        to a connect point. 
+
+        """
+        g = self._net.graph
+        for v in g.vertex_iterator():
+            print g.degree(v)
+
     def assign_vertices(self):
         """Assign SBUs to particular vertices in the graph"""
         # TODO(pboyd): assign sbus intelligently, based on edge lengths
@@ -409,22 +419,28 @@ class Build(object):
     def net(self, (graph, volt)):
         self._net = Net(graph)
         self._net.voltage = volt
-
         #print self._net.graph.to_undirected().automorphism_group()
         #print self._net.graph.vertices()
         #print self._net.graph.edges()
-        
+        # keep track of the sbu vertices
+        self.sbu_vertices = self._net.graph.vertices()
         for e in self._net.graph.edges():
             if e in self._net.graph.loop_edges():
-                self._net.add_edges_between(e, 5)
+                vertices = self._net.add_edges_between(e, 5)
+                # add the middle vertex to the SBU vertices..
+                # this is probably not a universal thing.
+                self.sbu_vertices.append(vertices[2])
             else:
                 self._net.add_edges_between(e, 2)
 
-        self._net.graph.show(edge_labels=True)
+        print self.sbu_vertices
+        #self._net.graph.show(edge_labels=True)
         #raw_input("p\n")
         self._obtain_cycle_bases()
         # start off with the barycentric embedding
         self._net.barycentric_embedding()
+        #self.assign()
+
         self.show()
 
     @property

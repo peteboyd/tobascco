@@ -166,16 +166,19 @@ class Net(object):
         self.insert_and_join(V1, name, edge_label=edge[2])
         vfrom = name
         d = self.ndim
+        newnodes = []
         for i in range(N-1):
+            newnodes.append(vfrom)
             name = self.add_name()
             self.insert_and_join(vfrom, name)
             vfrom = name
             self.voltage = np.concatenate((self.voltage,np.zeros(d).reshape(1,d)))
-
         # final edge to V2
+        newnodes.append(V2)
         self.graph.add_edge(vfrom, V2, "e%i"%(self.shape))
         self.graph.delete_edge(edge)
         self.voltage = np.concatenate((self.voltage,np.zeros(d).reshape(1,d)))
+        return newnodes
 
     def cycle_cocycle_check(self, vect):
         if self.cocycle is None and self.cycle is None:

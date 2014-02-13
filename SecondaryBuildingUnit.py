@@ -59,6 +59,8 @@ class SBU(object):
         self.children = []
         self.bonds = {}
         self.connect_points = []
+        self.edge_assignments = []
+        self.vertex_id = None
         
     def from_config(self, section, cfgdic):
         """take atom and connectivity information from a config file"""

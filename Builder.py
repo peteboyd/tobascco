@@ -21,7 +21,7 @@ class Build(object):
         self.options = options
         self._sbus = []
         self.scale = 1.
-        self._vertex_assign = {}
+        self._vertex_sbu = {}
         self._edge_assign = {}
         self._sbu_degrees = None
         self._inner_product_matrix = None
@@ -31,21 +31,11 @@ class Build(object):
         self._net.get_cycle_basis()
         self._net.get_cocycle_basis()
 
-    def assign(self):
-        """
-        Each vertex needs an assignment to an SBU COM or 
-        to a connect point. 
-
-        """
-        g = self._net.graph
-        for v in g.vertex_iterator():
-            print g.degree(v)
-
     def assign_vertices(self):
         """Assign SBUs to particular vertices in the graph"""
         # TODO(pboyd): assign sbus intelligently, based on edge lengths
         # and independent cycles in the net... ugh
-        for vert in self._net.graph.vertex_iterator():
+        for vert in self.sbu_vertices:
             # is there a way to determine the symmetry operations applicable
             # to a vertex?
             # if so, we could compare with SBUs...
@@ -53,9 +43,10 @@ class Build(object):
             sbu_match = [i for i in self._sbus if i.degree == vert_deg]
             # match tensor product matrices
             if len(sbu_match) > 1:
-                self._vertex_assign[vert] = self.select_sbu(vert, sbu_match)
+                self._vertex_sbu[vert] = self.select_sbu(vert, sbu_match)
             else:
-                self._vertex_assign[vert] = deepcopy(sbu_match[0])
+                self._vertex_sbu[vert] = deepcopy(sbu_match[0])
+            self._vertex_sbu[vert].vertex_id = vert
 
     def select_sbu(self, v, sbus):
         """This is a hackneyed way of selecting the right SBU,
@@ -71,8 +62,9 @@ class Build(object):
         inds = np.triu_indices(ipv.shape[0], k=1) 
         max, min = np.absolute(ipv[inds]).max(), np.absolute(ipv[inds]).min()
         minmag = 15000.
+        #FIXME(pboyd): no consideration for multiple SBUs.
         for sbu in sbus:
-            vects = np.array([self.vector_from_cp(cp) for cp in 
+            vects = np.array([self.vector_from_cp_SBU(cp, sbu) for cp in 
                               sbu.connect_points])
             ipc = self.scaled_ipmatrix(np.inner(vects, vects))
             imax, imin = np.absolute(ipc[inds]).max(), np.absolute(ipc[inds]).min()
@@ -115,13 +107,14 @@ class Build(object):
         """Edge assignment is geometry dependent. This will try to 
         find the best assignment based on inner product comparison
         with the non-placed lattice arcs."""
-        local_arcs = self._vertex_assign[vertex].connect_points
+        sbu = self._vertex_sbu[vertex]
+        local_arcs = sbu.connect_points
         edges = self._net.graph.outgoing_edges(vertex) + \
                     self._net.graph.incoming_edges(vertex)
         indices = self._net.return_indices(edges)
         lattice_arcs = self._net.lattice_arcs
         e_assign = {}
-        vects = [self.vector_from_cp(cp) for cp in local_arcs]
+        vects = [self.vector_from_cp_SBU(cp, sbu) for cp in local_arcs]
         li = self.normalized_ipmatrix(vects)
         min=15000.
         cc, assign = None, None
@@ -148,7 +141,11 @@ class Build(object):
                 cc = coeff
                 min = mm
                 assign = e
+                cp_vert = [i[0] if i[0] != vertex else i[1] for i in e]
         # NB special MULT function for connect points
+        sbu.edge_assignments = assign
+        for cp, v in zip(local_arcs, cp_vert):
+            cp.vertex_assign = v
         return {e[2]:cp for (e,cp) in zip(assign, local_arcs)}
 
     def assign_edges(self):
@@ -165,49 +162,40 @@ class Build(object):
         SBUs.
 
         """
-        done = False
-        # create a pool of edges? to select from. This will gradually
-        # disappear until all edges are assigned.
         # In cases where there are more than 3 edges, assignment can 
         # get tricky.
-        edges = {}
-        for v in self._net.graph.vertex_iterator():
-            for e, c in self.assign_edge_labels(v).items():
-                self._edge_assign.setdefault(e, []).append((v,c))
-        # obtain inner product matrix
+        g = self._net.graph
         self._inner_product_matrix = np.zeros((self.net.shape, self.net.shape))
-        for v in self._net.graph.vertex_iterator():
-            loc_edges = self._net.graph.outgoing_edges(v) + \
-                    self._net.graph.incoming_edges(v)
-            # get edges oriented out from this node.
-            sbu = self._vertex_assign[v]
-            combos = itertools.combinations_with_replacement(loc_edges, 2)
-            for (e1, e2) in combos:
+        for v in self.sbu_vertices:
+            allvects = {}
+            self.assign_edge_labels(v)
+            sbu = self._vertex_sbu[v]
+            sbu_edges = sbu.edge_assignments
+            cps = sbu.connect_points
+            vectors = [self.vector_from_cp_SBU(cp, sbu) for cp in cps]
+            for i, ed in enumerate(sbu_edges):
+                if ed in g.incoming_edges(v):
+                    vectors[i]*=-1
+
+            allvects = {e:vec for e, vec in zip(sbu_edges, vectors)}
+            for cp in cps:
+                cpv = cp.vertex_assign
+                cpe = g.outgoing_edges(cpv) + g.incoming_edges(cpv)
+                assert len(cpe) == 2
+                edge = cpe[0] if cpe[0] not in sbu_edges else cpe[1]
+                vectr = self.vector_from_cp(cp)
+                vectr = -vectr if edge in g.incoming_edges(cpv) else vectr
+                allvects.update({edge:vectr})
+
+            for (e1, e2) in itertools.combinations_with_replacement(allvects.keys(), 2):
                 (i1, i2) = self._net.return_indices([e1, e2])
-                cp_set1, cp_set2 = [self._edge_assign[e1[2]], self._edge_assign[e2[2]]]
-                # correctly orient the edges to set the origin to the sbu of v
-                # get edge1
-                cp11 = cp_set1[0][1] if cp_set1[0][0] == v else cp_set1[1][1]
-                cp12 = cp_set1[1][1] if cp_set1[1][0] != v else cp_set1[0][1]
-                edge1 = self.obtain_edge_vector(cp11, cp12)
-                # **********************MAY BREAK STUFF
-                if e1 in self._net.graph.incoming_edges(v):
-                    edge1 = -edge1
-                # **********************MAY BREAK STUFF
-                cp21 = cp_set2[0][1] if cp_set2[0][0] == v else cp_set2[1][1]
-                cp22 = cp_set2[1][1] if cp_set2[1][0] != v else cp_set2[0][1]
-                edge2 = self.obtain_edge_vector(cp21, cp22)
-                # **********************MAY BREAK STUFF
-                if e2 in self._net.graph.incoming_edges(v):
-                    edge2 = -edge2
-                # **********************MAY BREAK STUFF
-                dp = np.dot(edge1, edge2)
-                self._inner_product_matrix[i1,i2] = dp 
-                self._inner_product_matrix[i2,i1] = dp
+                dp = np.dot(allvects[e1], allvects[e2])
+                self._inner_product_matrix[i1, i2] = dp
+                self._inner_product_matrix[i2, i1] = dp
         self._inner_product_matrix = np.asmatrix(self._inner_product_matrix)
         
     def net_degrees(self):
-        n = self._net.graph.degree_histogram()
+        n = self._net.original_graph.degree_histogram()
         return sorted([i for i, j in enumerate(n) if j])
 
     def obtain_embedding(self):
@@ -225,7 +213,7 @@ class Build(object):
         self._net.get_embedding()
         test = np.array([0.5, 0.5, 0.5])
         self.build_structure_from_net(test)
-        self.show()
+        #self.show()
 
     def test_angle(self, index1, index2, mat):
         return np.arccos(mat[index1, index2]/np.sqrt(mat[index1, index1])/np.sqrt(mat[index2, index2]))*180./np.pi
@@ -238,7 +226,7 @@ class Build(object):
         ipsbu = self._inner_product_matrix
         nz = np.nonzero(np.triu(ipsbu))
         self.build_structure_from_net(np.zeros(self._net.ndim))
-        self.show()
+        #self.show()
 
     def build_structure_from_net(self, init_placement):
         """Orient SBUs to the nodes on the net, create bonds where needed, etc.."""
@@ -247,12 +235,12 @@ class Build(object):
         V = self.net.graph.vertices()[0] 
         edges = self.net.graph.outgoing_edges(V) + self.net.graph.incoming_edges(V)
         sbu_pos = self._net.vertex_positions(edges, [], pos={V:init_placement})
-        for v in self._net.graph.vertex_iterator():
+        for v in self.sbu_vertices:
             self.sbu_orient(v, cell)
             fc = sbu_pos[v]
             tv = np.dot(fc, cell)
             self.sbu_translate(v, tv)
-            struct.add_sbu(self._vertex_assign[v])
+            struct.add_sbu(self._vertex_sbu[v])
 
         struct.write_cif()
 
@@ -267,7 +255,7 @@ class Build(object):
 
     #def sbu_orient(self, v, cell):
     #    """Optimize the rotation to match vectors"""
-    #    sbu = self._vertex_assign[v]
+    #    sbu = self._vertex_sbu[v]
     #    edges = self._net.graph.outgoing_edges(v) + self._net.graph.incoming_edges(v)
     #    debug("Orienting SBU: %i, %s on vertex %s"%(sbu.identifier, sbu.name, v))
     #    # re-index the edges to match the order of the connect points in the sbu list
@@ -326,28 +314,18 @@ class Build(object):
         'Determining the movements of the skeleton using well configured markers'
         J. Biomech. 26, 12, 1993, 1473-1477.
         DOI: 10.1016/0021-9290(93)90098-Y"""
-        sbu = self._vertex_assign[v]
-        edges = self._net.graph.outgoing_edges(v) + self._net.graph.incoming_edges(v)
+        g = self._net.graph
+        sbu = self._vertex_sbu[v]
+        edges = g.outgoing_edges(v) + g.incoming_edges(v)
         debug("Orienting SBU: %i, %s on vertex %s"%(sbu.identifier, sbu.name, v))
         # re-index the edges to match the order of the connect points in the sbu list
-        indexed_edges = []
-        for cp in sbu.connect_points:
-            for e in edges:
-                if e in self._net.graph.outgoing_edges(v):
-                    coeff = 1.
-                else:
-                    coeff = -1.
-                (v1, cp1),(v2, cp2) = self._edge_assign[e[2]]
-                if v1 == v and cp1.identifier == cp.identifier:
-                    indexed_edges.append((coeff, e))
-                elif v2 == v and cp2.identifier == cp.identifier:
-                    indexed_edges.append((coeff, e))
+        indexed_edges = sbu.edge_assignments
+        coefficients = np.array([1. if e in g.outgoing_edges(v) else -1 for e in indexed_edges])
         if len(indexed_edges) != sbu.degree:
             error("There was an error assigning edges "+
                         "to the sbu %s"%(sbu.name))
             Terminate(errcode=1)
-        inds = self._net.return_indices([m[1] for m in indexed_edges])
-        coefficients = np.array([m[0] for m in indexed_edges])
+        inds = self._net.return_indices(indexed_edges)
         arcs = np.dot(np.array(self._net.lattice_arcs[inds]), cell)
 
         norms = np.apply_along_axis(np.linalg.norm, 1, arcs)
@@ -355,7 +333,7 @@ class Build(object):
         # **********************MAY BREAK STUFF
         arcs = np.array(arcs / norms.reshape(-1, 1)) * coefficients[:,None]
         # **********************MAY BREAK STUFF 
-        sbu_vects = np.array([self.vector_from_cp(cp) 
+        sbu_vects = np.array([self.vector_from_cp_SBU(cp, sbu) 
                                 for cp in sbu.connect_points])
         norms = np.apply_along_axis(np.linalg.norm, 1, sbu_vects)
         sbu_vects = sbu_vects / norms.reshape(-1, 1)
@@ -382,20 +360,30 @@ class Build(object):
         debug("Average orientation error: %12.6f +/- %9.6f degrees"%(mean/DEG2RAD, std/DEG2RAD))
 
     def sbu_translate(self, v, trans):
-        sbu = self._vertex_assign[v]
+        sbu = self._vertex_sbu[v]
         sbu.translate(trans)
 
     def show(self):
         g = GraphPlot(self._net)
         #g.view_graph()
         g.view_placement(init=(0.2, 0.2, 0.3))
-    
+   
+    def vector_from_cp_SBU(self, cp, sbu):
+        for atom in sbu.atoms:
+            # NB: THIS BREAKS BARIUM MOFS!!
+            for b in atom.sbu_bridge:
+                if b == cp.identifier:
+                    coords = atom.coordinates[:3]
+                    break
+        return coords - sbu.COM[:3]
+
     def vector_from_cp(self,cp):
-        return cp.origin[:3].copy()# + cp.z[:3]
+        return cp.z[:3]/np.linalg.norm(cp.z[:3]) * self.options.sbu_bond_length
+        #return cp.origin[:3].copy()# + cp.z[:3]
 
     @property
     def check_net(self):
-        if self._net.shape < 25 and self.sbu_degrees == self.net_degrees():
+        if self._net.original_graph.size() < 25 and self.sbu_degrees == self.net_degrees():
             return True
         return False
 
@@ -432,16 +420,12 @@ class Build(object):
                 self.sbu_vertices.append(vertices[2])
             else:
                 self._net.add_edges_between(e, 2)
-
-        print self.sbu_vertices
         #self._net.graph.show(edge_labels=True)
         #raw_input("p\n")
         self._obtain_cycle_bases()
         # start off with the barycentric embedding
         self._net.barycentric_embedding()
-        #self.assign()
-
-        self.show()
+        #self.show()
 
     @property
     def sbus(self):

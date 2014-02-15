@@ -5,11 +5,12 @@ import sys
 import itertools
 from Visualizer import GraphPlot
 from LinAlg import rotation_from_vectors, rotation_matrix, rotation_from_omega, calc_angle, calc_axis, DEG2RAD
+from LinAlg import central_moment, raw_moment, get_CI, elipsoid_vol 
 from Structure import Structure, Cell
 import numpy as np
 from logging import info, debug, warning, error
 from copy import deepcopy
-sys.path.append('/home/pboyd/lib/lmfit-0.7.2')
+sys.path.append('/home/pete/lib/lmfit-0.7.2')
 from lmfit import Minimizer, minimize, Parameters, report_errors
 
 np.set_printoptions(threshold=np.nan, precision=4, suppress=True, linewidth=185)
@@ -157,26 +158,6 @@ class Build(object):
             cp.vertex_assign = v
         return {e[2]:cp for (e,cp) in zip(assign, local_arcs)}
 
-    def central_moment(self, edges, vects, mean):
-        """Obtain the central moments"""
-        mx, my, mz = mean
-        def moment(l,m,n, dic={}):
-            try:
-                return dic[(l,m,n)]
-            except KeyError:
-                mom = 0.
-                for ind, (x,y,z) in enumerate(vects):
-                    mom += ((x-mx)**l)*((y-my)**m)*((z-mz)**n)*float(edges[ind][2][1:])
-                return mom
-        return moment
-
-    def raw_moment(self, edges, vects):
-        def moment(l, m, n):
-            mom = 0.
-            for ind, (x,y,z) in enumerate(vects):
-                mom += (x**l)*(y**m)*(z**n)*float(edges[ind][2][1:])
-            return mom
-        return moment
 
     def chiral_match(self, edges, arcs, sbu):
         """Determines if two geometries match in terms of edge
@@ -184,6 +165,9 @@ class Build(object):
 
         DOI:10.1098/rsif.2010.0297
         """
+        edge_weights = [float(e[2][1:]) for e in edges]
+        # just rank in terms of weights.......
+        edge_weights = [float(sorted(edge_weights).index(e)+1) for e in edge_weights]
         cp_vects = np.array([self.vector_from_cp_SBU(cp, sbu) for cp
                              in sbu.connect_points])
 
@@ -193,86 +177,24 @@ class Build(object):
         norms = np.apply_along_axis(np.linalg.norm, 1, cp_vects.T)
         cp_vects = cp_vects.T / norms.reshape(-1, 1)
 
-        cprm = self.raw_moment(edges, cp_vects.T)
+        cprm = raw_moment(edge_weights, cp_vects.T)
         com = cprm(0,0,0)
         (mx, my, mz) = (cprm(1,0,0)/com, 
                         cprm(0,1,0)/com, 
                         cprm(0,0,1)/com)
-        cpcm = self.central_moment(edges, cp_vects.T, (mx, my, mz))
+        cpcm = central_moment(edge_weights, cp_vects.T, (mx, my, mz))
 
-        CI_cm = self.get_CI(cpcm)
-        arrm = self.raw_moment(edges, np.array(arcs).T)
+        CI_cm = get_CI(cpcm)
+        arrm = raw_moment(edge_weights, np.array(arcs).T)
         com = arrm(0,0,0)
         (mx, my, mz) = (arrm(1,0,0)/com, 
                         arrm(0,1,0)/com, 
                         arrm(0,0,1)/com)
-        arcm = self.central_moment(edges, np.array(arcs).T, (mx, my, mz))
-        CI_ar = self.get_CI(arcm)
-
-        print CI_cm, CI_ar
+        arcm = central_moment(edge_weights, np.array(arcs).T, (mx, my, mz))
+        CI_ar = get_CI(arcm)
+        print 'elipsoid volumes', elipsoid_vol(cpcm), elipsoid_vol(arcm)
+        print 'sbu CI', CI_cm, 'arc CI', CI_ar
         return all(item >= 0 for item in (CI_ar, CI_cm)) or all(item < 0 for item in (CI_ar, CI_cm))
-
-    def get_CI(self, cm):
-
-        rgyr = np.sqrt((cm(2,0,0)+cm(0,2,0)+cm(0,0,2))/(3.*cm(0,0,0)))
-        s3 = 1./((cm(0,0,0)**3)*rgyr**9)
-        s4 = 1./((cm(0,0,0)**4)*rgyr**9)
-        # second order
-        a1 = cm(0,0,2) - cm(0,2,0)
-        a2 = cm(0,2,0) - cm(2,0,0)
-        a3 = cm(2,0,0) - cm(0,0,2)
-        # third order
-        b1 = cm(0,2,1) - cm(2,0,1)
-        b2 = cm(1,0,2) - cm(1,2,0)
-        b3 = cm(2,1,0) - cm(0,1,2)
-        b4 = cm(0,0,3) - cm(2,0,1) - 2.*cm(0,2,1)
-        b5 = cm(0,0,3) - cm(2,0,1) - 2.*cm(0,2,1)
-        b6 = cm(3,0,0) - cm(1,2,0) - 2.*cm(1,0,2)
-        b7 = cm(0,2,1) - cm(0,0,3) + 2.*cm(2,0,1)
-        b8 = cm(1,0,2) - cm(3,0,0) + 2.*cm(1,2,0)
-        b9 = cm(2,1,0) - cm(0,3,0) + 2.*cm(0,1,2)
-        b10 = cm(0,2,1) + cm(2,0,1) - 3.*cm(0,0,3)
-        b11 = cm(0,1,2) + cm(2,1,0) - 3.*cm(0,3,0)
-        b12 = cm(1,0,2) + cm(1,2,0) - 3.*cm(3,0,0)
-        b13 = cm(0,2,1) + cm(0,0,3) + 3.*cm(2,0,1)
-        b14 = cm(1,0,2) + cm(3,0,0) + 3.*cm(1,2,0)
-        b15 = cm(2,1,0) + cm(0,3,0) + 3.*cm(0,1,2)
-        b16 = cm(0,1,2) + cm(0,3,0) + 3.*cm(2,1,0)
-        b17 = cm(2,0,1) + cm(0,0,3) + 3.*cm(0,2,1)
-        b18 = cm(1,2,0) + cm(3,0,0) + 3.*cm(1,0,2)
-        #fourth order
-        g1 = cm(0,2,2) - cm(4,0,0)
-        g2 = cm(2,0,2) - cm(0,4,0)
-        g3 = cm(2,2,0) - cm(0,0,4)
-        g4 = cm(1,1,2) + cm(1,3,0) + cm(3,1,0)
-        g5 = cm(1,2,1) + cm(1,0,3) + cm(3,0,1)
-        g6 = cm(2,1,1) + cm(0,1,3) + cm(0,3,1)
-        g7 = cm(0,2,2) - cm(2,2,0) + cm(0,0,4) - cm(4,0,0)
-        g8 = cm(2,0,2) - cm(0,2,2) + cm(4,0,0) - cm(0,4,0)
-        g9 = cm(2,2,0) - cm(2,0,2) + cm(0,4,0) - cm(0,0,4)
-
-        CI = 4.*s3*(cm(1,1,0)*(cm(0,2,1)*(3.*g2-2.*g3-g1) -
-                               cm(2,0,1)*(3.*g1-2.*g3-g2) + b12*g5 -
-                               b11*g6 + cm(0,0,3)*g8) + 
-                    cm(1,0,1)*(cm(2,1,0)*(3.*g1-2.*g2-g3) -
-                               cm(0,1,2)*(3.*g3-2.*g2-g1)+b10*g6-b12*g4 +
-                               cm(0,3,0)*g7) + 
-                    cm(0,1,1)*(cm(1,0,2)*(3.*g3-2.*g1-g2)-
-                               cm(1,2,0)*(3.*g2-2.*g1-g3) + 
-                               b11*g4-b10*g5+cm(3,0,0)*g9) + 
-                    cm(0,0,2)*(b18*g6-b15*g5-2.*(cm(1,1,1)*g8+b1*g4))+
-                    cm(0,2,0)*(b17*g4-b14*g6-2.*(cm(1,1,1)*g7+b3*g5))+
-                    cm(2,0,0)*(b16*g5-b13*g4-2.*(cm(1,1,1)*g9+b2*g6))) - \
-            16.*s4*(cm(0,1,1)*a2*a3*b2+cm(1,0,1)*a1*a2*b3 +
-                    cm(1,1,0)*a1*a3*b1-cm(1,1,1)*a1*a2*a3 -
-                    cm(0,1,1)*cm(0,1,1)*(cm(1,1,1)*a1-cm(0,1,1)*b2-cm(1,0,1)*b5-cm(1,1,0)*b7) -
-                    cm(1,0,1)*cm(1,0,1)*(cm(1,1,1)*a3-cm(1,0,1)*b3-cm(1,1,0)*b4-cm(0,1,1)*b8) -
-                    cm(1,1,0)*cm(1,1,0)*(cm(1,1,1)*a2-cm(1,1,0)*b1-cm(0,1,1)*b6-cm(1,0,1)*b9) +
-                    cm(0,1,1)*cm(0,1,1)*(cm(0,0,2)*b1+cm(0,2,0)*b4+cm(2,0,0)*b7) +
-                    cm(0,1,1)*cm(1,1,0)*(cm(0,2,0)*b3+cm(2,0,0)*b5+cm(0,0,2)*b9) +
-                    cm(1,0,1)*cm(1,0,1)*(cm(2,0,0)*b2+cm(0,0,2)*b6+cm(0,2,0)*b8))
-
-        return CI
 
     def assign_edges(self):
         """Select edges from the graph to assign bonds between SBUs.
@@ -429,8 +351,8 @@ class Build(object):
                                 for cp in sbu.connect_points])
         norms = np.apply_along_axis(np.linalg.norm, 1, sbu_vects)
         sbu_vects = np.array(sbu_vects / norms.reshape(-1, 1))
-        print np.inner(arcs, arcs)
-        print np.inner(sbu_vects, sbu_vects)
+        #print np.inner(arcs, arcs)
+        #print np.inner(sbu_vects, sbu_vects)
         # Try quaternion??
         params = Parameters()
         #params.add('a1', value=0.001, min=-1., max=1.)
@@ -515,7 +437,7 @@ class Build(object):
         g = GraphPlot(self._net)
         #g.view_graph()
         g.view_placement(init=(0.2, 0.2, 0.3))
-   
+
     def vector_from_cp_SBU(self, cp, sbu):
         for atom in sbu.atoms:
             # NB: THIS BREAKS BARIUM MOFS!!
@@ -560,6 +482,13 @@ class Build(object):
         #print self._net.graph.edges()
         # keep track of the sbu vertices
         self.sbu_vertices = self._net.graph.vertices()
+
+        #####
+        self._obtain_cycle_bases()
+        self._net.barycentric_embedding()
+        self.show()
+        sys.exit()
+        #####
         for e in self._net.graph.edges():
             if e in self._net.graph.loop_edges():
                 vertices = self._net.add_edges_between(e, 5)
@@ -573,7 +502,7 @@ class Build(object):
         self._obtain_cycle_bases()
         # start off with the barycentric embedding
         self._net.barycentric_embedding()
-        #self.show()
+        self.show()
 
     @property
     def sbus(self):

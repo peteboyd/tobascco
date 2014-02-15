@@ -88,3 +88,103 @@ def rotation_matrix(axis, angle, point=None):
         point = np.array(point[:3], dtype=np.float64, copy=False)
         M[:3,3] = point - np.dot(R, point)
     return M
+    
+def central_moment(weights, vects, mean):
+    """Obtain the central moments"""
+    mx, my, mz = mean
+    dic={}
+    def moment(l,m,n):
+        try:
+            return dic[(l,m,n)]
+        except KeyError:
+            mom = 0.
+            for ind, (x,y,z) in enumerate(vects):
+                mom += ((x-mx)**l)*((y-my)**m)*((z-mz)**n)*weights[ind]
+            dic[(l,m,n)] = mom
+            return mom
+    return moment
+
+def raw_moment(weights, vects):
+    dic = {}
+    def moment(l, m, n):
+        try:
+            return dic[(l,m,n)]
+        except KeyError:
+            mom = 0.
+            for ind, (x,y,z) in enumerate(vects):
+                mom += (x**l)*(y**m)*(z**n)*weights[ind]
+            dic[(l,m,n)] = mom
+            return mom
+    return moment
+
+def elipsoid_vol(cm):
+    mat = np.matrix([[cm(2,0,0), cm(1,1,0), cm(1,0,1)],
+                     [cm(1,1,0), cm(0,2,0), cm(0,1,1)],
+                     [cm(1,0,1), cm(0,1,1), cm(0,0,2)]])
+    vol = (np.pi*4./3.*np.linalg.det(mat))**(1./3.)
+    return vol
+
+def r_gyr(cm):
+    return np.sqrt((cm(2,0,0)+cm(0,2,0)+cm(0,0,2))/(3.*cm(0,0,0)))
+
+def get_CI(cm):
+    r = r_gyr(cm)
+    s3 = 1./((cm(0,0,0)**3)*r**9)
+    s4 = 1./((cm(0,0,0)**4)*r**9)
+    # second order
+    a1 = cm(0,0,2) - cm(0,2,0)
+    a2 = cm(0,2,0) - cm(2,0,0)
+    a3 = cm(2,0,0) - cm(0,0,2)
+    # third order
+    b1 = cm(0,2,1) - cm(2,0,1)
+    b2 = cm(1,0,2) - cm(1,2,0)
+    b3 = cm(2,1,0) - cm(0,1,2)
+    b4 = cm(0,0,3) - cm(2,0,1) - 2.*cm(0,2,1)
+    b5 = cm(0,0,3) - cm(2,0,1) - 2.*cm(0,2,1)
+    b6 = cm(3,0,0) - cm(1,2,0) - 2.*cm(1,0,2)
+    b7 = cm(0,2,1) - cm(0,0,3) + 2.*cm(2,0,1)
+    b8 = cm(1,0,2) - cm(3,0,0) + 2.*cm(1,2,0)
+    b9 = cm(2,1,0) - cm(0,3,0) + 2.*cm(0,1,2)
+    b10 = cm(0,2,1) + cm(2,0,1) - 3.*cm(0,0,3)
+    b11 = cm(0,1,2) + cm(2,1,0) - 3.*cm(0,3,0)
+    b12 = cm(1,0,2) + cm(1,2,0) - 3.*cm(3,0,0)
+    b13 = cm(0,2,1) + cm(0,0,3) + 3.*cm(2,0,1)
+    b14 = cm(1,0,2) + cm(3,0,0) + 3.*cm(1,2,0)
+    b15 = cm(2,1,0) + cm(0,3,0) + 3.*cm(0,1,2)
+    b16 = cm(0,1,2) + cm(0,3,0) + 3.*cm(2,1,0)
+    b17 = cm(2,0,1) + cm(0,0,3) + 3.*cm(0,2,1)
+    b18 = cm(1,2,0) + cm(3,0,0) + 3.*cm(1,0,2)
+    #fourth order
+    g1 = cm(0,2,2) - cm(4,0,0)
+    g2 = cm(2,0,2) - cm(0,4,0)
+    g3 = cm(2,2,0) - cm(0,0,4)
+    g4 = cm(1,1,2) + cm(1,3,0) + cm(3,1,0)
+    g5 = cm(1,2,1) + cm(1,0,3) + cm(3,0,1)
+    g6 = cm(2,1,1) + cm(0,1,3) + cm(0,3,1)
+    g7 = cm(0,2,2) - cm(2,2,0) + cm(0,0,4) - cm(4,0,0)
+    g8 = cm(2,0,2) - cm(0,2,2) + cm(4,0,0) - cm(0,4,0)
+    g9 = cm(2,2,0) - cm(2,0,2) + cm(0,4,0) - cm(0,0,4)
+
+    CI = 4.*s3*(cm(1,1,0)*(cm(0,2,1)*(3.*g2-2.*g3-g1) -
+                           cm(2,0,1)*(3.*g1-2.*g3-g2) + b12*g5 -
+                           b11*g6 + cm(0,0,3)*g8) + 
+                cm(1,0,1)*(cm(2,1,0)*(3.*g1-2.*g2-g3) -
+                           cm(0,1,2)*(3.*g3-2.*g2-g1)+b10*g6-b12*g4 +
+                           cm(0,3,0)*g7) + 
+                cm(0,1,1)*(cm(1,0,2)*(3.*g3-2.*g1-g2)-
+                           cm(1,2,0)*(3.*g2-2.*g1-g3) + 
+                           b11*g4-b10*g5+cm(3,0,0)*g9) + 
+                cm(0,0,2)*(b18*g6-b15*g5-2.*(cm(1,1,1)*g8+b1*g4))+
+                cm(0,2,0)*(b17*g4-b14*g6-2.*(cm(1,1,1)*g7+b3*g5))+
+                cm(2,0,0)*(b16*g5-b13*g4-2.*(cm(1,1,1)*g9+b2*g6))) - \
+        16.*s4*(cm(0,1,1)*a2*a3*b2+cm(1,0,1)*a1*a2*b3 +
+                cm(1,1,0)*a1*a3*b1-cm(1,1,1)*a1*a2*a3 -
+                cm(0,1,1)*cm(0,1,1)*(cm(1,1,1)*a1-cm(0,1,1)*b2-cm(1,0,1)*b5-cm(1,1,0)*b7) -
+                cm(1,0,1)*cm(1,0,1)*(cm(1,1,1)*a3-cm(1,0,1)*b3-cm(1,1,0)*b4-cm(0,1,1)*b8) -
+                cm(1,1,0)*cm(1,1,0)*(cm(1,1,1)*a2-cm(1,1,0)*b1-cm(0,1,1)*b6-cm(1,0,1)*b9) +
+                cm(0,1,1)*cm(0,1,1)*(cm(0,0,2)*b1+cm(0,2,0)*b4+cm(2,0,0)*b7) +
+                cm(0,1,1)*cm(1,1,0)*(cm(0,2,0)*b3+cm(2,0,0)*b5+cm(0,0,2)*b9) +
+                cm(1,0,1)*cm(1,0,1)*(cm(2,0,0)*b2+cm(0,0,2)*b6+cm(0,2,0)*b8))
+
+    return CI
+

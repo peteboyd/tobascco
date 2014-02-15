@@ -4,7 +4,7 @@ from Net import Net
 import sys
 import itertools
 from Visualizer import GraphPlot
-from LinAlg import rotation_from_vectors, rotation_matrix, calc_angle, calc_axis, DEG2RAD
+from LinAlg import rotation_from_vectors, rotation_matrix, rotation_from_omega, calc_angle, calc_axis, DEG2RAD
 from Structure import Structure, Cell
 import numpy as np
 from logging import info, debug, warning, error
@@ -108,6 +108,7 @@ class Build(object):
         find the best assignment based on inner product comparison
         with the non-placed lattice arcs."""
         sbu = self._vertex_sbu[vertex]
+        print vertex, sbu.name
         local_arcs = sbu.connect_points
         edges = self._net.graph.outgoing_edges(vertex) + \
                     self._net.graph.incoming_edges(vertex)
@@ -119,6 +120,9 @@ class Build(object):
         min=15000.
         cc, assign = None, None
         #print "new batch"
+        cell = Cell()
+        cell.mkcell(self._net.get_3d_params())
+        lattice_vects = np.dot(lattice_arcs, cell.lattice)
         for e in itertools.permutations(edges):
             indices = self._net.return_indices(e)
             node_arcs = lattice_arcs[indices]*\
@@ -137,16 +141,138 @@ class Build(object):
                                else 1. for j in e])
             td = np.tensordot(coeff, coeff, axes=0)
             mm = np.sum(np.absolute(np.multiply(li, td) - la))
-            if mm < min:
+            # NB Chirality matters!!!
+            # get the cell
+            self.chiral_match(e, lattice_vects[indices], sbu)
+            # get the lattice arcs
+            if (mm < min):# and \
+                    #self.chiral_match(e, lattice_vects[indices], sbu):
                 cc = coeff
                 min = mm
                 assign = e
-                cp_vert = [i[0] if i[0] != vertex else i[1] for i in e]
         # NB special MULT function for connect points
+        cp_vert = [i[0] if i[0] != vertex else i[1] for i in assign]
         sbu.edge_assignments = assign
         for cp, v in zip(local_arcs, cp_vert):
             cp.vertex_assign = v
         return {e[2]:cp for (e,cp) in zip(assign, local_arcs)}
+
+    def central_moment(self, edges, vects, mean):
+        """Obtain the central moments"""
+        mx, my, mz = mean
+        def moment(l,m,n, dic={}):
+            try:
+                return dic[(l,m,n)]
+            except KeyError:
+                mom = 0.
+                for ind, (x,y,z) in enumerate(vects):
+                    mom += ((x-mx)**l)*((y-my)**m)*((z-mz)**n)*float(edges[ind][2][1:])
+                return mom
+        return moment
+
+    def raw_moment(self, edges, vects):
+        def moment(l, m, n):
+            mom = 0.
+            for ind, (x,y,z) in enumerate(vects):
+                mom += (x**l)*(y**m)*(z**n)*float(edges[ind][2][1:])
+            return mom
+        return moment
+
+    def chiral_match(self, edges, arcs, sbu):
+        """Determines if two geometries match in terms of edge
+        orientation.
+
+        DOI:10.1098/rsif.2010.0297
+        """
+        cp_vects = np.array([self.vector_from_cp_SBU(cp, sbu) for cp
+                             in sbu.connect_points])
+
+        norms = np.apply_along_axis(np.linalg.norm, 1, arcs.T)
+        arcs = arcs.T / norms.reshape(-1, 1)
+
+        norms = np.apply_along_axis(np.linalg.norm, 1, cp_vects.T)
+        cp_vects = cp_vects.T / norms.reshape(-1, 1)
+
+        cprm = self.raw_moment(edges, cp_vects.T)
+        com = cprm(0,0,0)
+        (mx, my, mz) = (cprm(1,0,0)/com, 
+                        cprm(0,1,0)/com, 
+                        cprm(0,0,1)/com)
+        cpcm = self.central_moment(edges, cp_vects.T, (mx, my, mz))
+
+        CI_cm = self.get_CI(cpcm)
+        arrm = self.raw_moment(edges, np.array(arcs).T)
+        com = arrm(0,0,0)
+        (mx, my, mz) = (arrm(1,0,0)/com, 
+                        arrm(0,1,0)/com, 
+                        arrm(0,0,1)/com)
+        arcm = self.central_moment(edges, np.array(arcs).T, (mx, my, mz))
+        CI_ar = self.get_CI(arcm)
+
+        print CI_cm, CI_ar
+        return all(item >= 0 for item in (CI_ar, CI_cm)) or all(item < 0 for item in (CI_ar, CI_cm))
+
+    def get_CI(self, cm):
+
+        rgyr = np.sqrt((cm(2,0,0)+cm(0,2,0)+cm(0,0,2))/(3.*cm(0,0,0)))
+        s3 = 1./((cm(0,0,0)**3)*rgyr**9)
+        s4 = 1./((cm(0,0,0)**4)*rgyr**9)
+        # second order
+        a1 = cm(0,0,2) - cm(0,2,0)
+        a2 = cm(0,2,0) - cm(2,0,0)
+        a3 = cm(2,0,0) - cm(0,0,2)
+        # third order
+        b1 = cm(0,2,1) - cm(2,0,1)
+        b2 = cm(1,0,2) - cm(1,2,0)
+        b3 = cm(2,1,0) - cm(0,1,2)
+        b4 = cm(0,0,3) - cm(2,0,1) - 2.*cm(0,2,1)
+        b5 = cm(0,0,3) - cm(2,0,1) - 2.*cm(0,2,1)
+        b6 = cm(3,0,0) - cm(1,2,0) - 2.*cm(1,0,2)
+        b7 = cm(0,2,1) - cm(0,0,3) + 2.*cm(2,0,1)
+        b8 = cm(1,0,2) - cm(3,0,0) + 2.*cm(1,2,0)
+        b9 = cm(2,1,0) - cm(0,3,0) + 2.*cm(0,1,2)
+        b10 = cm(0,2,1) + cm(2,0,1) - 3.*cm(0,0,3)
+        b11 = cm(0,1,2) + cm(2,1,0) - 3.*cm(0,3,0)
+        b12 = cm(1,0,2) + cm(1,2,0) - 3.*cm(3,0,0)
+        b13 = cm(0,2,1) + cm(0,0,3) + 3.*cm(2,0,1)
+        b14 = cm(1,0,2) + cm(3,0,0) + 3.*cm(1,2,0)
+        b15 = cm(2,1,0) + cm(0,3,0) + 3.*cm(0,1,2)
+        b16 = cm(0,1,2) + cm(0,3,0) + 3.*cm(2,1,0)
+        b17 = cm(2,0,1) + cm(0,0,3) + 3.*cm(0,2,1)
+        b18 = cm(1,2,0) + cm(3,0,0) + 3.*cm(1,0,2)
+        #fourth order
+        g1 = cm(0,2,2) - cm(4,0,0)
+        g2 = cm(2,0,2) - cm(0,4,0)
+        g3 = cm(2,2,0) - cm(0,0,4)
+        g4 = cm(1,1,2) + cm(1,3,0) + cm(3,1,0)
+        g5 = cm(1,2,1) + cm(1,0,3) + cm(3,0,1)
+        g6 = cm(2,1,1) + cm(0,1,3) + cm(0,3,1)
+        g7 = cm(0,2,2) - cm(2,2,0) + cm(0,0,4) - cm(4,0,0)
+        g8 = cm(2,0,2) - cm(0,2,2) + cm(4,0,0) - cm(0,4,0)
+        g9 = cm(2,2,0) - cm(2,0,2) + cm(0,4,0) - cm(0,0,4)
+
+        CI = 4.*s3*(cm(1,1,0)*(cm(0,2,1)*(3.*g2-2.*g3-g1) -
+                               cm(2,0,1)*(3.*g1-2.*g3-g2) + b12*g5 -
+                               b11*g6 + cm(0,0,3)*g8) + 
+                    cm(1,0,1)*(cm(2,1,0)*(3.*g1-2.*g2-g3) -
+                               cm(0,1,2)*(3.*g3-2.*g2-g1)+b10*g6-b12*g4 +
+                               cm(0,3,0)*g7) + 
+                    cm(0,1,1)*(cm(1,0,2)*(3.*g3-2.*g1-g2)-
+                               cm(1,2,0)*(3.*g2-2.*g1-g3) + 
+                               b11*g4-b10*g5+cm(3,0,0)*g9) + 
+                    cm(0,0,2)*(b18*g6-b15*g5-2.*(cm(1,1,1)*g8+b1*g4))+
+                    cm(0,2,0)*(b17*g4-b14*g6-2.*(cm(1,1,1)*g7+b3*g5))+
+                    cm(2,0,0)*(b16*g5-b13*g4-2.*(cm(1,1,1)*g9+b2*g6))) - \
+            16.*s4*(cm(0,1,1)*a2*a3*b2+cm(1,0,1)*a1*a2*b3 +
+                    cm(1,1,0)*a1*a3*b1-cm(1,1,1)*a1*a2*a3 -
+                    cm(0,1,1)*cm(0,1,1)*(cm(1,1,1)*a1-cm(0,1,1)*b2-cm(1,0,1)*b5-cm(1,1,0)*b7) -
+                    cm(1,0,1)*cm(1,0,1)*(cm(1,1,1)*a3-cm(1,0,1)*b3-cm(1,1,0)*b4-cm(0,1,1)*b8) -
+                    cm(1,1,0)*cm(1,1,0)*(cm(1,1,1)*a2-cm(1,1,0)*b1-cm(0,1,1)*b6-cm(1,0,1)*b9) +
+                    cm(0,1,1)*cm(0,1,1)*(cm(0,0,2)*b1+cm(0,2,0)*b4+cm(2,0,0)*b7) +
+                    cm(0,1,1)*cm(1,1,0)*(cm(0,2,0)*b3+cm(2,0,0)*b5+cm(0,0,2)*b9) +
+                    cm(1,0,1)*cm(1,0,1)*(cm(2,0,0)*b2+cm(0,0,2)*b6+cm(0,2,0)*b8))
+
+        return CI
 
     def assign_edges(self):
         """Select edges from the graph to assign bonds between SBUs.
@@ -245,13 +371,40 @@ class Build(object):
         struct.write_cif()
 
     def rotation_function(self, params, sbu_vects, data):
-        axis = np.array((params['a1'].value, params['a2'].value, params['a3'].value))
-        angle = params['angle'].value
-        R = rotation_matrix(axis, angle)
+        #axis = np.array((params['a1'].value, params['a2'].value, params['a3'].value))
+        #angle = params['angle'].value
+        #R = rotation_matrix(axis, angle)
+        omega = np.array([params['w1'].value, params['w2'].value, params['w3'].value])
+        R = rotation_from_omega(omega)
         res = np.dot(R[:3,:3], sbu_vects.T)
         norms = np.apply_along_axis(np.linalg.norm, 1, res.T)
         v = res.T / norms.reshape(-1, 1)
-        return (v - data).flatten()
+        or1 = np.zeros(3)
+        or2 = np.array([3., 3., 0.])
+        xyz_str1 = "C %9.5f %9.5f %9.5f\n"%(or1[0], or1[1], or1[2])
+        xyz_str2 = "C %9.5f %9.5f %9.5f\n"%(or2[0], or2[1], or2[2])
+        for ind, (i, j) in enumerate(zip(v, data)):
+            if ind == 0:
+                at = "H"
+            elif ind == 1:
+                at = "F"
+            elif ind == 2:
+                at = "He"
+            elif ind == 3:
+                at = "X"
+            pos = i + or1
+            xyz_str1 += "%s %9.5f %9.5f %9.5f\n"%(at, pos[0], pos[1], pos[2])
+            pos = j + or2
+            xyz_str2 += "%s %9.5f %9.5f %9.5f\n"%(at, pos[0], pos[1], pos[2]) 
+
+        xyz_file = open("debugging.xyz", 'a')
+        xyz_file.writelines("%i\ndebug\n"%(len(v)*2+2))
+        xyz_file.writelines(xyz_str1)
+        xyz_file.writelines(xyz_str2)
+        xyz_file.close()
+        angles = np.array([calc_angle(v1, v2) for v1, v2 in zip(v, data)])
+        return angles
+        #return (v - data).flatten()
 
     def sbu_orient(self, v, cell):
         """Optimize the rotation to match vectors"""
@@ -270,34 +423,36 @@ class Build(object):
         norms = np.apply_along_axis(np.linalg.norm, 1, arcs)
         # get the right orientation of the arcs (all pointing away from the node)
         # **********************MAY BREAK STUFF
-        arcs = np.array(arcs / norms.reshape(-1, 1))
+        arcs = np.array(arcs / norms.reshape(-1, 1)) * coefficients[:, None]
         # **********************MAY BREAK STUFF 
         sbu_vects = np.array([self.vector_from_cp_SBU(cp, sbu) 
                                 for cp in sbu.connect_points])
         norms = np.apply_along_axis(np.linalg.norm, 1, sbu_vects)
-        sbu_vects = np.array(sbu_vects / norms.reshape(-1, 1))  * coefficients[:, None]
+        sbu_vects = np.array(sbu_vects / norms.reshape(-1, 1))
         print np.inner(arcs, arcs)
         print np.inner(sbu_vects, sbu_vects)
         # Try quaternion??
         params = Parameters()
-        params.add('a1', value=0.001, min=-1., max=1.)
-        params.add('a2', value=0.001, min=-1., max=1.)
-        params.add('a3', value=0.001, min=-1., max=1.)
-        # make sure that the angle range covers all 3d rotations...
-        params.add('angle', value=0.01, min=0., max=np.pi)
-        
+        #params.add('a1', value=0.001, min=-1., max=1.)
+        #params.add('a2', value=0.001, min=-1., max=1.)
+        #params.add('a3', value=0.001, min=-1., max=1.)
+        ## make sure that the angle range covers all 3d rotations...
+        #params.add('angle', value=np.pi/2., min=0., max=np.pi)
+        params.add('w1', value=1.000)
+        params.add('w2', value=1.000)
+        params.add('w3', value=1.000)
         min = Minimizer(self.rotation_function, params, fcn_args=(sbu_vects, arcs))
         # giving me a hard time
-        min.lbfgsb(factr=10., epsilon=1e-8, pgtol=1e-8)
+        #min.lbfgsb(factr=100., epsilon=0.001, pgtol=0.001)
         #print report_errors(params)
         #min = minimize(self.rotation_function, params, args=(sbu_vects, arcs), method='anneal')
-        #min.leastsq(xtol=1.e-8, ftol=1.e-7)
+        min.leastsq(xtol=1.e-8, ftol=1.e-7)
         #min.fmin()
-        axis = np.array([params['a1'].value, params['a2'].value, params['a3'].value])
-        angle = params['angle'].value
-        
-        self.report_errors(sbu_vects, arcs, axis=axis, angle=angle)
-        R = rotation_matrix(axis, angle)
+        #axis = np.array([params['a1'].value, params['a2'].value, params['a3'].value])
+        #angle = params['angle'].value
+        R = rotation_from_omega(np.array([params['w1'].value, params['w2'].value, params['w3'].value]))
+        self.report_errors(sbu_vects, arcs, rot_mat=R)
+        #R = rotation_matrix(axis, angle)
         sbu.rotate(R)
 
     #def sbu_orient(self, v, cell):
@@ -324,12 +479,12 @@ class Build(object):
     #    norms = np.apply_along_axis(np.linalg.norm, 1, arcs)
     #    # get the right orientation of the arcs (all pointing away from the node)
     #    # **********************MAY BREAK STUFF
-    #    arcs = np.array(arcs / norms.reshape(-1, 1))
+    #    arcs = np.array(arcs / norms.reshape(-1, 1)) * coefficients[:,None]
     #    # **********************MAY BREAK STUFF 
     #    sbu_vects = np.array([self.vector_from_cp_SBU(cp, sbu) 
     #                            for cp in sbu.connect_points])
     #    norms = np.apply_along_axis(np.linalg.norm, 1, sbu_vects)
-    #    sbu_vects = sbu_vects / norms.reshape(-1, 1) * coefficients[:,None]
+    #    sbu_vects = sbu_vects / norms.reshape(-1, 1)
     #    #print np.dot(arcs, arcs.T)
     #    #sf = self._net.scale_factor
     #    #la = self._net.lattice_arcs

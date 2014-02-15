@@ -31,6 +31,18 @@ def calc_axis(v1, v2):
     a = np.cross(v1_u, v2_u)
     return a / np.linalg.norm(a)
 
+def rotation_from_omega(w):
+
+    theta = np.linalg.norm(w)
+    omega_x = np.array([[   0., -w[2],  w[1]],
+                        [ w[2],    0., -w[0]],
+                        [-w[1],  w[0],    0.]])
+    R = np.identity(4)
+    M = np.identity(3) + np.sin(theta)/theta*omega_x + \
+            (1. - np.cos(theta))/(theta*theta) * np.linalg.matrix_power(omega_x, 2)
+    R[:3,:3] = M
+    return R
+
 def rotation_from_vectors(v1, v2, point=None):
     """Obtain rotation matrix from sets of vectors.
     the original set is v1 and the vectors to rotate

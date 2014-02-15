@@ -7,7 +7,7 @@ from logging import info, debug, warning, error
 import numpy as np
 from LinAlg import DEG2RAD
 from scipy.optimize import fmin_l_bfgs_b, minimize, anneal, brute, basinhopping, fsolve, root 
-sys.path.append('/home/pboyd/lib/lmfit-0.7.2')
+sys.path.append('/home/pete/lib/lmfit-0.7.2')
 from lmfit import minimize, Parameters, Minimizer, report_errors
 from config import Terminate
 
@@ -264,12 +264,12 @@ class Net(object):
             used.append(edge[:3])
             c = cycle[i:]
             uc = sorted([j[:3] for j in c])
-
-            if uc in cycle_baggage:
-                pass
-            else:
-                cycle_baggage.append(uc)
-                yield c
+            yield c
+            #if uc in cycle_baggage:
+            #    pass
+            #else:
+            #    cycle_baggage.append(uc)
+            #    yield c
         else:
             nodes_visited.append(node)
             if edge:

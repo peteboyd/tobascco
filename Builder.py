@@ -109,7 +109,6 @@ class Build(object):
         find the best assignment based on inner product comparison
         with the non-placed lattice arcs."""
         sbu = self._vertex_sbu[vertex]
-        print vertex, sbu.name
         local_arcs = sbu.connect_points
         edges = self._net.graph.outgoing_edges(vertex) + \
                     self._net.graph.incoming_edges(vertex)
@@ -118,9 +117,10 @@ class Build(object):
         e_assign = {}
         vects = [self.vector_from_cp_SBU(cp, sbu) for cp in local_arcs]
         li = self.normalized_ipmatrix(vects)
-        min=15000.
+        min, chi_diff=15000., 15000.
         cc, assign = None, None
         #print "new batch"
+        print vertex, sbu.name
         cell = Cell()
         cell.mkcell(self._net.get_3d_params())
         lattice_vects = np.dot(lattice_arcs, cell.lattice)
@@ -144,22 +144,63 @@ class Build(object):
             mm = np.sum(np.absolute(np.multiply(li, td) - la))
             # NB Chirality matters!!!
             # get the cell
-            self.chiral_match(e, lattice_vects[indices], sbu)
+            lv_arc = np.array(lattice_vects[indices]) * coeff[:, None]
             # get the lattice arcs
-            if (mm < min):# and \
-                    #self.chiral_match(e, lattice_vects[indices], sbu):
+            diff = self.get_chiral_diff(e, lv_arc, sbu)
+            #if (mm < min) and (diff < chi_diff):
+            if (diff < chi_diff):
+                    #self.chiral_match(e, lv_arc, sbu, vertex):
                 cc = coeff
                 min = mm
+                chi_diff = diff
                 assign = e
         # NB special MULT function for connect points
         cp_vert = [i[0] if i[0] != vertex else i[1] for i in assign]
+        print 'CI diff', chi_diff
+        print 'tensor diff', mm
         sbu.edge_assignments = assign
         for cp, v in zip(local_arcs, cp_vert):
             cp.vertex_assign = v
         return {e[2]:cp for (e,cp) in zip(assign, local_arcs)}
 
+    def get_chiral_diff(self, edges, arcs, sbu):
+        edge_weights = [float(e[2][1:]) for e in edges]
+        # just rank in terms of weights.......
+        edge_weights = [float(sorted(edge_weights).index(e)+1) for e in edge_weights]
+        cp_vects = np.array([self.vector_from_cp_SBU(cp, sbu) for cp
+                             in sbu.connect_points])
 
-    def chiral_match(self, edges, arcs, sbu):
+        norms = np.apply_along_axis(np.linalg.norm, 1, arcs.T)
+        arcs = arcs.T / norms.reshape(-1, 1)
+
+        norms = np.apply_along_axis(np.linalg.norm, 1, cp_vects.T)
+        cp_vects = cp_vects.T / norms.reshape(-1, 1)
+
+        cprm = raw_moment(edge_weights, cp_vects.T)
+        com = cprm(0,0,0)
+        (mx, my, mz) = (cprm(1,0,0)/com, 
+                        cprm(0,1,0)/com, 
+                        cprm(0,0,1)/com)
+        cpcm = central_moment(edge_weights, cp_vects.T, (mx, my, mz))
+
+        CI_cp = get_CI(cpcm)
+        arrm = raw_moment(edge_weights, np.array(arcs).T)
+        com = arrm(0,0,0)
+        (mx, my, mz) = (arrm(1,0,0)/com, 
+                        arrm(0,1,0)/com, 
+                        arrm(0,0,1)/com)
+        arcm = central_moment(edge_weights, np.array(arcs).T, (mx, my, mz))
+        CI_ar = get_CI(arcm)
+        #print 'edge assignment ', ','.join([p[2] for p in edges])
+        #print 'connect point CI ', CI_cp
+        #print 'lattice arcs  CI ', CI_ar
+
+        if all(item >= 0 for item in (CI_ar, CI_cp)) or all(item < 0 for item in (CI_ar, CI_cp)):
+            return np.absolute(CI_cp - CI_ar)
+        else:
+            return 150000.
+    
+    def chiral_match(self, edges, arcs, sbu, vertex):
         """Determines if two geometries match in terms of edge
         orientation.
 
@@ -184,7 +225,7 @@ class Build(object):
                         cprm(0,0,1)/com)
         cpcm = central_moment(edge_weights, cp_vects.T, (mx, my, mz))
 
-        CI_cm = get_CI(cpcm)
+        CI_cp = get_CI(cpcm)
         arrm = raw_moment(edge_weights, np.array(arcs).T)
         com = arrm(0,0,0)
         (mx, my, mz) = (arrm(1,0,0)/com, 
@@ -192,9 +233,35 @@ class Build(object):
                         arrm(0,0,1)/com)
         arcm = central_moment(edge_weights, np.array(arcs).T, (mx, my, mz))
         CI_ar = get_CI(arcm)
-        print 'elipsoid volumes', elipsoid_vol(cpcm), elipsoid_vol(arcm)
-        print 'sbu CI', CI_cm, 'arc CI', CI_ar
-        return all(item >= 0 for item in (CI_ar, CI_cm)) or all(item < 0 for item in (CI_ar, CI_cm))
+
+        #if vertex == "G":
+        #    or1 = np.zeros(3)
+        #    or2 = np.array([3., 3., 0.])
+        #    xyz_str1 = "C %9.5f %9.5f %9.5f\n"%(or1[0], or1[1], or1[2])
+        #    xyz_str2 = "C %9.5f %9.5f %9.5f\n"%(or2[0], or2[1], or2[2])
+        #    for ind, (i, j) in enumerate(zip(cp_vects.T,np.array(arcs).T)):
+        #        if ind == 0:
+        #            at = "H"
+        #        elif ind == 1:
+        #            at = "F"
+        #        elif ind == 2:
+        #            at = "He"
+        #        elif ind == 3:
+        #            at = "X"
+        #        pos = i[:3] + or1
+        #        xyz_str1 += "%s %9.5f %9.5f %9.5f\n"%(at, pos[0], pos[1], pos[2])
+        #        pos = j + or2
+        #        xyz_str2 += "%s %9.5f %9.5f %9.5f\n"%(at, pos[0], pos[1], pos[2]) 
+
+        #    xyz_file = open("debugging.xyz", 'a')
+        #    xyz_file.writelines("%i\ndebug\n"%(len(cp_vects.T)*2+2))
+        #    xyz_file.writelines(xyz_str1)
+        #    xyz_file.writelines(xyz_str2)
+        #    xyz_file.close()
+
+        #    print 'elipsoid volumes', elipsoid_vol(cpcm), elipsoid_vol(arcm)
+        #    print 'sbu CI', CI_cp, 'arc CI', CI_ar
+        return all(item >= 0 for item in (CI_ar, CI_cp)) or all(item < 0 for item in (CI_ar, CI_cp))
 
     def assign_edges(self):
         """Select edges from the graph to assign bonds between SBUs.
@@ -301,6 +368,7 @@ class Build(object):
         res = np.dot(R[:3,:3], sbu_vects.T)
         norms = np.apply_along_axis(np.linalg.norm, 1, res.T)
         v = res.T / norms.reshape(-1, 1)
+        ### DEBUGGGGGG
         or1 = np.zeros(3)
         or2 = np.array([3., 3., 0.])
         xyz_str1 = "C %9.5f %9.5f %9.5f\n"%(or1[0], or1[1], or1[2])
@@ -324,6 +392,7 @@ class Build(object):
         xyz_file.writelines(xyz_str1)
         xyz_file.writelines(xyz_str2)
         xyz_file.close()
+        ### DEBUGGGGGG
         angles = np.array([calc_angle(v1, v2) for v1, v2 in zip(v, data)])
         return angles
         #return (v - data).flatten()
@@ -335,7 +404,7 @@ class Build(object):
         debug("Orienting SBU: %i, %s on vertex %s"%(sbu.identifier, sbu.name, v))
         # re-index the edges to match the order of the connect points in the sbu list
         indexed_edges = sbu.edge_assignments
-        coefficients = np.array([-1. if e in g.outgoing_edges(v) else 1. for e in indexed_edges])
+        coefficients = np.array([1. if e in g.outgoing_edges(v) else -1. for e in indexed_edges])
         if len(indexed_edges) != sbu.degree:
             error("There was an error assigning edges "+
                         "to the sbu %s"%(sbu.name))
@@ -483,12 +552,6 @@ class Build(object):
         # keep track of the sbu vertices
         self.sbu_vertices = self._net.graph.vertices()
 
-        #####
-        self._obtain_cycle_bases()
-        self._net.barycentric_embedding()
-        self.show()
-        sys.exit()
-        #####
         for e in self._net.graph.edges():
             if e in self._net.graph.loop_edges():
                 vertices = self._net.add_edges_between(e, 5)
@@ -502,7 +565,6 @@ class Build(object):
         self._obtain_cycle_bases()
         # start off with the barycentric embedding
         self._net.barycentric_embedding()
-        self.show()
 
     @property
     def sbus(self):

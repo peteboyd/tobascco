@@ -535,8 +535,8 @@ class Net(object):
                         angle_average/DEG2RAD, angle_std/DEG2RAD))
 
     def get_metric_tensor(self):
-        self.metric_tensor = self.lattice_basis*self.projection*self.lattice_basis.T
-        #self.metric_tensor = self.lattice_basis*self.eon_projection*self.lattice_basis.T
+        #self.metric_tensor = self.lattice_basis*self.projection*self.lattice_basis.T
+        self.metric_tensor = self.lattice_basis*self.eon_projection*self.lattice_basis.T
 
     def barycentric_embedding(self):
         if self.cocycle is not None:
@@ -604,6 +604,13 @@ class Net(object):
 
     @property
     def kernel(self):
+        """In the case of a 3-periodic net, one may choose 3 cycles of 
+        the quotient with independent net voltages. The net voltage of
+        the remaining cycles in a cycle basis of the quotient graph 
+        may then be written as a combination of these voltages, thus
+        providing as many cycle vectors with zero net voltage.
+
+        """
         try:
             return self._kernel
         except AttributeError:
@@ -615,19 +622,23 @@ class Net(object):
                                  cycle_baggage=[],
                                  counter=0)
             zero_voltages = []
+            max_count = self.shape - self.ndim - self.cocycle.shape[0]
+            count = 0
             for cycle in c:
+                if count == max_count:
+                    break
                 vect = np.zeros(self.shape)
                 vect[self.return_indices(cycle)] = self.return_coeff(cycle)
                 volt = self.get_voltage(vect)
-                if np.allclose(np.abs(volt), np.zeros(3)):
+                if np.allclose(np.abs(volt), np.zeros(3)) and \
+                        self.check_linear_dependency(vect, np.array(zero_voltages)):
                     zero_voltages.append(vect)
+                    count += 1
             self._kernel = np.concatenate((np.matrix(zero_voltages), self.cocycle), axis=0)
             return self._kernel
 
     @property
     def eon_projection(self):
-        if self.kernel is None:
-            return np.identity(self.shape)
         d = self.kernel*self.kernel.T
         sub_mat = np.matrix(self.kernel.T* d.I* self.kernel)
         return np.identity(self.shape) - sub_mat

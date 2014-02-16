@@ -5,7 +5,7 @@ import sys
 import itertools
 from Visualizer import GraphPlot
 from LinAlg import rotation_from_vectors, rotation_matrix, rotation_from_omega, calc_angle, calc_axis, DEG2RAD
-from LinAlg import central_moment, raw_moment, get_CI, elipsoid_vol 
+from LinAlg import central_moment, raw_moment, get_CI, elipsoid_vol, normalized_vectors 
 from Structure import Structure, Cell
 import numpy as np
 from logging import info, debug, warning, error
@@ -100,8 +100,7 @@ class Build(object):
         return ret 
 
     def normalized_ipmatrix(self, vectors):
-        norms = np.apply_along_axis(np.linalg.norm, 1, vectors)
-        v = vectors / norms.reshape(-1, 1)
+        v = normalized_vectors(vectors)
         return np.inner(v,v)
 
     def assign_edge_labels(self, vertex):
@@ -144,16 +143,58 @@ class Build(object):
             mm = np.sum(np.absolute(np.multiply(li, td) - la))
             # NB Chirality matters!!!
             # get the cell
-            lv_arc = np.array(lattice_vects[indices]) * coeff[:, None]
+            lv_arc = np.array(lattice_vects[indices]) #* coeff[:, None]
             # get the lattice arcs
             diff = self.get_chiral_diff(e, lv_arc, sbu)
+            CI_ar = self.chiral_invariant(e, normalized_vectors(lv_arc))
+            CI_cp = self.chiral_invariant(e, normalized_vectors(vects))
+            norm_cp = normalized_vectors(vects)
+            norm_arc = normalized_vectors(lv_arc)
+            print self.chiral_match(e, lv_arc, sbu)
+            or1 = np.zeros(3)
+            or2 = np.array([3., 3., 0.])
+            xyz_str1 = "C %9.5f %9.5f %9.5f\n"%(or1[0], or1[1], or1[2])
+            xyz_str2 = "C %9.5f %9.5f %9.5f\n"%(or2[0], or2[1], or2[2])
+            for ind, (i, j) in enumerate(zip(norm_cp,norm_arc)):
+                if ind == 0:
+                    at = "H"
+                elif ind == 1:
+                    at = "F"
+                elif ind == 2:
+                    at = "He"
+                elif ind == 3:
+                    at = "Cl"
+                pos = i[:3] + or1
+                xyz_str1 += "%s %9.5f %9.5f %9.5f\n"%(at, pos[0], pos[1], pos[2])
+                pos = j + or2
+                xyz_str2 += "%s %9.5f %9.5f %9.5f\n"%(at, pos[0], pos[1], pos[2]) 
+
+            xyz_file = open("debugging.xyz", 'a')
+            xyz_file.writelines("%i\ndebug\n"%(len(norm_cp)*2+2))
+            xyz_file.writelines(xyz_str1)
+            xyz_file.writelines(xyz_str2)
+            xyz_file.close()
+
+            #print "arc CI", CI_ar
+            #print "cp  CI", CI_cp
             #if (mm < min) and (diff < chi_diff):
-            if (diff < chi_diff):
+            if (mm <= min) and self.chiral_match(e, lv_arc, sbu):
                     #self.chiral_match(e, lv_arc, sbu, vertex):
                 cc = coeff
                 min = mm
                 chi_diff = diff
                 assign = e
+                norm_arc = normalized_vectors(lv_arc)
+                norm_cp = normalized_vectors(vects)
+        sys.exit()
+        #CI = self.chiral_invariant(assign, norm_arc)
+        #axis = np.array([1., 0., 1.])
+        #angle = np.pi/4.
+        #R = rotation_matrix(axis, angle)
+        #new_norm = np.dot(R[:3,:3], norm_arc.T)
+        #nCI = self.chiral_invariant(assign, new_norm.T)
+        #print "Rotation invariant?", CI, nCI
+
         # NB special MULT function for connect points
         cp_vert = [i[0] if i[0] != vertex else i[1] for i in assign]
         print 'CI diff', chi_diff
@@ -163,34 +204,27 @@ class Build(object):
             cp.vertex_assign = v
         return {e[2]:cp for (e,cp) in zip(assign, local_arcs)}
 
-    def get_chiral_diff(self, edges, arcs, sbu):
+    def chiral_invariant(self, edges, vectors):
         edge_weights = [float(e[2][1:]) for e in edges]
         # just rank in terms of weights.......
-        edge_weights = [float(sorted(edge_weights).index(e)+1) for e in edge_weights]
+        #edge_weights = [float(sorted(edge_weights).index(e)+1) for e in edge_weights]
+        vrm = raw_moment(edge_weights, vectors)
+        com = vrm(0,0,0)
+        (mx, my, mz) = (vrm(1,0,0)/com, 
+                        vrm(0,1,0)/com, 
+                        vrm(0,0,1)/com)
+        vcm = central_moment(edge_weights, vectors, (mx, my, mz))
+        return get_CI(vcm)
+
+    def get_chiral_diff(self, edges, arcs, sbu):
+        narcs = normalized_vectors(arcs)
+        CI_ar = self.chiral_invariant(edges, narcs)
         cp_vects = np.array([self.vector_from_cp_SBU(cp, sbu) for cp
                              in sbu.connect_points])
 
-        norms = np.apply_along_axis(np.linalg.norm, 1, arcs.T)
-        arcs = arcs.T / norms.reshape(-1, 1)
+        ncp_vects = normalized_vectors(cp_vects)
 
-        norms = np.apply_along_axis(np.linalg.norm, 1, cp_vects.T)
-        cp_vects = cp_vects.T / norms.reshape(-1, 1)
-
-        cprm = raw_moment(edge_weights, cp_vects.T)
-        com = cprm(0,0,0)
-        (mx, my, mz) = (cprm(1,0,0)/com, 
-                        cprm(0,1,0)/com, 
-                        cprm(0,0,1)/com)
-        cpcm = central_moment(edge_weights, cp_vects.T, (mx, my, mz))
-
-        CI_cp = get_CI(cpcm)
-        arrm = raw_moment(edge_weights, np.array(arcs).T)
-        com = arrm(0,0,0)
-        (mx, my, mz) = (arrm(1,0,0)/com, 
-                        arrm(0,1,0)/com, 
-                        arrm(0,0,1)/com)
-        arcm = central_moment(edge_weights, np.array(arcs).T, (mx, my, mz))
-        CI_ar = get_CI(arcm)
+        CI_cp = self.chiral_invariant(edges, ncp_vects)
         #print 'edge assignment ', ','.join([p[2] for p in edges])
         #print 'connect point CI ', CI_cp
         #print 'lattice arcs  CI ', CI_ar
@@ -199,66 +233,20 @@ class Build(object):
             return np.absolute(CI_cp - CI_ar)
         else:
             return 150000.
-    
-    def chiral_match(self, edges, arcs, sbu, vertex):
+
+    def chiral_match(self, edges, arcs, sbu):
         """Determines if two geometries match in terms of edge
         orientation.
 
         DOI:10.1098/rsif.2010.0297
         """
-        edge_weights = [float(e[2][1:]) for e in edges]
-        # just rank in terms of weights.......
-        edge_weights = [float(sorted(edge_weights).index(e)+1) for e in edge_weights]
+        narcs = normalized_vectors(arcs)
+        CI_ar = self.chiral_invariant(edges, narcs)
         cp_vects = np.array([self.vector_from_cp_SBU(cp, sbu) for cp
                              in sbu.connect_points])
 
-        norms = np.apply_along_axis(np.linalg.norm, 1, arcs.T)
-        arcs = arcs.T / norms.reshape(-1, 1)
-
-        norms = np.apply_along_axis(np.linalg.norm, 1, cp_vects.T)
-        cp_vects = cp_vects.T / norms.reshape(-1, 1)
-
-        cprm = raw_moment(edge_weights, cp_vects.T)
-        com = cprm(0,0,0)
-        (mx, my, mz) = (cprm(1,0,0)/com, 
-                        cprm(0,1,0)/com, 
-                        cprm(0,0,1)/com)
-        cpcm = central_moment(edge_weights, cp_vects.T, (mx, my, mz))
-
-        CI_cp = get_CI(cpcm)
-        arrm = raw_moment(edge_weights, np.array(arcs).T)
-        com = arrm(0,0,0)
-        (mx, my, mz) = (arrm(1,0,0)/com, 
-                        arrm(0,1,0)/com, 
-                        arrm(0,0,1)/com)
-        arcm = central_moment(edge_weights, np.array(arcs).T, (mx, my, mz))
-        CI_ar = get_CI(arcm)
-
-        #if vertex == "G":
-        #    or1 = np.zeros(3)
-        #    or2 = np.array([3., 3., 0.])
-        #    xyz_str1 = "C %9.5f %9.5f %9.5f\n"%(or1[0], or1[1], or1[2])
-        #    xyz_str2 = "C %9.5f %9.5f %9.5f\n"%(or2[0], or2[1], or2[2])
-        #    for ind, (i, j) in enumerate(zip(cp_vects.T,np.array(arcs).T)):
-        #        if ind == 0:
-        #            at = "H"
-        #        elif ind == 1:
-        #            at = "F"
-        #        elif ind == 2:
-        #            at = "He"
-        #        elif ind == 3:
-        #            at = "X"
-        #        pos = i[:3] + or1
-        #        xyz_str1 += "%s %9.5f %9.5f %9.5f\n"%(at, pos[0], pos[1], pos[2])
-        #        pos = j + or2
-        #        xyz_str2 += "%s %9.5f %9.5f %9.5f\n"%(at, pos[0], pos[1], pos[2]) 
-
-        #    xyz_file = open("debugging.xyz", 'a')
-        #    xyz_file.writelines("%i\ndebug\n"%(len(cp_vects.T)*2+2))
-        #    xyz_file.writelines(xyz_str1)
-        #    xyz_file.writelines(xyz_str2)
-        #    xyz_file.close()
-
+        ncp_vects = normalized_vectors(cp_vects)
+        CI_cp = self.chiral_invariant(edges, ncp_vects)
         #    print 'elipsoid volumes', elipsoid_vol(cpcm), elipsoid_vol(arcm)
         #    print 'sbu CI', CI_cp, 'arc CI', CI_ar
         return all(item >= 0 for item in (CI_ar, CI_cp)) or all(item < 0 for item in (CI_ar, CI_cp))
@@ -366,8 +354,8 @@ class Build(object):
         omega = np.array([params['w1'].value, params['w2'].value, params['w3'].value])
         R = rotation_from_omega(omega)
         res = np.dot(R[:3,:3], sbu_vects.T)
-        norms = np.apply_along_axis(np.linalg.norm, 1, res.T)
-        v = res.T / norms.reshape(-1, 1)
+        
+        v = normalized_vectors(res.T)
         ### DEBUGGGGGG
         or1 = np.zeros(3)
         or2 = np.array([3., 3., 0.])
@@ -381,7 +369,7 @@ class Build(object):
             elif ind == 2:
                 at = "He"
             elif ind == 3:
-                at = "X"
+                at = "Cl"
             pos = i + or1
             xyz_str1 += "%s %9.5f %9.5f %9.5f\n"%(at, pos[0], pos[1], pos[2])
             pos = j + or2
@@ -411,15 +399,15 @@ class Build(object):
             Terminate(errcode=1)
         inds = self._net.return_indices(indexed_edges)
         arcs = np.dot(self._net.lattice_arcs[inds], cell)
-        norms = np.apply_along_axis(np.linalg.norm, 1, arcs)
+
         # get the right orientation of the arcs (all pointing away from the node)
         # **********************MAY BREAK STUFF
-        arcs = np.array(arcs / norms.reshape(-1, 1)) * coefficients[:, None]
+        arcs = normalized_vectors(arcs) * coefficients[:, None]
         # **********************MAY BREAK STUFF 
         sbu_vects = np.array([self.vector_from_cp_SBU(cp, sbu) 
                                 for cp in sbu.connect_points])
-        norms = np.apply_along_axis(np.linalg.norm, 1, sbu_vects)
-        sbu_vects = np.array(sbu_vects / norms.reshape(-1, 1))
+
+        sbu_vects = normalized_vectors(sbu_vects)
         #print np.inner(arcs, arcs)
         #print np.inner(sbu_vects, sbu_vects)
         # Try quaternion??
@@ -434,10 +422,10 @@ class Build(object):
         params.add('w3', value=1.000)
         min = Minimizer(self.rotation_function, params, fcn_args=(sbu_vects, arcs))
         # giving me a hard time
-        #min.lbfgsb(factr=100., epsilon=0.001, pgtol=0.001)
+        min.lbfgsb(factr=100., epsilon=0.001, pgtol=0.001)
         #print report_errors(params)
         #min = minimize(self.rotation_function, params, args=(sbu_vects, arcs), method='anneal')
-        min.leastsq(xtol=1.e-8, ftol=1.e-7)
+        #min.leastsq(xtol=1.e-8, ftol=1.e-7)
         #min.fmin()
         #axis = np.array([params['a1'].value, params['a2'].value, params['a3'].value])
         #angle = params['angle'].value
@@ -492,8 +480,7 @@ class Build(object):
         if rot_mat is None:
             rot_mat = rotation_matrix(axis, angle)
         rotation = np.dot(rot_mat[:3,:3], sbu_vects.T)
-        norms = np.apply_along_axis(np.linalg.norm, 1, rotation.T)
-        v = rotation.T / norms.reshape(-1, 1)
+        v = normalized_vectors(rotation)
         angles = np.array([calc_angle(v1, v2) for v1, v2 in zip(v, arcs)])
         mean, std = np.mean(angles), np.std(angles)
         debug("Average orientation error: %12.6f +/- %9.6f degrees"%(mean/DEG2RAD, std/DEG2RAD))

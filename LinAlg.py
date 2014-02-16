@@ -88,7 +88,13 @@ def rotation_matrix(axis, angle, point=None):
         point = np.array(point[:3], dtype=np.float64, copy=False)
         M[:3,3] = point - np.dot(R, point)
     return M
-    
+
+def normalized_vectors(array):
+        _array = np.array(array)
+        norms = np.apply_along_axis(np.linalg.norm, 1, _array.T)
+        ret = _array.T / norms.reshape(-1, 1)
+        return ret.T
+
 def central_moment(weights, vects, mean):
     """Obtain the central moments"""
     mx, my, mz = mean
@@ -140,7 +146,7 @@ def get_CI(cm):
     b2 = cm(1,0,2) - cm(1,2,0)
     b3 = cm(2,1,0) - cm(0,1,2)
     b4 = cm(0,0,3) - cm(2,0,1) - 2.*cm(0,2,1)
-    b5 = cm(0,0,3) - cm(2,0,1) - 2.*cm(0,2,1)
+    b5 = cm(0,3,0) - cm(0,1,2) - 2.*cm(2,1,0)
     b6 = cm(3,0,0) - cm(1,2,0) - 2.*cm(1,0,2)
     b7 = cm(0,2,1) - cm(0,0,3) + 2.*cm(2,0,1)
     b8 = cm(1,0,2) - cm(3,0,0) + 2.*cm(1,2,0)
@@ -182,9 +188,9 @@ def get_CI(cm):
                 cm(0,1,1)*cm(0,1,1)*(cm(1,1,1)*a1-cm(0,1,1)*b2-cm(1,0,1)*b5-cm(1,1,0)*b7) -
                 cm(1,0,1)*cm(1,0,1)*(cm(1,1,1)*a3-cm(1,0,1)*b3-cm(1,1,0)*b4-cm(0,1,1)*b8) -
                 cm(1,1,0)*cm(1,1,0)*(cm(1,1,1)*a2-cm(1,1,0)*b1-cm(0,1,1)*b6-cm(1,0,1)*b9) +
-                cm(0,1,1)*cm(0,1,1)*(cm(0,0,2)*b1+cm(0,2,0)*b4+cm(2,0,0)*b7) +
+                cm(0,1,1)*cm(1,0,1)*(cm(0,0,2)*b1+cm(0,2,0)*b4+cm(2,0,0)*b7) +
                 cm(0,1,1)*cm(1,1,0)*(cm(0,2,0)*b3+cm(2,0,0)*b5+cm(0,0,2)*b9) +
-                cm(1,0,1)*cm(1,0,1)*(cm(2,0,0)*b2+cm(0,0,2)*b6+cm(0,2,0)*b8))
+                cm(1,0,1)*cm(1,1,0)*(cm(2,0,0)*b2+cm(0,0,2)*b6+cm(0,2,0)*b8))
 
     return CI
 

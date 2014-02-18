@@ -7,6 +7,7 @@ from config import Terminate
 import glog
 import ConfigParser
 from Generator import Generate
+from Visualizer import GraphPlot 
 from CSV import CSV
 from Net import SystreDB, Net
 from Builder import Build
@@ -75,6 +76,16 @@ class JobHandler(object):
         self._pop_unwanted_topologies()
         self._build_structures()
 
+    def _check_barycentric_embedding(self, graph, voltage):
+        net = Net(graph)
+        net.voltage = voltage
+        net.get_lattice_basis()
+        net.get_cycle_basis()
+        net.get_cocycle_basis()
+        net.barycentric_embedding()
+        g = GraphPlot(net)
+        g.view_placement(init=(0.5, 0.5, 0.5))
+
     def _build_structures(self):
         """Pass the sbu combinations to a MOF building algorithm."""
         def combo_str(combo):
@@ -100,11 +111,15 @@ class JobHandler(object):
             build = Build(self.options)
             build.sbus = list(set(combo))
             # find degrees of the sbus in the combo
-            for top in self._topologies.keys():
-                build.net = (self._topologies[top], self._topologies.voltages[top])
+            for top, graph in self._topologies.items():
+                #self._check_barycentric_embedding(graph, self._topologies.voltages[top])
+                #Terminate()
+                build.net = (top, graph, self._topologies.voltages[top])
+
                 if build.check_net:
                     info("Setting up %s"%(combo_str(combo)) +
                             " with net %s"%(top))
+                    build.init_embed()
                     build.assign_vertices()
                     build.assign_edges()
                     build.obtain_embedding()
@@ -113,54 +128,7 @@ class JobHandler(object):
                 else:
                     debug("Net %s does not support the same"%(top)+
                             " connectivity offered by the SBUs")
-                Terminate()
-                #if n.shape < 25:
-                #    print top
-                #    n.graph.show(edge_labels=True)
-                #    raw_input("Press any key\n")
-                #    n.voltage = self._topologies.voltages[top]
-                #    n.get_lattice_basis()
-                #    n.get_cycle_basis()
-                #    n.get_cocycle_basis()
-                #    n.barycentric_embedding()
-                #    g = GraphPlot(n)
-                #    g.view_placement(init=(0.2, 0.2, 0.3))
-                if degree == self._get_degrees(n.graph.degree_histogram()):
-                    if n.shape < 26:
-                        build = Build()
-                        print top
-                        n.get_lattice_basis()
-                        n.get_cycle_basis()
-                        n.get_cocycle_basis()
-                        n.barycentric_embedding()
-                        g = GraphPlot(n)
-                        g.view_placement()
-            Terminate()
-            gen_counter = 0
-            build = Build(self.options)
-            extra = [j for i in combo for j in i.children]
-            combo = tuple(list(combo) + extra)
-            info("Trying %s"%(', '.join([i.name for i in combo])))
-            if self.options.exhaustive:
-                directives = run.generate_build_directives(None, combo)
-            elif self.options.build_directives:
-                directives = run.build_directives_from_options(build)
-
-            for iter in range(self.options.max_trials):
-                try:
-                    d = directives.next()
-                except StopIteration:
-                    break
-                # pass the directive to a MOF building algorithm
-                gen = build.build_from_directives(d, combo)
-                gen_counter = gen_counter + 1 if gen else gen_counter
-                if gen_counter >= self.options.max_structures:
-                    break
-                # random increment if many trials have passed
-
-                if iter >= (self.options.max_trials/2):
-                    [directives.next() for i in range(randint(0,
-                                    self.options.max_trials/3))]
+        Terminate()
 
     def _sbu_report(self):
         """Compute the surface areas and report them to a .csv file."""

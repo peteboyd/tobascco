@@ -7,7 +7,7 @@ from logging import info, debug, warning, error
 import numpy as np
 from LinAlg import DEG2RAD
 from scipy.optimize import fmin_l_bfgs_b, minimize, anneal, brute, basinhopping, fsolve, root 
-sys.path.append('/home/pete/lib/lmfit-0.7.2')
+sys.path.append('/home/pboyd/lib/lmfit-0.7.2')
 from lmfit import minimize, Parameters, Minimizer, report_errors
 from config import Terminate
 
@@ -92,6 +92,7 @@ class SystreDB(dict):
 class Net(object):
 
     def __init__(self, graph=None, dim=3):
+        self.name = None
         self.lattice_basis = None
         self.metric_tensor = None
         self.cycle = None
@@ -488,7 +489,7 @@ class Net(object):
         params = self.init_params(init_guess)
         self.vary_coc_mt(params)
         min = Minimizer(self.min_function_lmfit, params)
-        #min.lbfgsb(factr=10., epsilon=1e-4, pgtol=1e-4)
+        #min.lbfgsb(factr=10., epsilon=1e-8, pgtol=1e-9)
         min.leastsq(xtol=1.e-7, ftol=1.e-8)
         fit = self.min_function_lmfit(params)
         self.report_errors(fit)
@@ -634,7 +635,10 @@ class Net(object):
                         self.check_linear_dependency(vect, np.array(zero_voltages)):
                     zero_voltages.append(vect)
                     count += 1
-            self._kernel = np.concatenate((np.matrix(zero_voltages), self.cocycle), axis=0)
+            if not zero_voltages:
+                self._kernel = self.cocycle.copy()
+            else:
+                self._kernel = np.concatenate((np.matrix(zero_voltages), self.cocycle), axis=0)
             return self._kernel
 
     @property

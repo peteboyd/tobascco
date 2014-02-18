@@ -113,7 +113,8 @@ class Options(object):
                     'calc_sbu_surface_area',
                     'calc_max_sbu_span']
         floats = ['overlap_tolerance',
-                  'sbu_bond_length']
+                  'sbu_bond_length',
+                  'cell_vol_tolerance']
         integers = ['organic_sbu_per_structure',
                     'metal_sbu_per_structure',
                     'max_structures']

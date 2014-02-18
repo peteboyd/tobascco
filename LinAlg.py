@@ -128,6 +128,8 @@ def elipsoid_vol(cm):
                      [cm(1,1,0), cm(0,2,0), cm(0,1,1)],
                      [cm(1,0,1), cm(0,1,1), cm(0,0,2)]])
     vol = (np.pi*4./3.*np.linalg.det(mat))**(1./3.)
+    if np.isnan(vol):
+        return 0.
     return vol
 
 def r_gyr(cm):

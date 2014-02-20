@@ -91,9 +91,10 @@ def rotation_matrix(axis, angle, point=None):
 
 def normalized_vectors(array):
         _array = np.array(array)
-        norms = np.apply_along_axis(np.linalg.norm, 1, _array.T)
-        ret = _array.T / norms.reshape(-1, 1)
-        return ret.T
+        norms = np.sqrt(np.einsum('...i,...i', _array, _array))
+        #norms = np.apply_along_axis(np.linalg.norm, 0, _array)
+        #ret = _array.T / norms.reshape(-1, 1)
+        return _array / norms[:, None] 
 
 def central_moment(weights, vects, mean):
     """Obtain the central moments"""

@@ -265,12 +265,12 @@ class Net(object):
             used.append(edge[:3])
             c = cycle[i:]
             uc = sorted([j[:3] for j in c])
-            yield c
-            #if uc in cycle_baggage:
-            #    pass
-            #else:
-            #    cycle_baggage.append(uc)
-            #    yield c
+            #yield c
+            if uc in cycle_baggage:
+                pass
+            else:
+                cycle_baggage.append(uc)
+                yield c
         else:
             nodes_visited.append(node)
             if edge:

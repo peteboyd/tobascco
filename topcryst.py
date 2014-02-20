@@ -104,30 +104,34 @@ class JobHandler(object):
 
         # generate the MOFs.
         for combo in combinations:
-            debug("Trying "+combo_str(combo))
             node_degree = [i.degree for i in set(combo)]
             node_lin = [i.linear for i in set(combo)]
             degree = sorted([j for i, j in zip(node_lin, node_degree) if not i])
             build = Build(self.options)
             build.sbus = list(set(combo))
             # find degrees of the sbus in the combo
+            if not self._topologies:
+                warning("No topologies found! Exiting.")
+                Terminate()
+            debug("Trying "+combo_str(combo))
             for top, graph in self._topologies.items():
-                #self._check_barycentric_embedding(graph, self._topologies.voltages[top])
-                #Terminate()
                 build.net = (top, graph, self._topologies.voltages[top])
-
-                if build.check_net:
-                    info("Setting up %s"%(combo_str(combo)) +
-                            " with net %s"%(top))
-                    build.init_embed()
-                    build.assign_vertices()
-                    build.assign_edges()
-                    build.obtain_embedding()
-                    #build.custom_embedding(rep, mt)
-
+                if self.options.show_barycentric_net_only:
+                    self._check_barycentric_embedding(graph, self._topologies.voltages[top])
                 else:
-                    debug("Net %s does not support the same"%(top)+
-                            " connectivity offered by the SBUs")
+                    if build.check_net:
+                        info("Setting up %s"%(combo_str(combo)) +
+                                " with net %s"%(top))
+                        build.init_embed()
+                        build.assign_vertices()
+                        build.assign_edges()
+                        build.obtain_embedding()
+                        #build.custom_embedding(rep, mt)
+                        if self.options.show_embedded_net:
+                            build.show()
+                    else:
+                        debug("Net %s does not support the same"%(top)+
+                                " connectivity offered by the SBUs")
         Terminate()
 
     def _sbu_report(self):
@@ -232,7 +236,8 @@ class JobHandler(object):
                 warning("SBU id %i is not in the metal SBU database"%(int(sbu_request)))
     def _pop_unwanted_topologies(self):
         [self._topologies.pop(k, None) for k in self._topologies.keys()
-            if k not in self.options.topologies]
+            if k not in self.options.topologies or k in 
+            self.options.ignore_topologies]
         for k in self.options.topologies:
             if k not in self._topologies.keys():
                 warning("Could not find the topology %s in the current "%(k) +

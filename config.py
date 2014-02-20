@@ -111,7 +111,9 @@ class Options(object):
         booleans = ['verbose', 'quiet', 'silent',
                     'create_sbu_input_files',
                     'calc_sbu_surface_area',
-                    'calc_max_sbu_span']
+                    'calc_max_sbu_span',
+                    'show_barycentric_net_only',
+                    'show_embedded_net']
         floats = ['overlap_tolerance',
                   'sbu_bond_length',
                   'cell_vol_tolerance']
@@ -120,7 +122,8 @@ class Options(object):
                     'max_structures']
         lists = ['topologies', 'sbu_files', 'topology_files',
                 'organic_sbus',
-                 'metal_sbus']
+                 'metal_sbus',
+                 'ignore_topologies']
         tuple_of_tuples = ['sbu_combinations']
         
         if key in booleans:

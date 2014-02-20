@@ -14,13 +14,18 @@ class ConnectPoint(object):
         self.z = null.copy()
         # flag to determine if the point has been attached
         self.connected = False
-        # tuple (sbu_order, connect.identifier)
-        self.sbu_bond = None
+        # order which the SBU was placed in the Structure  
+        self.sbu_vertex = None
+        self.bonded_cp_vertex = None
         self.constraint = None
         self.special = None
         self.symmetry = 1
         self.vertex_assign = None
-        
+    
+    def set_sbu_vertex(self, val):
+        assert self.sbu_vertex is None
+        self.sbu_vertex = val
+
     def from_config(self, line):
         """ Obtain the connectivity information from the config .ini file."""
         line = line.strip().split()

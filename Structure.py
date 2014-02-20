@@ -57,11 +57,13 @@ class Structure(object):
             self.bonds.update(sbu.bonds)
             index_count += len(sbu)
 
-        for id, sbu in enumerate(build_obj.sbus):
+    def connect_sbus(self, sbu_dic):
+        cp_pool = {cp.vertex_assign:cp for sbu in sbu_dic.values() for cp in sbu.connect_points}
+        for vertex, sbu in sbu_dic.items():
             for cp in sbu.connect_points:
-                sbu2 = build_obj.sbus[cp.sbu_bond[0]]
-                cp2_id = cp.sbu_bond[1]
-                self.compute_inter_sbu_bonding(sbu, cp.identifier, sbu2, cp2_id)
+                xx = cp_pool[cp.bonded_cp_vertex]
+                bsbu = sbu_dic[xx.sbu_vertex]
+                self.compute_inter_sbu_bonding(sbu, cp.identifier, bsbu, xx.identifier)
 
     def compute_inter_sbu_bonding(self, sbu1, cp1_id, sbu2, cp2_id):
         # find out which atoms are involved in inter-sbu bonding

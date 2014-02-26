@@ -33,28 +33,119 @@ class Build(object):
         self._net.get_cycle_basis()
         self._net.get_cocycle_basis()
 
+    def fit_function(self, params, data):
+        val = np.zeros(len(params))
+        for p in params:
+            ind = int(p.split("_")[1])
+            val[ind] = data[ind][int(p.value)]
+        return val
+   
+    def obtain_sbu_fittings(self, vertex):
+        g = self._net.graph
+        edges = g.outgoing_edges(vertex) + g.incoming_edges(vertex)
+        indices = self._net.return_indices(edges)
+        lattice_arcs = self._net.lattice_arcs[indices]
+        ipv = lattice_arcs*self._net.metric_tensor*lattice_arcs.T
+        ipv = self.scaled_ipmatrix(ipv)
+        inds = np.triu_indices(ipv.shape[0], k=1) 
+        # just take the max and min angles... 
+        max, min = np.absolute(ipv[inds]).max(), np.absolute(ipv[inds]).min()
+        incidence = len(g.neighbors_out(vertex) + g.neighbors_in(vertex))
+        weights = []
+        for sbu in self._sbus:
+            vects = np.array([self.vector_from_cp_SBU(cp, sbu) for cp in 
+                              sbu.connect_points])
+            ipc = self.scaled_ipmatrix(np.inner(vects, vects))
+            imax, imin = np.absolute(ipc[inds]).max(), np.absolute(ipc[inds]).min()
+            mm = np.sum(np.absolute([max-imax, min-imin]))
+            if incidence != sbu.degree:
+                mm = 1500000.
+            weights.append(mm)
+        return np.array(weights)
+
     def assign_vertices(self):
-        """Assign SBUs to particular vertices in the graph"""
-        # TODO(pboyd): assign sbus intelligently, based on edge lengths
-        # and independent cycles in the net... ugh
-        for vert in self.sbu_vertices:
-            # is there a way to determine the symmetry operations applicable
-            # to a vertex?
-            # if so, we could compare with SBUs...
-            vert_deg = self._net.graph.degree(vert)
-            sbu_match = [i for i in self._sbus if i.degree == vert_deg]
-            # match tensor product matrices
-            if len(sbu_match) > 1:
-                bu = self.select_sbu(vert, sbu_match)
-                self._vertex_sbu[vert] = bu 
-            elif len(sbu_match) == 0:
-                error("Didn't assign an SBU to vertex %s"%vert)
-                Terminate(errcode=1) 
-            else:
-                bu = deepcopy(sbu_match[0])
-                self._vertex_sbu[vert] = bu 
-            bu.vertex_id = vert
-            [cp.set_sbu_vertex(bu.vertex_id) for cp in bu.connect_points]
+        data = np.empty((len(self.sbu_vertices), len(self._sbus)))
+        params = Parameters()
+        dirty_fix = []
+        for id, vert in enumerate(self.sbu_vertices):
+            data[id][:] = self.obtain_sbu_fittings(vert)
+            pname = "%s_%i"%(vert, id)
+            dirty_fix.append(pname)
+            params.add(pname, min=0, max=len(self._sbus)-1)
+        expr = 'len(set([v.value for v in [%s]])) == %i'%(','.join(dirty_fix), data.shape[1])
+        expr = 'len(set([%s])) == %i'%(','.join(dirty_fix), data.shape[1])
+        params.add('constraint', expr=expr)
+        min = Minimizer(self.fit_function, params, fcn_args=(data))
+        min.lbfgsb(factr=100., epsilon=1.00, pgtol=1.00)
+        for p in params:
+            v = p.split("_")[0]
+            bu = deepcopy(self._sbus(int(v.value)))
+            self._vertex_sbu[v] = bu
+            bu.vertex_id = v
+            [cp.set_sbu_vertex(v) for cp in bu.connect_points]
+
+    #def assign_vertices(self):
+    #    """Assign SBUs to particular vertices in the graph"""
+    #    # TODO(pboyd): assign sbus intelligently, based on edge lengths
+    #    # and independent cycles in the net... ugh
+    #    for vert in self.sbu_vertices:
+    #        # is there a way to determine the symmetry operations applicable
+    #        # to a vertex?
+    #        # if so, we could compare with SBUs...
+    #        vert_deg = self._net.graph.degree(vert)
+    #        sbu_match = [i for i in self._sbus if i.degree == vert_deg]
+    #        # match tensor product matrices
+    #        if len(sbu_match) > 1:
+    #            self._vertex_sbu[vert] = self.select_sbu(vert, sbu_match) 
+    #            bu = self._vertex_sbu[vert]
+    #        elif len(sbu_match) == 0:
+    #            error("Didn't assign an SBU to vertex %s"%vert)
+    #            Terminate(errcode=1) 
+    #        else:
+    #            self._vertex_sbu[vert] = deepcopy(sbu_match[0])
+    #            bu = self._vertex_sbu[vert]
+    #        bu.vertex_id = vert
+    #        [cp.set_sbu_vertex(bu.vertex_id) for cp in bu.connect_points]
+
+    #    # check to ensure all sbus were assigned to vertices.
+    #    collect = [(sbu.name, sbu.identifier) for vert, sbu in self._vertex_sbu.items()]
+    #    if len(set(collect)) < len(self._sbus):
+    #        remain = [s for s in self._sbus if (s.name, s.identifier) not in 
+    #                    set(collect)]
+    #        closest_matches = [self.closest_match_vertices(sbu) 
+    #                                    for sbu in remain]
+    #        taken_verts = []
+    #        for id, bu in enumerate(remain):
+    #            cm = closest_matches[id]
+    #            inds = np.where([np.allclose(x[0], cm[0][0], atol=0.1) for x in cm])
+    #            replace_verts = [i[1] for i in np.array(cm)[inds] if 
+    #                                i[1] not in taken_verts]
+    #            taken_verts += replace_verts
+    #            for v in replace_verts:
+    #                bb = deepcopy(bu)
+    #                bb.vertex_id = v
+    #                [cp.set_sbu_vertex(v) for cp in bb.connect_points]
+    #                self._vertex_sbu[v] = bb
+
+    def closest_match_vertices(self, sbu):
+        g = self._net.graph
+        cp_v = normalized_vectors([self.vector_from_cp_SBU(cp, sbu) for
+                                   cp in sbu.connect_points])
+
+        ipv = self.scaled_ipmatrix(np.inner(cp_v, cp_v))
+
+        inds = np.triu_indices(ipv.shape[0], k=1)
+        max, min = np.absolute(ipv[inds]).max(), np.absolute(ipv[inds]).min()
+        cmatch = []
+        for v in self.sbu_vertices:
+            ee = g.outgoing_edges(v) + g.incoming_edges(v)
+            l_arcs = self._net.lattice_arcs[self._net.return_indices(ee)]
+            lai = l_arcs*self._net.metric_tensor*l_arcs.T
+            ipc = self.scaled_ipmatrix(lai)
+            imax, imin = np.absolute(ipc[inds]).max(), np.absolute(ipc[inds]).min()
+            mm = np.sum(np.absolute([max-imax, min-imin]))
+            cmatch.append((mm, v))
+        return sorted(cmatch)
 
     def select_sbu(self, v, sbus):
         """This is a hackneyed way of selecting the right SBU,
@@ -96,8 +187,8 @@ class Build(object):
         max = np.diag(ipmat).max()
         for (i,j), val in np.ndenumerate(ipmat):
             if i==j:
-                ret[i,j] = val/max
-            else:
+                ret[i,j] = 1. 
+            if i != j:
                 v = val/np.sqrt(ipmat[i,i])/np.sqrt(ipmat[j,j])
                 ret[i,j] = v
                 ret[j,i] = v
@@ -147,7 +238,10 @@ class Build(object):
             coeff = np.array([-1. if j in self._net.graph.incoming_edges(vertex)
                                else 1. for j in e])
             td = np.tensordot(coeff, coeff, axes=0)
-            mm = np.sum(np.absolute(np.multiply(li, td) - la))
+            diff = np.multiply(li, td) - la
+            inds = np.triu_indices(diff.shape[0], k=1) 
+            xmax, xmin = np.absolute(diff[inds]).max(), np.absolute(diff[inds]).min()
+            mm = np.sum(diff)
             # NB Chirality matters!!!
             # get the cell
             lv_arc = (np.array(lattice_vects[indices]) 
@@ -178,8 +272,7 @@ class Build(object):
 
             #print "arc CI", CI_ar, "cp  CI", CI_cp
             #if (mm < min) and (diff < chi_diff):
-            #print mm, self.chiral_match(e, norm_arc, norm_cp)
-            if (mm <= min) and self.chiral_match(e, norm_arc, norm_cp): 
+            if (mm <= min) and self.chiral_match(e, norm_arc, norm_cp, tol=xmax): 
                     #self.chiral_match(e, oriented_arc, norm_cp):
                     #self.chiral_match(e, lv_arc, sbu, vertex):
                 cc = coeff
@@ -234,7 +327,7 @@ class Build(object):
         else:
             return 150000.
 
-    def chiral_match(self, edges, arcs, cp_vects):
+    def chiral_match(self, edges, arcs, cp_vects, tol=0.1):
         """Determines if two geometries match in terms of edge
         orientation.
 
@@ -254,7 +347,7 @@ class Build(object):
         # This is a real hack way to match vectors...
         R = rotation_from_vectors(arcs[:], cp_vects[:])
         oriented_arc = (np.dot(R[:3,:3], arcs.T)).T
-        return np.allclose(cp_vects, oriented_arc, atol=0.1)
+        return np.allclose(cp_vects, oriented_arc, atol=tol)
         
 
     def assign_edges(self):
@@ -583,22 +676,37 @@ class Build(object):
 
     def init_embed(self):
         # keep track of the sbu vertices
+        edges_split = []
         self.sbu_vertices = self._net.graph.vertices()
+        met_incidence = [sbu.degree for sbu in self._sbus if sbu.is_metal]
+        org_incidence = [sbu.degree for sbu in self._sbus if not sbu.is_metal]
+
+        # Some special cases: linear sbus and no loops. 
+        # Insert between metal-type vertices
+        if self.linear_sbus and not self._net.graph.loop_edges():
+            for (v1, v2, e) in self._net.graph.edges:
+                nn1 = len(self._net.neighbours(v1))
+                nn2 = len(self._net.neighbours(v2))
+                if nn1 == nn2 and (nn1 in met_incidence):
+                    vertices, edges = self._net.add_edges_between(e, 5)
+                    self.sbu_vertices.append(vertices[2])
+                    edges_split += edges
 
         for e in self._net.graph.edges():
-            if e in self._net.graph.loop_edges() and self.linear_sbus:
-                vertices = self._net.add_edges_between(e, 5)
-                # add the middle vertex to the SBU vertices..
-                # this is probably not a universal thing.
-                self.sbu_vertices.append(vertices[2])
-            else:
-                self._net.add_edges_between(e, 2)
-        #self._net.graph.show(edge_labels=True)
-        #raw_input("p\n")
+            if e not in edges_split:
+                if e in self._net.graph.loop_edges() and self.linear_sbus:
+                    vertices, edges = self._net.add_edges_between(e, 5)
+                    # add the middle vertex to the SBU vertices..
+                    # this is probably not a universal thing.
+                    self.sbu_vertices.append(vertices[2])
+                    edges_split += edges
+                else:
+                    vertices, edges = self._net.add_edges_between(e, 2)
+                    edges_split += edges
+
         self._obtain_cycle_bases()
         # start off with the barycentric embedding
         self._net.barycentric_embedding()
-        #self.show()
 
     @net.setter
     def net(self, (name, graph, volt)):

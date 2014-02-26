@@ -156,30 +156,35 @@ class Net(object):
         if edge_label is None:
             edge_label = "e%i"%(self.shape)
         self.graph.add_vertex(vto)
+        edge = (vfrom, vto, edge_label)
         self.graph.add_edge(vfrom, vto, edge_label)
+        return edge
 
     def add_edges_between(self, edge, N):
+        newedges = []
         V1 = edge[0] if edge in self.graph.outgoing_edges(edge[0]) \
                 else edge[1]
         V2 = edge[1] if edge in self.graph.incoming_edges(edge[1]) \
                 else edge[0]
         name = self.add_name()
-        self.insert_and_join(V1, name, edge_label=edge[2])
+        newedges.append(self.insert_and_join(V1, name, edge_label=edge[2]))
         vfrom = name
         d = self.ndim
         newnodes = []
         for i in range(N-1):
             newnodes.append(vfrom)
             name = self.add_name()
-            self.insert_and_join(vfrom, name)
+            newedges.append(self.insert_and_join(vfrom, name))
             vfrom = name
             self.voltage = np.concatenate((self.voltage,np.zeros(d).reshape(1,d)))
         # final edge to V2
         newnodes.append(V2)
+        lastedge = (vfrom, V2, "e%i"%(self.shape))
+        newedges.append(lastedge)
         self.graph.add_edge(vfrom, V2, "e%i"%(self.shape))
         self.graph.delete_edge(edge)
         self.voltage = np.concatenate((self.voltage,np.zeros(d).reshape(1,d)))
-        return newnodes
+        return newnodes, newedges
 
     def cycle_cocycle_check(self, vect):
         if self.cocycle is None and self.cycle is None:
@@ -223,7 +228,7 @@ class Net(object):
             volt = self.get_voltage(vect)
             # REPLACE WITH CHECK_LINEAR_DEPENDENCY()
             check = self.cycle_cocycle_check(vect)
-            if np.all(np.abs(volt) < 1.001) and check:
+            if np.all(np.abs(volt) < 1.001) and np.sum(np.abs(volt) > 0.) and check:
                 self.cycle = self.add_to_matrix(vect, self.cycle)
                 self.cycle_rep = self.add_to_matrix(volt, self.cycle_rep)
                 count += 1
@@ -248,6 +253,50 @@ class Net(object):
     def debug_print(self, val, msg):
         print "%s[%d] %s"%("  "*val, val, msg)
 
+    def iter_tree(self, vertex, edge, edges, depth=False):
+        new = [e for e in edges if e[0] == vertex or e[1] == vertex and e != edge]
+        for edge in new:
+            iter_trie
+
+    def simple_cycle_basis(self):
+        """Cycle basis is constructed using a minimum spanning tree.
+        This tree is traversed, and all the remaining edges are added
+        to obtain the basis.
+
+        """
+        edges = self.graph.edges()
+        mspt = self.graph.to_undirected().min_spanning_tree()
+        tree = Graph(mspt, multiedges=False, loops=False)
+        #tree.show(edge_labels=True)
+        cycle_completes = [i for i in edges if i not in mspt]
+        self.cycle = []
+        self.cycle_rep = []
+        for (v1, v2, e) in cycle_completes:
+            path = tree.shortest_path(v1, v2)
+            basis_vector = np.zeros(self.shape)
+            cycle, coefficients = [], []
+            for pv1, pv2 in itertools.izip(path[:-1], path[1:]):
+                edge = [i for i in tree.edges_incident([pv1, pv2]) if pv1 in i[:2] and pv2 in i[:2]][0]
+                coeff = 1. if edge in self.graph.outgoing_edges(pv1) else -1.
+                coefficients.append(coeff)
+                cycle.append(edge)
+            # opposite because we are closing the loop. i.e. going from v2 back to v1
+            coeff = 1. if (v1,v2,e) in self.graph.incoming_edges(v1) else -1.
+            coefficients.append(coeff)
+            cycle.append((v1, v2, e))
+            basis_vector[self.return_indices(cycle)] = coefficients
+            voltage = self.get_voltage(basis_vector)
+            self.cycle.append(basis_vector)
+            self.cycle_rep.append(voltage)
+            #cycle = [xx for xx in tree.edges_incident(path) if xx[0] in path and xx[1] in path] + [(v1, v2, e)]
+        #print len(cycle_completes)
+        #print self.graph.size() - (self.graph.order() - 1)
+        self.cycle = np.matrix(np.array(self.cycle))
+        self.cycle_rep = np.matrix(np.array(self.cycle_rep))
+        #self.graph.show(edge_labels=True)
+        #self.graph.show3d(iterations=500)
+        #raw_input("Press [Enter]\n")
+
     def iter_cycles(self, node=None, edge=None, cycle=[], used=[], nodes_visited=[], cycle_baggage=[], counter=0):
         """Recursive method to iterate over all cycles of a graph.
         NB: Not tested to ensure completeness, however it does find cycles.
@@ -257,7 +306,6 @@ class Net(object):
         """
         if node is None:
             node = self.graph.vertices()[0]
-
         if node in nodes_visited:
             i = nodes_visited.index(node)
             nodes_visited.append(node)
@@ -352,10 +400,6 @@ class Net(object):
         assert edges[0][3]
         return [i[3] for i in edges]
 
-    
-    def get_arcs(self):
-        return self.cycle_cocycle.I*np.concatenate((self.cycle_rep, cocycle_rep),
-                                                       axis=0)
     def to_ind(self, str_obj):
         return tuple([int(i) for i in str_obj.split('_')[1:]])
 
@@ -640,6 +684,9 @@ class Net(object):
             else:
                 self._kernel = np.concatenate((np.matrix(zero_voltages), self.cocycle), axis=0)
             return self._kernel
+
+    def neighbours(self, vertex):
+        return self.graph.neighbors_out(vertex) + self.graph.neighbors_in(vertex)
 
     @property
     def eon_projection(self):

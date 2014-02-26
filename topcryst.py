@@ -79,11 +79,17 @@ class JobHandler(object):
     def _check_barycentric_embedding(self, graph, voltage):
         net = Net(graph)
         net.voltage = voltage
+        net.simple_cycle_basis()
         net.get_lattice_basis()
-        net.get_cycle_basis()
+        #net.get_cycle_basis()
         net.get_cocycle_basis()
         net.barycentric_embedding()
+        #vs = net.graph.vertices()
+        ##print net.kernel
+        #vs.pop(vs.index('D'))
+        #print net.graph.to_undirected().automorphism_group(partition=[['D'], vs],orbits=True)
         g = GraphPlot(net)
+        #g.view_graph()
         g.view_placement(init=(0.5, 0.5, 0.5))
 
     def _build_structures(self):
@@ -107,14 +113,14 @@ class JobHandler(object):
             node_degree = [i.degree for i in set(combo)]
             node_lin = [i.linear for i in set(combo)]
             degree = sorted([j for i, j in zip(node_lin, node_degree) if not i])
-            build = Build(self.options)
-            build.sbus = list(set(combo))
             # find degrees of the sbus in the combo
             if not self._topologies:
                 warning("No topologies found! Exiting.")
                 Terminate()
             debug("Trying "+combo_str(combo))
             for top, graph in self._topologies.items():
+                build = Build(self.options)
+                build.sbus = list(set(combo))
                 build.net = (top, graph, self._topologies.voltages[top])
                 if self.options.show_barycentric_net_only:
                     self._check_barycentric_embedding(graph, self._topologies.voltages[top])

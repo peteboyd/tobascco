@@ -29,8 +29,9 @@ class Build(object):
         self._inner_product_matrix = None
 
     def _obtain_cycle_bases(self):
+        self._net.simple_cycle_basis()
         self._net.get_lattice_basis()
-        self._net.get_cycle_basis()
+        #self._net.get_cycle_basis()
         self._net.get_cocycle_basis()
 
     def fit_function(self, params, data):
@@ -55,77 +56,78 @@ class Build(object):
         for sbu in self._sbus:
             vects = np.array([self.vector_from_cp_SBU(cp, sbu) for cp in 
                               sbu.connect_points])
-            ipc = self.scaled_ipmatrix(np.inner(vects, vects))
-            imax, imin = np.absolute(ipc[inds]).max(), np.absolute(ipc[inds]).min()
-            mm = np.sum(np.absolute([max-imax, min-imin]))
-            if incidence != sbu.degree:
-                mm = 1500000.
-            weights.append(mm)
+            if incidence == sbu.degree:
+                ipc = self.scaled_ipmatrix(np.inner(vects, vects))
+                imax, imin = np.absolute(ipc[inds]).max(), np.absolute(ipc[inds]).min()
+                mm = np.sum(np.absolute([max-imax, min-imin]))
+                weights.append(mm)
+            else:
+                weights.append(1500000.)
         return np.array(weights)
 
-    def assign_vertices(self):
-        data = np.empty((len(self.sbu_vertices), len(self._sbus)))
-        params = Parameters()
-        dirty_fix = []
-        for id, vert in enumerate(self.sbu_vertices):
-            data[id][:] = self.obtain_sbu_fittings(vert)
-            pname = "%s_%i"%(vert, id)
-            dirty_fix.append(pname)
-            params.add(pname, min=0, max=len(self._sbus)-1)
-        expr = 'len(set([v.value for v in [%s]])) == %i'%(','.join(dirty_fix), data.shape[1])
-        expr = 'len(set([%s])) == %i'%(','.join(dirty_fix), data.shape[1])
-        params.add('constraint', expr=expr)
-        min = Minimizer(self.fit_function, params, fcn_args=(data))
-        min.lbfgsb(factr=100., epsilon=1.00, pgtol=1.00)
-        for p in params:
-            v = p.split("_")[0]
-            bu = deepcopy(self._sbus(int(v.value)))
-            self._vertex_sbu[v] = bu
-            bu.vertex_id = v
-            [cp.set_sbu_vertex(v) for cp in bu.connect_points]
-
     #def assign_vertices(self):
-    #    """Assign SBUs to particular vertices in the graph"""
-    #    # TODO(pboyd): assign sbus intelligently, based on edge lengths
-    #    # and independent cycles in the net... ugh
-    #    for vert in self.sbu_vertices:
-    #        # is there a way to determine the symmetry operations applicable
-    #        # to a vertex?
-    #        # if so, we could compare with SBUs...
-    #        vert_deg = self._net.graph.degree(vert)
-    #        sbu_match = [i for i in self._sbus if i.degree == vert_deg]
-    #        # match tensor product matrices
-    #        if len(sbu_match) > 1:
-    #            self._vertex_sbu[vert] = self.select_sbu(vert, sbu_match) 
-    #            bu = self._vertex_sbu[vert]
-    #        elif len(sbu_match) == 0:
-    #            error("Didn't assign an SBU to vertex %s"%vert)
-    #            Terminate(errcode=1) 
-    #        else:
-    #            self._vertex_sbu[vert] = deepcopy(sbu_match[0])
-    #            bu = self._vertex_sbu[vert]
-    #        bu.vertex_id = vert
-    #        [cp.set_sbu_vertex(bu.vertex_id) for cp in bu.connect_points]
+    #    data = np.empty((len(self.sbu_vertices), len(self._sbus)))
+    #    params = Parameters()
+    #    dirty_fix = []
+    #    for id, vert in enumerate(self.sbu_vertices):
+    #        data[id][:] = self.obtain_sbu_fittings(vert)
+    #        pname = "%s_%i"%(vert, id)
+    #        dirty_fix.append(pname)
+    #        params.add(pname, min=0, max=len(self._sbus)-1)
+    #    expr = 'len(set([v.value for v in [%s]])) == %i'%(','.join(dirty_fix), data.shape[1])
+    #    expr = 'len(set([%s])) == %i'%(','.join(dirty_fix), data.shape[1])
+    #    params.add('constraint', expr=expr)
+    #    min = Minimizer(self.fit_function, params, fcn_args=(data))
+    #    min.lbfgsb(factr=100., epsilon=1.00, pgtol=1.00)
+    #    for p in params:
+    #        v = p.split("_")[0]
+    #        bu = deepcopy(self._sbus(int(v.value)))
+    #        self._vertex_sbu[v] = bu
+    #        bu.vertex_id = v
+    #        [cp.set_sbu_vertex(v) for cp in bu.connect_points]
 
-    #    # check to ensure all sbus were assigned to vertices.
-    #    collect = [(sbu.name, sbu.identifier) for vert, sbu in self._vertex_sbu.items()]
-    #    if len(set(collect)) < len(self._sbus):
-    #        remain = [s for s in self._sbus if (s.name, s.identifier) not in 
-    #                    set(collect)]
-    #        closest_matches = [self.closest_match_vertices(sbu) 
-    #                                    for sbu in remain]
-    #        taken_verts = []
-    #        for id, bu in enumerate(remain):
-    #            cm = closest_matches[id]
-    #            inds = np.where([np.allclose(x[0], cm[0][0], atol=0.1) for x in cm])
-    #            replace_verts = [i[1] for i in np.array(cm)[inds] if 
-    #                                i[1] not in taken_verts]
-    #            taken_verts += replace_verts
-    #            for v in replace_verts:
-    #                bb = deepcopy(bu)
-    #                bb.vertex_id = v
-    #                [cp.set_sbu_vertex(v) for cp in bb.connect_points]
-    #                self._vertex_sbu[v] = bb
+    def assign_vertices(self):
+        """Assign SBUs to particular vertices in the graph"""
+        # TODO(pboyd): assign sbus intelligently, based on edge lengths
+        # and independent cycles in the net... ugh
+        for vert in self.sbu_vertices:
+            # is there a way to determine the symmetry operations applicable
+            # to a vertex?
+            # if so, we could compare with SBUs...
+            vert_deg = self._net.graph.degree(vert)
+            sbu_match = [i for i in self._sbus if i.degree == vert_deg]
+            # match tensor product matrices
+            if len(sbu_match) > 1:
+                self._vertex_sbu[vert] = self.select_sbu(vert, sbu_match) 
+                bu = self._vertex_sbu[vert]
+            elif len(sbu_match) == 0:
+                error("Didn't assign an SBU to vertex %s"%vert)
+                Terminate(errcode=1) 
+            else:
+                self._vertex_sbu[vert] = deepcopy(sbu_match[0])
+                bu = self._vertex_sbu[vert]
+            bu.vertex_id = vert
+            [cp.set_sbu_vertex(bu.vertex_id) for cp in bu.connect_points]
+
+        # check to ensure all sbus were assigned to vertices.
+        collect = [(sbu.name, sbu.identifier) for vert, sbu in self._vertex_sbu.items()]
+        if len(set(collect)) < len(self._sbus):
+            remain = [s for s in self._sbus if (s.name, s.identifier) not in 
+                        set(collect)]
+            closest_matches = [self.closest_match_vertices(sbu) 
+                                        for sbu in remain]
+            taken_verts = []
+            for id, bu in enumerate(remain):
+                cm = closest_matches[id]
+                inds = np.where([np.allclose(x[0], cm[0][0], atol=0.1) for x in cm])
+                replace_verts = [i[1] for i in np.array(cm)[inds] if 
+                                    i[1] not in taken_verts]
+                taken_verts += replace_verts
+                for v in replace_verts:
+                    bb = deepcopy(bu)
+                    bb.vertex_id = v
+                    [cp.set_sbu_vertex(v) for cp in bb.connect_points]
+                    self._vertex_sbu[v] = bb
 
     def closest_match_vertices(self, sbu):
         g = self._net.graph
@@ -417,7 +419,7 @@ class Build(object):
         self._net.get_embedding()
         init = np.array([0.5, 0.5, 0.5])
         if self.bad_embedding():
-            warning("net %s didn't embed properly with the "%(self._net.name) +
+            debug("net %s didn't embed properly with the "%(self._net.name) +
             "geometries dictated by the SBUs")
         else:
             self.build_structure_from_net(init)

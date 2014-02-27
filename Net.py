@@ -115,12 +115,12 @@ class Net(object):
     def get_cocycle_basis(self):
         """The orientation is important here!"""
         size = self._graph.order() - 1
-        len = self._graph.size()
+        length = self._graph.size()
         count = 0
         for vert in self._graph.vertices():
             if count == size:
                 break
-            vect = np.zeros(len)
+            vect = np.zeros(length)
             out_edges = self._graph.outgoing_edges(vert)
             inds = self.return_indices(out_edges)
             if inds:
@@ -129,7 +129,7 @@ class Net(object):
             inds = self.return_indices(in_edges)
             if inds:
                 vect[inds] = -1.
-            if self.cycle_cocycle_check(vect):
+            if self.cycle_cocycle_check(vect):# or len(self.neighbours(vert)) == 2:
                 count += 1
                 self.cocycle = self.add_to_matrix(vect, self.cocycle)
 
@@ -267,8 +267,8 @@ class Net(object):
         edges = self.graph.edges()
         mspt = self.graph.to_undirected().min_spanning_tree()
         tree = Graph(mspt, multiedges=False, loops=False)
-        #tree.show(edge_labels=True)
-        cycle_completes = [i for i in edges if i not in mspt]
+        #self.graph.show()
+        cycle_completes = [i for i in edges if i not in mspt and (i[1], i[0], i[2]) not in mspt]
         self.cycle = []
         self.cycle_rep = []
         for (v1, v2, e) in cycle_completes:

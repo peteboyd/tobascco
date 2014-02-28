@@ -189,7 +189,7 @@ class Build(object):
         max = np.diag(ipmat).max()
         for (i,j), val in np.ndenumerate(ipmat):
             if i==j:
-                ret[i,j] = 1. 
+                ret[i,j] = val / max 
             if i != j:
                 v = val/np.sqrt(ipmat[i,i])/np.sqrt(ipmat[j,j])
                 ret[i,j] = v
@@ -274,7 +274,7 @@ class Build(object):
 
             #print "arc CI", CI_ar, "cp  CI", CI_cp
             #if (mm < min) and (diff < chi_diff):
-            if (mm <= min) and self.chiral_match(e, norm_arc, norm_cp, tol=xmax): 
+            if (mm <= min) and self.chiral_match(e, norm_arc, norm_cp):#tol=xmax): 
                     #self.chiral_match(e, oriented_arc, norm_cp):
                     #self.chiral_match(e, lv_arc, sbu, vertex):
                 cc = coeff

@@ -281,7 +281,7 @@ class Net(object):
                 coefficients.append(coeff)
                 cycle.append(edge)
             # opposite because we are closing the loop. i.e. going from v2 back to v1
-            coeff = -1. if (v1,v2,e) in self.graph.incoming_edges(v1) else 1.
+            coeff = 1. if (v1,v2,e) in self.graph.incoming_edges(v1) else -1.
             coefficients.append(coeff)
             cycle.append((v1, v2, e))
             basis_vector[self.return_indices(cycle)] = coefficients

@@ -537,6 +537,7 @@ class Net(object):
             M[i,i] = val/scale_factor
         nz = np.nonzero(np.triu(self.colattice_dotmatrix))
         sol = (np.array(M[nz] - self.colattice_dotmatrix[nz]))
+        #print sol.flatten()
         return sol.flatten()
 
     def assign_ip_matrix(self, mat):
@@ -563,8 +564,8 @@ class Net(object):
         params = self.init_params(init_guess)
         self.vary_coc_mt(params)
         min = Minimizer(self.min_function_lmfit, params)
-        #min.lbfgsb(factr=10., epsilon=1e-8, pgtol=1e-9)
-        min.leastsq(xtol=1.e-7, ftol=1.e-8)
+        min.lbfgsb(factr=10., epsilon=1e-8, pgtol=1e-9)
+        #min.leastsq(xtol=1.e-7, ftol=1.e-8)
         fit = self.min_function_lmfit(params)
         self.report_errors(fit)
         #print report_errors(params)

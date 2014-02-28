@@ -281,7 +281,7 @@ class Net(object):
                 coefficients.append(coeff)
                 cycle.append(edge)
             # opposite because we are closing the loop. i.e. going from v2 back to v1
-            coeff = 1. if (v1,v2,e) in self.graph.incoming_edges(v1) else -1.
+            coeff = -1. if (v1,v2,e) in self.graph.incoming_edges(v1) else 1.
             coefficients.append(coeff)
             cycle.append((v1, v2, e))
             basis_vector[self.return_indices(cycle)] = coefficients
@@ -564,8 +564,8 @@ class Net(object):
         params = self.init_params(init_guess)
         self.vary_coc_mt(params)
         min = Minimizer(self.min_function_lmfit, params)
-        min.lbfgsb(factr=10., epsilon=1e-8, pgtol=1e-9)
-        #min.leastsq(xtol=1.e-7, ftol=1.e-8)
+        #min.lbfgsb(factr=10., epsilon=1e-8, pgtol=1e-9)
+        min.leastsq(xtol=1.e-7, ftol=1.e-8)
         fit = self.min_function_lmfit(params)
         self.report_errors(fit)
         #print report_errors(params)

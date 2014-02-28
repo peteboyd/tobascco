@@ -329,7 +329,7 @@ class Build(object):
         else:
             return 150000.
 
-    def chiral_match(self, edges, arcs, cp_vects, tol=0.1):
+    def chiral_match(self, edges, arcs, cp_vects, tol=0.03):
         """Determines if two geometries match in terms of edge
         orientation.
 

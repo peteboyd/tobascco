@@ -29,9 +29,9 @@ class Build(object):
         self._inner_product_matrix = None
 
     def _obtain_cycle_bases(self):
-        #self._net.simple_cycle_basis()
+        self._net.simple_cycle_basis()
         self._net.get_lattice_basis()
-        self._net.get_cycle_basis()
+        #self._net.get_cycle_basis()
         self._net.get_cocycle_basis()
 
     def fit_function(self, params, data):
@@ -243,7 +243,8 @@ class Build(object):
             diff = np.multiply(li, td) - la
             inds = np.triu_indices(diff.shape[0], k=1) 
             xmax, xmin = np.absolute(diff[inds]).max(), np.absolute(diff[inds]).min()
-            mm = np.sum(diff)
+            #mm = np.sum(diff)
+            mm = np.sum(np.absolute(np.multiply(li,td) - la))
             # NB Chirality matters!!!
             # get the cell
             lv_arc = (np.array(lattice_vects[indices]) 

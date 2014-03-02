@@ -89,7 +89,7 @@ class JobHandler(object):
         #vs.pop(vs.index('D'))
         #print net.graph.to_undirected().automorphism_group(partition=[['D'], vs],orbits=True)
         g = GraphPlot(net)
-        #g.view_graph()
+        g.view_graph()
         g.view_placement(init=(0.5, 0.5, 0.5))
 
     def _build_structures(self):

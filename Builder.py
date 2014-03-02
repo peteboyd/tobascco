@@ -29,9 +29,9 @@ class Build(object):
         self._inner_product_matrix = None
 
     def _obtain_cycle_bases(self):
-        self._net.simple_cycle_basis()
+        #self._net.simple_cycle_basis()
         self._net.get_lattice_basis()
-        #self._net.get_cycle_basis()
+        self._net.get_cycle_basis()
         self._net.get_cocycle_basis()
 
     def fit_function(self, params, data):
@@ -249,7 +249,7 @@ class Build(object):
             lv_arc = (np.array(lattice_vects[indices]) 
                                         * coeff[:, None])
             # get the lattice arcs
-            diff = self.get_chiral_diff(e, lv_arc, sbu)
+            #diff = self.get_chiral_diff(e, lv_arc, sbu)
 
             norm_arc = normalized_vectors(lv_arc)
             # orient the lattice arcs to the first sbu vector...
@@ -274,7 +274,7 @@ class Build(object):
 
             #print "arc CI", CI_ar, "cp  CI", CI_cp
             #if (mm < min) and (diff < chi_diff):
-            if (mm <= min) and self.chiral_match(e, norm_arc, norm_cp):#tol=xmax): 
+            if (mm <= min) and self.chiral_match(e, norm_arc, norm_cp):#, tol=xmax): 
                     #self.chiral_match(e, oriented_arc, norm_cp):
                     #self.chiral_match(e, lv_arc, sbu, vertex):
                 cc = coeff
@@ -329,7 +329,7 @@ class Build(object):
         else:
             return 150000.
 
-    def chiral_match(self, edges, arcs, cp_vects, tol=0.03):
+    def chiral_match(self, edges, arcs, cp_vects, tol=0.01):
         """Determines if two geometries match in terms of edge
         orientation.
 
@@ -709,6 +709,7 @@ class Build(object):
         self._obtain_cycle_bases()
         # start off with the barycentric embedding
         self._net.barycentric_embedding()
+        #self.show()
 
     @net.setter
     def net(self, (name, graph, volt)):

@@ -277,9 +277,9 @@ class Net(object):
             cycle, coefficients = [], []
             for pv1, pv2 in itertools.izip(path[:-1], path[1:]):
                 edge = [i for i in tree.edges_incident([pv1, pv2]) if pv1 in i[:2] and pv2 in i[:2]][0]
-                if edge not in self.graph.edges():
+                if edge not in edges:
                     edge = (edge[1], edge[0], edge[2])
-                    if edge not in self.graph.edges():
+                    if edge not in edges:
                         error("Encountered an edge (%s, %s, %s) not in "%(edge) +
                         " the graph while finding the basis of the cycle space!")
                         Terminate(errcode=1)
@@ -287,9 +287,10 @@ class Net(object):
                 coefficients.append(coeff)
                 cycle.append(edge)
             # opposite because we are closing the loop. i.e. going from v2 back to v1
-            coeff = 1. if (v1,v2,e) in self.graph.incoming_edges(v1) else -1.
+            edge = (v1, v2, e) if (v1, v2, e) in edges else (v2, v1, e)
+            coeff = 1. if edge in self.graph.incoming_edges(v1) else -1.
             coefficients.append(coeff)
-            cycle.append((v1, v2, e))
+            cycle.append(edge)
             basis_vector[self.return_indices(cycle)] = coefficients
             voltage = self.get_voltage(basis_vector)
             self.cycle.append(basis_vector)
@@ -353,68 +354,68 @@ class Net(object):
                 cycle.pop(-1)
                 used.pop(-1)
 
-    def get_lattice_basis(self):
-        L = []   
-        for i in np.array(self.cycle_rep):
-            L.append(vector(QQ, i.tolist()))
-        V = QQ**self.ndim
-        lattice = []
-        for e in np.identity(self.ndim):
-            ev = vector(e)
-            L.append(ev)
-            
-            #vect = (V.linear_dependence(L, zeros='left')[-1][:-1])
-            #nz = np.nonzero(vect)
-            mincount = self.shape
-            vect = None
-            for jj in V.linear_dependence(L, zeros='left'):
-                if jj[-1] != 0:
-                    vv = jj[:-1]*-1.*jj[-1]
-                    nz = np.nonzero(vv)
-                    tv = np.sum(np.array(self.cycle)[nz] * np.array(vv)[nz][:, None], axis=0)
-                    if len(nz) == 1:
-                        vect = tv 
-                        break
-                    elif len(nz) < mincount and self.is_integral(tv):
-                        vect = tv 
-                        mincount = len(nz)
-            lattice.append(tv)
-            L.pop(-1)
-        self.lattice_basis = np.array(lattice)
-        #print self.lattice_basis
-
     #def get_lattice_basis(self):
-    #    """Obtains a lattice basis by iterating over all the cycles and finding
-    #    ones with net voltages satisifying one of the n dimensional basis vectors.
+    #    L = []   
+    #    for i in np.array(self.cycle_rep):
+    #        L.append(vector(QQ, i.tolist()))
+    #    V = QQ**self.ndim
+    #    lattice = []
+    #    for e in np.identity(self.ndim):
+    #        ev = vector(e)
+    #        L.append(ev)
+    #        
+    #        #vect = (V.linear_dependence(L, zeros='left')[-1][:-1])
+    #        #nz = np.nonzero(vect)
+    #        mincount = self.shape
+    #        vect = None
+    #        for jj in V.linear_dependence(L, zeros='left'):
+    #            if jj[-1] != 0:
+    #                vv = jj[:-1]*-1.*jj[-1]
+    #                nz = np.nonzero(vv)
+    #                tv = np.sum(np.array(self.cycle)[nz] * np.array(vv)[nz][:, None], axis=0)
+    #                if len(nz) == 1:
+    #                    vect = tv 
+    #                    break
+    #                elif len(nz) < mincount and self.is_integral(tv):
+    #                    vect = tv 
+    #                    mincount = len(nz)
+    #        lattice.append(tv)
+    #        L.pop(-1)
+    #    self.lattice_basis = np.matrix(np.array(lattice))
+    #    #print self.lattice_basis
 
-    #    """
-    #    basis_vectors = []
-    #    c = self.iter_cycles(node=self._graph.vertices()[0],
-    #                         edge=None,
-    #                         cycle=[],
-    #                         used=[],
-    #                         nodes_visited=[],
-    #                         cycle_baggage=[],
-    #                         counter=0)
-    #    self.lattice_basis = np.zeros((self.ndim, self.shape))
-    #    for cycle in c:
-    #        vect = np.zeros(self.shape)
-    #        try:
-    #            vect[self.return_indices(cycle)] = self.return_coeff(cycle)
-    #        except IndexError:
-    #            print vect
-    #        volt = self.get_voltage(vect)
-    #        for id, e in enumerate(np.identity(self.ndim)):
-    #            if np.allclose(np.abs(volt), e):
-    #                check = self.check_linear_dependency(vect, self.lattice_basis[basis_vectors])
-    #                if id not in basis_vectors and check:
-    #                    basis_vectors.append(id)
-    #                    self.lattice_basis[id] = volt[id]*vect
-    #                elif (np.count_nonzero(vect) < np.count_nonzero(self.lattice_basis[id])) and check:
-    #                    self.lattice_basis[id] = volt[id]*vect
-    #    if len(basis_vectors) != self.ndim:
-    #        print "ERROR: could not find all cycle vectors for the lattice basis!"
-    #        sys.exit()
+    def get_lattice_basis(self):
+        """Obtains a lattice basis by iterating over all the cycles and finding
+        ones with net voltages satisifying one of the n dimensional basis vectors.
+
+        """
+        basis_vectors = []
+        c = self.iter_cycles(node=self._graph.vertices()[0],
+                             edge=None,
+                             cycle=[],
+                             used=[],
+                             nodes_visited=[],
+                             cycle_baggage=[],
+                             counter=0)
+        self.lattice_basis = np.zeros((self.ndim, self.shape))
+        for cycle in c:
+            vect = np.zeros(self.shape)
+            try:
+                vect[self.return_indices(cycle)] = self.return_coeff(cycle)
+            except IndexError:
+                print vect
+            volt = self.get_voltage(vect)
+            for id, e in enumerate(np.identity(self.ndim)):
+                if np.allclose(np.abs(volt), e):
+                    check = self.check_linear_dependency(vect, self.lattice_basis[basis_vectors])
+                    if id not in basis_vectors and check:
+                        basis_vectors.append(id)
+                        self.lattice_basis[id] = volt[id]*vect
+                    elif (np.count_nonzero(vect) < np.count_nonzero(self.lattice_basis[id])) and check:
+                        self.lattice_basis[id] = volt[id]*vect
+        if len(basis_vectors) != self.ndim:
+            print "ERROR: could not find all cycle vectors for the lattice basis!"
+            Terminate(errcode=1)
 
     def check_linear_dependency(self, vect, set):
         if not np.any(set):

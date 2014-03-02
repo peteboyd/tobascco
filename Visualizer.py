@@ -135,7 +135,7 @@ class GraphPlot(object):
     
     def view_graph(self):
         self.net.graph.show(edge_labels=True)
-        info("Wait for Xwindow, then press any key...")
+        info("Wait for Xwindow, then press [Enter]")
         raw_input("")
 
     def view_placement(self, init=(0., 0., 0.)):

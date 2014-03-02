@@ -277,6 +277,12 @@ class Net(object):
             cycle, coefficients = [], []
             for pv1, pv2 in itertools.izip(path[:-1], path[1:]):
                 edge = [i for i in tree.edges_incident([pv1, pv2]) if pv1 in i[:2] and pv2 in i[:2]][0]
+                if edge not in self.graph.edges():
+                    edge = (edge[1], edge[0], edge[2])
+                    if edge not in self.graph.edges():
+                        error("Encountered an edge (%s, %s, %s) not in "%(edge) +
+                        " the graph while finding the basis of the cycle space!")
+                        Terminate(errcode=1)
                 coeff = 1. if edge in self.graph.outgoing_edges(pv1) else -1.
                 coefficients.append(coeff)
                 cycle.append(edge)

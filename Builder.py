@@ -220,7 +220,6 @@ class Build(object):
         cell = Cell()
         cell.mkcell(self._net.get_3d_params())
         lattice_vects = np.dot(lattice_arcs, cell.lattice)
-        atoms = ["H", "F", "He", "Cl"]
         count = 0
         for e in itertools.permutations(edges):
             count += 1
@@ -250,7 +249,8 @@ class Build(object):
             lv_arc = (np.array(lattice_vects[indices]) 
                                         * coeff[:, None])
             # get the lattice arcs
-            #diff = self.get_chiral_diff(e, lv_arc, sbu)
+
+            mm = self.get_chiral_diff(e, lv_arc, vects)
 
             norm_arc = normalized_vectors(lv_arc)
             # orient the lattice arcs to the first sbu vector...
@@ -275,9 +275,7 @@ class Build(object):
 
             #print "arc CI", CI_ar, "cp  CI", CI_cp
             #if (mm < min) and (diff < chi_diff):
-            if (mm <= min) and self.chiral_match(e, norm_arc, norm_cp):#, tol=xmax): 
-                    #self.chiral_match(e, oriented_arc, norm_cp):
-                    #self.chiral_match(e, lv_arc, sbu, vertex):
+            if (mm <= min):# and self.chiral_match(e, norm_arc, norm_cp):#, tol=xmax): 
                 cc = coeff
                 min = mm
                 chi_diff = diff
@@ -291,7 +289,6 @@ class Build(object):
         #new_norm = np.dot(R[:3,:3], norm_arc.T)
         #nCI = self.chiral_invariant(assign, new_norm.T)
         #print "Rotation invariant?", CI, nCI
-
         # NB special MULT function for connect points
         cp_vert = [i[0] if i[0] != vertex else i[1] for i in assign]
         #print 'CI diff', chi_diff
@@ -312,23 +309,50 @@ class Build(object):
         vcm = central_moment(edge_weights, vectors, (mx, my, mz))
         return get_CI(vcm)
 
-    def get_chiral_diff(self, edges, arcs, sbu):
-        narcs = normalized_vectors(arcs)
-        CI_ar = self.chiral_invariant(edges, narcs)
-        cp_vects = np.array([self.vector_from_cp_SBU(cp, sbu) for cp
-                             in sbu.connect_points])
+    def get_chiral_diff(self, edges, arc1, arc2, count=[]):
+        narcs1 = normalized_vectors(arc1)
+        narcs2 = normalized_vectors(arc2)
+        ### DEBUG
+        #atoms = ["H", "F", "He", "Cl", "N", "O"]
+        R = rotation_from_vectors(narcs2, narcs1) 
+        narcs1 = (np.dot(R[:3,:3], narcs1.T)).T
+        #or1 = np.zeros(3)
+        #or2 = np.array([3., 3., 0.])
+        #xyz_str1 = "C %9.5f %9.5f %9.5f\n"%(or1[0], or1[1], or1[2])
+        #xyz_str2 = "C %9.5f %9.5f %9.5f\n"%(or2[0], or2[1], or2[2])
+        #for ind, (i, j) in enumerate(zip(narcs1,narcs2)):
+        #    at = atoms[ind]
+        #    pos = i[:3] + or1
+        #    xyz_str1 += "%s %9.5f %9.5f %9.5f\n"%(at, pos[0], pos[1], pos[2])
+        #    pos = j + or2
+        #    xyz_str2 += "%s %9.5f %9.5f %9.5f\n"%(at, pos[0], pos[1], pos[2]) 
 
-        ncp_vects = normalized_vectors(cp_vects)
+        #xyz_file = open("debugging.xyz", 'a')
+        #xyz_file.writelines("%i\ndebug\n"%(len(narcs1)*2+2))
+        #xyz_file.writelines(xyz_str1)
+        #xyz_file.writelines(xyz_str2)
+        #xyz_file.close()
 
-        CI_cp = self.chiral_invariant(edges, ncp_vects)
+        ### DEBUG
+        #CI_1 = self.chiral_invariant(edges, narcs1)
+
+        #CI_2 = self.chiral_invariant(edges, narcs2)
+        #count.append(1) 
+        #ff = open("CI1", 'a')
+        #ff.writelines('%i %e\n'%(len(count), CI_1))
+        #ff.close()
+        #ff = open("CI2", 'a')
+        #ff.writelines('%i %e\n'%(len(count), CI_2))
+        #ff.close()
         #print 'edge assignment ', ','.join([p[2] for p in edges])
-        #print 'connect point CI ', CI_cp
-        #print 'lattice arcs  CI ', CI_ar
+        #print 'lattice arcs  CI ', CI_1
+        #print 'connect point CI ', CI_2
 
-        if all(item >= 0 for item in (CI_ar, CI_cp)) or all(item < 0 for item in (CI_ar, CI_cp)):
-            return np.absolute(CI_cp - CI_ar)
-        else:
-            return 150000.
+        #if all(item >= 0 for item in (CI_1, CI_2)) or all(item < 0 for item in (CI_1, CI_2)):
+        #    return np.absolute(CI_1 - CI_2)
+        #else:
+        #    return 150000.
+        return np.sum(np.absolute((narcs1 - narcs2).flatten()))
 
     def chiral_match(self, edges, arcs, cp_vects, tol=0.01):
         """Determines if two geometries match in terms of edge
@@ -649,7 +673,8 @@ class Build(object):
 
     @property
     def check_net(self):
-        if self._net.original_graph.size() < 25 and self.sbu_degrees == self.net_degrees():
+        #if self._net.original_graph.size() < 25 and self.sbu_degrees == self.net_degrees():
+        if self.sbu_degrees == self.net_degrees():
             return True
         return False
 

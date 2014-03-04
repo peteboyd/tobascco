@@ -113,7 +113,8 @@ class Options(object):
                     'calc_sbu_surface_area',
                     'calc_max_sbu_span',
                     'show_barycentric_net_only',
-                    'show_embedded_net']
+                    'show_embedded_net',
+                    'get_run_info']
         floats = ['overlap_tolerance',
                   'sbu_bond_length',
                   'cell_vol_tolerance']

@@ -5,6 +5,7 @@ from logging import info, debug, warning, error, critical
 import config
 from config import Terminate
 import glog
+from time import time
 import ConfigParser
 from Generator import Generate
 from Visualizer import GraphPlot 
@@ -107,8 +108,10 @@ class JobHandler(object):
         else:
             # remove SBUs if not listed in options.organic_sbus or options.metal_sbus
             combinations = run.generate_sbu_combinations()
-
+        csvinfo = CSV(name='%s_info'%(self.options.jobname))
+        csvinfo.set_headings('topology', 'sbus', 'edge_count', 'time')
         # generate the MOFs.
+        inittime = time()
         for combo in combinations:
             node_degree = [i.degree for i in set(combo)]
             node_lin = [i.linear for i in set(combo)]
@@ -127,18 +130,31 @@ class JobHandler(object):
                     self._check_barycentric_embedding(graph, self._topologies.voltages[top])
                 else:
                     if build.check_net:
+                        csvinfo.add_data(topology=top, 
+                                         sbus=combo_str(combo),
+                                         edge_count=build.net.original_graph.size())
                         info("Setting up %s"%(combo_str(combo)) +
                                 " with net %s"%(top))
+                        t1 = time()
                         build.init_embed()
                         build.assign_vertices()
                         build.assign_edges()
                         build.obtain_embedding()
+                        t2 = time()
+                        csvinfo.add_data(time=t2-t1)
+                        
                         #build.custom_embedding(rep, mt)
                         if self.options.show_embedded_net:
                             build.show()
                     else:
                         debug("Net %s does not support the same"%(top)+
                                 " connectivity offered by the SBUs")
+
+        finaltime = time() - inittime
+        info("Topcryst completed after %f seconds"%finaltime)
+        if self.options.get_run_info:
+            info("Writing run information to %s"%csvinfo.filename)
+            csvinfo.write()
         Terminate()
 
     def _sbu_report(self):

@@ -3,7 +3,10 @@
 class CSV(object):
     
     def __init__(self, name):
-        self.filename = name
+        if name[-4:] == ".csv":
+            self.filename = name
+        else:
+            self.filename = name + ".csv"
         self._data = {}
         self._headings = []
         

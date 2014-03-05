@@ -224,26 +224,26 @@ class Build(object):
         for e in itertools.permutations(edges):
             count += 1
             indices = self._net.return_indices(e)
-            node_arcs = lattice_arcs[indices]*\
-                    self._net.metric_tensor*lattice_arcs[indices].T
-            max = node_arcs.max()
-            la = np.empty((len(indices),len(indices)))
-            for (i,j), val in np.ndenumerate(node_arcs):
-                if i==j:
-                    la[i,j] = val/max
-                else:
-                    v = val/np.sqrt(node_arcs[i,i])/np.sqrt(node_arcs[j,j])
-                    la[i,j] = v
-                    la[j,i] = v
+            #node_arcs = lattice_arcs[indices]*\
+            #        self._net.metric_tensor*lattice_arcs[indices].T
+            #max = node_arcs.max()
+            #la = np.empty((len(indices),len(indices)))
+            #for (i,j), val in np.ndenumerate(node_arcs):
+            #    if i==j:
+            #        la[i,j] = val/max
+            #    else:
+            #        v = val/np.sqrt(node_arcs[i,i])/np.sqrt(node_arcs[j,j])
+            #        la[i,j] = v
+            #        la[j,i] = v
             # using tensor product of the incidences
             coeff = np.array([-1. if j in self._net.graph.incoming_edges(vertex)
                                else 1. for j in e])
-            td = np.tensordot(coeff, coeff, axes=0)
-            diff = np.multiply(li, td) - la
-            inds = np.triu_indices(diff.shape[0], k=1) 
-            xmax, xmin = np.absolute(diff[inds]).max(), np.absolute(diff[inds]).min()
+            #td = np.tensordot(coeff, coeff, axes=0)
+            #diff = np.multiply(li, td) - la
+            #inds = np.triu_indices(diff.shape[0], k=1) 
+            #xmax, xmin = np.absolute(diff[inds]).max(), np.absolute(diff[inds]).min()
             #mm = np.sum(diff)
-            mm = np.sum(np.absolute(np.multiply(li,td) - la))
+            #mm = np.sum(np.absolute(np.multiply(li,td) - la))
             # NB Chirality matters!!!
             # get the cell
             lv_arc = (np.array(lattice_vects[indices]) 
@@ -252,7 +252,7 @@ class Build(object):
 
             mm = self.get_chiral_diff(e, lv_arc, vects)
 
-            norm_arc = normalized_vectors(lv_arc)
+            #norm_arc = normalized_vectors(lv_arc)
             # orient the lattice arcs to the first sbu vector...
             #print count , self.chiral_match(e, oriented_arc, norm_cp)
             #print count, np.allclose(norm_cp, oriented_arc, atol=0.01)
@@ -276,12 +276,8 @@ class Build(object):
             #print "arc CI", CI_ar, "cp  CI", CI_cp
             #if (mm < min) and (diff < chi_diff):
             if (mm <= min):# and self.chiral_match(e, norm_arc, norm_cp):#, tol=xmax): 
-                cc = coeff
                 min = mm
-                chi_diff = diff
                 assign = e
-                norm_arc = normalized_vectors(lv_arc)
-                norm_cp = normalized_vectors(vects)
         #CI = self.chiral_invariant(assign, norm_arc)
         #axis = np.array([1., 3., 1.])
         #angle = np.pi/3.

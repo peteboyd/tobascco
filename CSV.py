@@ -1,15 +1,26 @@
 #!/usr/bin/env python
+import os
 
 class CSV(object):
     
     def __init__(self, name):
-        if name[-4:] == ".csv":
-            self.filename = name
-        else:
-            self.filename = name + ".csv"
+        self.filename = self.get_filename(name)
         self._data = {}
         self._headings = []
         
+    def get_filename(self, name):
+        if name[-4:] == ".csv":
+            base = name[:-4]
+        else:
+            base = name
+
+        filename = base
+        count = 0
+        while os.path.isfile(filename + '.csv'):
+            count += 1
+            filename = base + ".%d"%count
+        return filename + '.csv'
+
     def add_data(self, **kwargs):
         for key, val in kwargs.items():
             assert key in self._headings, "%s not in the headings: "%(key) + \

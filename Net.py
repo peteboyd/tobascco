@@ -417,13 +417,15 @@ class Net(object):
     #        print "ERROR: could not find all cycle vectors for the lattice basis!"
     #        Terminate(errcode=1)
 
-    def check_linear_dependency(self, vect, set):
-        if not np.any(set):
+    def check_linear_dependency(self, vect, vset):
+        if not np.any(vset):
             return True
         else:
-            A = np.concatenate((set, np.reshape(vect, (1, self.shape))))
-        U, s, V = np.linalg.svd(A)
-        if np.all(s > 0.0001):
+            A = np.concatenate((vset, np.reshape(vect, (1, self.shape))))
+        lrank = vset.shape[0] + 1
+        #U, s, V = np.linalg.svd(A)
+        #if np.all(s > 0.0001):
+        if np.linalg.matrix_rank(A) == lrank:
             return True
         return False
 

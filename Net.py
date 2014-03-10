@@ -7,7 +7,7 @@ from logging import info, debug, warning, error
 import numpy as np
 from LinAlg import DEG2RAD
 from scipy.optimize import fmin_l_bfgs_b, minimize, anneal, brute, basinhopping, fsolve, root 
-sys.path.append('/home/pboyd/lib/lmfit-0.7.4')
+sys.path.append('/home/pboyd/lib/lmfit-0.7.2')
 from lmfit import minimize, Parameters, Minimizer, report_errors
 from config import Terminate
 

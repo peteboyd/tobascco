@@ -310,7 +310,8 @@ class Build(object):
         narcs2 = normalized_vectors(arc2)
         ### DEBUG
         #atoms = ["H", "F", "He", "Cl", "N", "O"]
-        R = rotation_from_vectors(narcs2, narcs1) 
+        R = rotation_from_vectors(narcs2, narcs1)
+        #FIXME(pboyd): ensure that this is the right rotation!!! I think it's supposed to rotate narcs2
         narcs1 = (np.dot(R[:3,:3], narcs1.T)).T
         #or1 = np.zeros(3)
         #or2 = np.array([3., 3., 0.])
@@ -485,8 +486,9 @@ class Build(object):
 
     def build_structure_from_net(self, init_placement):
         """Orient SBUs to the nodes on the net, create bonds where needed, etc.."""
+        name = "str_%s"%(self._net.name) 
         struct = Structure(self.options, 
-                           name=self._net.name,
+                           name=name,
                            params=self._net.get_3d_params())
 
         cell = struct.cell.lattice

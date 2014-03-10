@@ -84,6 +84,8 @@ class JobHandler(object):
         net.get_lattice_basis()
         #net.get_cycle_basis()
         net.get_cocycle_basis()
+        print net.kernel
+        print net.cycle 
         net.barycentric_embedding()
         #vs = net.graph.vertices()
         ##print net.kernel

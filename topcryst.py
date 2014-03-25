@@ -15,6 +15,7 @@ from Builder import Build
 from SecondaryBuildingUnit import SBU
 #from CreateInput import SBUFileRead
 from random import randint
+import itertools
 import numpy as np
 import os
 
@@ -84,15 +85,41 @@ class JobHandler(object):
         net.get_lattice_basis()
         #net.get_cycle_basis()
         net.get_cocycle_basis()
-        print net.kernel
-        print net.cycle 
+        #for i,j in itertools.combinations(range(len(net.kernel)), 2):
+        #    print np.any(np.in1d(np.array(net.kernel)[i].nonzero(), np.array(net.kernel)[j].nonzero()))
+
+        #for i, j in itertools.combinations(range(len(net.cycle)), 2):
+        #    if not np.any(np.in1d(np.array(net.cycle)[i].nonzero(), np.array(net.kernel)[j].nonzero())):
+        #        print 'i', ', '.join(['e%i'%(k+1) for k in np.nonzero(np.array(net.kernel)[i])[0]])
+        #        print 'j', ', '.join(['e%i'%(k+1) for k in np.nonzero(np.array(net.kernel)[j])[0]])
+        #print np.array(net.cycle)[0].nonzero(), np.array(net.cycle)[1].nonzero()
         net.barycentric_embedding()
         #vs = net.graph.vertices()
         ##print net.kernel
         #vs.pop(vs.index('D'))
         #print net.graph.to_undirected().automorphism_group(partition=[['D'], vs],orbits=True)
+        verts = net.graph.vertices()
+        #for id in range(len(verts)):
+        #    Pi = [verts[id], verts[:id] + verts[id+1:]]
+        #    print net.graph.to_undirected().coarsest_equitable_refinement(Pi)
+        #G = net.graph.to_undirected().dominating_set(independent=True)
+        #for i in np.array(net.cycle):
+        #    print ', '.join(['e%i'%(k+1) for k in np.nonzero(i)[0]])
+
+        #q = np.concatenate((net.cycle, net.kernel[:8]))
+        #for id, volt in enumerate(np.array(net.voltage)):
+        #    print 'e%i'%(id+1), "(%i, %i, %i)"%(tuple(volt))
+
+        #A = matrix(q)
+        #for i in A.echelon_form():
+        #    print ', '.join(['e%i'%(k+1) for k in np.nonzero(i)[0]])
+        #for j in np.array(net.kernel):
+        #    print ', '.join(['e%i'%(k+1) for k in np.nonzero(j)[0]])
+
+        #print G.order()
+        #print G.gens()
         g = GraphPlot(net)
-        g.view_graph()
+        #g.view_graph()
         g.view_placement(init=(0.5, 0.5, 0.5))
 
     def _build_structures(self):

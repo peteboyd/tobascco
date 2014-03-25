@@ -111,6 +111,8 @@ class Structure(object):
             elem1 = atom.element
             non_bonded = [i for i in self.atoms[id:] if 
                     tuple(sorted((atom.index, i.index))) not in self.bonds.keys()]
+            bonded = [i for i in self.atoms[id:] if tuple(sorted((atom.index, i.index))
+                       in self.bonds.keys()]
             indices = [i.index for i in non_bonded] 
             shifted_vectors = self.min_img(atom, non_bonded)
             dist_mat = distance.cdist([atom.coordinates[:3]], shifted_vectors)

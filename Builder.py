@@ -486,7 +486,11 @@ class Build(object):
 
     def build_structure_from_net(self, init_placement):
         """Orient SBUs to the nodes on the net, create bonds where needed, etc.."""
-        name = "str_%s"%(self._net.name) 
+        metals = "_".join(["m%i"%(sbu.identifier) for sbu in 
+                                self._sbus if sbu.metal])
+        organics = "_".join(["o%i"%(sbu.identifier) for sbu in 
+                                self._sbus if not sbu.metal])
+        name = "str_%s_%s_%s"%(metals, organics, self._net.name) 
         struct = Structure(self.options, 
                            name=name,
                            params=self._net.get_3d_params())

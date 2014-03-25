@@ -445,8 +445,6 @@ class Build(object):
             "geometries dictated by the SBUs")
         else:
             self.build_structure_from_net(init)
-            info("Structure Generated!")
-            #self.show()
 
     def test_angle(self, index1, index2, mat):
         return np.arccos(mat[index1, index2]/np.sqrt(mat[index1, index1])/np.sqrt(mat[index2, index2]))*180./np.pi
@@ -487,9 +485,9 @@ class Build(object):
     def build_structure_from_net(self, init_placement):
         """Orient SBUs to the nodes on the net, create bonds where needed, etc.."""
         metals = "_".join(["m%i"%(sbu.identifier) for sbu in 
-                                self._sbus if sbu.metal])
+                                self._sbus if sbu.is_metal])
         organics = "_".join(["o%i"%(sbu.identifier) for sbu in 
-                                self._sbus if not sbu.metal])
+                                self._sbus if not sbu.is_metal])
         name = "str_%s_%s_%s"%(metals, organics, self._net.name) 
         struct = Structure(self.options, 
                            name=name,
@@ -506,7 +504,12 @@ class Build(object):
             self.sbu_translate(v, tv)
             struct.add_sbu(self._vertex_sbu[v])
         struct.connect_sbus(self._vertex_sbu)
-        struct.write_cif()
+        if not struct.compute_overlap:
+            struct.write_cif()
+            warning("Overlap found in final structure, not creating MOF.")
+        else:
+            struct.write_cif()
+            info("Structure Generated!")
 
     def rotation_function(self, params, vect1, vect2):
         #axis = np.array((params['a1'].value, params['a2'].value, params['a3'].value))

@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 import numpy as np
 import itertools
+import sys
+import os
 from scipy.spatial import distance
 from LinAlg import DEG2RAD, RAD2DEG
-from element_properties import Radii
+from element_properties import Radii, ATOMIC_NUMBER
 from CIFer import CIF
 
 class Structure(object):
@@ -109,17 +111,20 @@ class Structure(object):
         boundary considerations."""
         for id, atom in enumerate(self.atoms):
             elem1 = atom.element
-            non_bonded = [i for i in self.atoms[id:] if 
+            non_bonded = [i.index for i in self.atoms[id:] if 
                     tuple(sorted((atom.index, i.index))) not in self.bonds.keys()]
-            bonded = [i for i in self.atoms[id:] if tuple(sorted((atom.index, i.index))
-                       in self.bonds.keys()]
-            indices = [i.index for i in non_bonded] 
-            shifted_vectors = self.min_img(atom, non_bonded)
+            bonded = [i.index for i in self.atoms[id:] if 
+                       tuple(sorted((atom.index, i.index))) in self.bonds.keys()]
+            indices = [i.index for i in self.atoms[id:]]
+            shifted_vectors = self.min_img(atom, self.atoms[id:])
             dist_mat = distance.cdist([atom.coordinates[:3]], shifted_vectors)
             for (atom1, atom2), dist in np.ndenumerate(dist_mat):
                 id2 = indices[atom2]
                 elem2 = self.atoms[id2].element
-                if (Radii[elem1] + Radii[elem2])*self.options.overlap_tolerance > dist:
+                if (id2 in non_bonded) and \
+                    (Radii[elem1] + Radii[elem2])*self.options.overlap_tolerance > dist:
+                    return True
+                elif (id2 in bonded) and 1.*self.options.overlap_tolerance > dist:
                     return True
         return False
 
@@ -133,9 +138,6 @@ class Structure(object):
             shift = np.around(sc_atom - scaled)
             shifted_coords.append(np.dot((scaled+shift), self.cell.lattice))
         return shifted_coords
-
-    def detect_symmetry(self):
-        pass
 
     def write_cif(self):
         """Write structure information to a cif file."""
@@ -179,7 +181,14 @@ class Structure(object):
                                    _chemical_name=CIF.label(name))
         # atom block
         element_counter = {}
-        for atom in self.atoms:
+        if self.options.find_symmetric_h:
+            # find symmetry
+            sym = Symmetry(self.options)
+            sym.add_structure(self)
+            sym.refine_cell()
+            h_equiv = sym.get_equivalent_hydrogens()
+
+        for id, atom in enumerate(self.atoms):
             label = c.get_element_label(atom.element)
             labels.append(label)
             c.add_data("atoms", _atom_site_label=
@@ -189,6 +198,12 @@ class Structure(object):
             c.add_data("atoms", _atom_site_description=
                                     CIF.atom_site_description(atom.force_field_type))
             c.add_data("atoms", _atom_site_fragment=CIF.atom_site_fragment(atom.sbu_order))
+            if self.options.find_symmetric_h:
+                if atom.element == "H":
+                    symconst = h_equiv[id]
+                else:
+                    symconst = -1
+                c.add_data("atoms", _atom_site_constraints=CIF.atom_site_constraints(symconst))
             fc = atom.scaled_pos(self.cell.inverse)
             c.add_data("atoms", _atom_site_fract_x=
                                     CIF.atom_site_fract_x(fc[0]))
@@ -297,3 +312,127 @@ class Cell(object):
         """Cell angle gamma."""
         return self._params[5]*RAD2DEG
 
+class Symmetry(object):
+    def __init__(self, options):
+        self.options = options
+        assert os.path.isdir(options.symmetry_dir)
+        sys.path.append(options.symmetry_dir)
+        self.spg = __import__('pyspglib._spglib')._spglib
+        #import pyspglib._spglib as spg
+        self._symprec = options.symmetry_precision
+        self._lattice = None
+        self._inv_latt = None
+        self._scaled_coords = None
+        self._element_symbols = None
+        self.dataset = {}
+
+    def add_structure(self, structure):
+        self._lattice = structure.cell.lattice.copy()
+        self._inv_latt = structure.cell.inverse.copy()
+        self._scaled_coords = np.array([atom.in_cell_scaled(self._inv_latt) for
+                                        atom in structure.atoms])
+        self._angle_tol = -1.0
+        self._element_symbols = [atom.element for atom in structure.atoms]
+        self._numbers = np.array([ATOMIC_NUMBER.index(i) for i in 
+                                    self._element_symbols])
+
+    def refine_cell(self):
+        """
+        get refined data from symmetry finding
+        """
+        # Temporary storage of structure info
+        _lattice = self._lattice.T.copy()
+        _scaled_coords = self._scaled_coords.copy()
+        _symprec = self._symprec
+        _angle_tol = self._angle_tol
+        _numbers = self._numbers.copy()
+        
+        keys = ('number',
+                'international',
+                'hall',
+                'transformation_matrix',
+                'origin_shift',
+                'rotations',
+                'translations',
+                'wyckoffs',
+                'equivalent_atoms')
+        dataset = {}
+
+        dataset['number'] = 0
+        while dataset['number'] == 0:
+
+            # refine cell
+            num_atom = len(_scaled_coords)
+            ref_lattice = _lattice.copy()
+            ref_pos = np.zeros((num_atom * 4, 3), dtype=float)
+            ref_pos[:num_atom] = _scaled_coords.copy()
+            ref_numbers = np.zeros(num_atom * 4, dtype=int)
+            ref_numbers[:num_atom] = _numbers.copy()
+            num_atom_bravais = self.spg.refine_cell(ref_lattice,
+                                       ref_pos,
+                                       ref_numbers,
+                                       num_atom,
+                                       _symprec,
+                                       _angle_tol)
+            for key, data in zip(keys, self.spg.dataset(ref_lattice.copy(),
+                                    ref_pos[:num_atom_bravais].copy(),
+                                ref_numbers[:num_atom_bravais].copy(),
+                                            _symprec,
+                                            _angle_tol)):
+                dataset[key] = data
+
+            _symprec = _symprec * 0.5
+
+        # an error occured with met9, org1, org9 whereby no
+        # symmetry info was being printed for some reason.
+        # thus a check is done after refining the structure.
+
+        if dataset['number'] == 0:
+            warning("WARNING - Bad Symmetry found!")
+        else:
+
+            self.dataset['number'] = dataset['number']
+            self.dataset['international'] = dataset['international'].strip()
+            self.dataset['hall'] = dataset['hall'].strip()
+            self.dataset['transformation_matrix'] = np.array(dataset['transformation_matrix'])
+            self.dataset['origin_shift'] = np.array(dataset['origin_shift'])
+            self.dataset['rotations'] = np.array(dataset['rotations'])
+            self.dataset['translations'] = np.array(dataset['translations'])
+            letters = "0abcdefghijklmnopqrstuvwxyz"
+            try:
+                self.dataset['wyckoffs'] = [letters[x] for x in dataset['wyckoffs']]
+            except IndexError:
+                print dataset['wyckoffs']
+            self.dataset['equivalent_atoms'] = np.array(dataset['equivalent_atoms'])
+            self._lattice = ref_lattice.T.copy()
+            self._scaled_coords = ref_pos[:num_atom_bravais].copy()
+            self._numbers = ref_numbers[:num_atom_bravais].copy()
+            self._element_symbols = [ATOMIC_NUMBER[i] for 
+                i in ref_numbers[:num_atom_bravais]]
+
+    def get_space_group_name(self):
+        return self.dataset["international"] 
+
+    def get_space_group_operations(self):
+        return [self.convert_to_string((r, t)) 
+                for r, t in zip(self.dataset['rotations'], 
+                    self.dataset['translations'])]
+
+    def get_space_group_number(self):
+        return self.dataset["number"]
+
+    def get_equiv_atoms(self):
+        """Returs a list where each entry represents the index to the
+        asymmetric atom. If P1 is assumed, then it just returns a list
+        of the range of the atoms."""
+        return self.dataset["equivalent_atoms"]
+
+    def get_equivalent_hydrogens(self):
+        at_equiv = self.get_equiv_atoms()
+        h_equiv = {}
+        for id, i in enumerate(self._element_symbols):
+            if i == "H":
+                h_equiv[id] = at_equiv[id]
+        return h_equiv
+        #for a in self.get_equiv_atoms():
+        #    print a

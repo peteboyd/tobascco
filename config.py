@@ -114,10 +114,12 @@ class Options(object):
                     'calc_max_sbu_span',
                     'show_barycentric_net_only',
                     'show_embedded_net',
-                    'get_run_info']
+                    'get_run_info',
+                    'find_symmetric_H']
         floats = ['overlap_tolerance',
                   'sbu_bond_length',
-                  'cell_vol_tolerance']
+                  'cell_vol_tolerance',
+                  'symmetry_precision']
         integers = ['organic_sbu_per_structure',
                     'metal_sbu_per_structure',
                     'max_structures']

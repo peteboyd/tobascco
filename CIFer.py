@@ -107,6 +107,9 @@ class CIF(object):
     @staticmethod
     def atom_site_fragment(x):
         return "%-4i "%(x)
+    @staticmethod
+    def atom_site_constraints(x):
+        return "%-4i "%(x)
 
     @staticmethod
     def label(x):

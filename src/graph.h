@@ -62,6 +62,6 @@ public:
     void add_edge(int i, int j, std::vector<int> volt);
     int* get_connected_edges(int vertex);
     Vertex get_vertex(int i) { return vertices[i]; }
-    void MinimumSpanningTree(std::vector<int>, std::vector<int>, int);
+    void MinimumSpanningTree(std::vector<int>&, std::vector<int>&, int);
 };
 

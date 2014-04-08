@@ -54,10 +54,6 @@ void readfile(const char* filename, Graph &g){
     std::cout<<"Graph topology: "<<g.getName()<<std::endl;
     std::cout<<"Number of Edges: "<<g.size()<<std::endl;
     f.close();
-    g.set_vertices();
-    std::vector<int> pool, used; 
-    int kk = 0;
-    g.MinimumSpanningTree(pool, used, kk);
 }
 
 int main()
@@ -65,6 +61,20 @@ int main()
     Graph g;
     const char* filename="test.arc";
     readfile(filename, g);
+    g.set_vertices();
+    std::vector<int> tree_nodes, tree_edges;
+    int kk = 0;
+    //min spanning tree works, but not sure if the recursive function can 'back out' like the python equivalent.
+    g.MinimumSpanningTree(tree_nodes, tree_edges, kk);
+    std::cout<<tree_nodes.size()<<std::endl;
+    for (int jj=0; (unsigned)jj<tree_nodes.size(); jj++){
+        std::cout<<tree_nodes[jj]<<" ";
+    }
+    std::cout<<std::endl;
+    for (int kk=0;(unsigned)kk<tree_edges.size(); kk++){
+        std::cout<<tree_edges[kk]<<" ";
+    }
+    std::cout<<std::endl;
     return 0;
 }
 

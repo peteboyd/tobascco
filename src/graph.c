@@ -68,18 +68,13 @@ int Vertex::getNeighbour(int id){
 //return array of edges which are incident on 
 // this vertex. negative sign placed on edges which
 // point "in" to the vertex
-int* Graph::get_connected_edges(int v){
+int * Graph::get_connected_edges(int v){
     int size = vertices[v].degree(), ind = 0;
-    int* edge_container = new int[size];
+    int *edge_container = new int[size];
     for (int ii = 0; ii < _size; ii++){
-        if (edges[ii].from() == v)
+        if ((edges[ii].from() == v) || (edges[ii].to() == v))
         {
             edge_container[ind] = ii;
-            ind++;
-        }
-        else if (edges[ii].to() == v)
-        {
-            edge_container[ind] = -ii;
             ind++;
         }
     }
@@ -88,40 +83,44 @@ int* Graph::get_connected_edges(int v){
 
 
 //Prim's Minimum Spanning Tree algorithm
-void Graph::MinimumSpanningTree(std::vector<int> pool, std::vector<int> used, int i){
-    std::cout<<"Vertex: "<<i<<std::endl;
+void Graph::MinimumSpanningTree(std::vector<int>& pool, std::vector<int>& used, int i){
+    //std::cout<<"Vertex: "<<i<<std::endl;
     const int nsize = vertices[i].degree();
     //get neighbours
-    int* nn;
-    nn = get_connected_edges(i);
-    for (int jj = 0; jj < nsize; jj++){
-        int ind = nn[jj], newv;
-        std::cout<<pool.size()<<std::endl;
-        if (ind < 0)
-            newv = edges[std::abs(ind)].from();
-        else
-            newv = edges[ind].to();
-        bool exists = std::find(pool.begin(), pool.end(), newv) != pool.end();
-        //bool exists = false;
-        if (!exists){
-            pool.push_back(i);
-            used.push_back(nn[jj]);
-            MinimumSpanningTree(pool, used, newv);
+    if (pool.size() != (unsigned)_order){
+        pool.push_back(i);
+        //std::cout<<pool.size()<<" "<<_order<<std::endl;
+        int* nn;
+        nn = get_connected_edges(i);
+        /*
+        std::cout<<"Vertex "<<i<<" Edges: ";
+        for (int kkk = 0; kkk < nsize; kkk++){
+            std::cout<<nn[kkk]<<" ";
         }
-    /*for (int j=0; j < _size; j++)
-    {
-        
-        std::cout<<"Vertex: "<<j<<std::endl;
-        for (int k=0; k < vertices[j].degree(); k++)
-            std::cout<<vertices[j].getNeighbour(k)<<" ";
         std::cout<<std::endl;
-    }
-    */
+        */
+        for (int jj = 0; jj < nsize; jj++){
+            int ind = nn[jj], newv;
+            //std::cout<<pool.size()<<std::endl;
+            Edge e = edges[ind];
+            if (e.from() == i)
+                newv = e.to();
+            else
+                newv = e.from();
+            bool node_exists = std::find(pool.begin(), pool.end(), newv) != pool.end();
+            bool edge_exists = std::find(used.begin(), used.end(), ind) != used.end();
+            if (!node_exists && !edge_exists){ 
+                used.push_back(ind);
+                MinimumSpanningTree(pool, used, newv);
+                //used.pop_back();
+            }
+        }
+        delete [] nn;
+        //pool.pop_back();
     }
 }
 
 Graph::~Graph(){
     if (vertices) delete [] vertices;
     if (edges) delete [] edges;
-    
 }

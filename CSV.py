@@ -33,7 +33,9 @@ class CSV(object):
         for key, val in self._data.items():
             lengths.append(len(val))
         assert all([x == lengths[0] for x in lengths])
-        return lengths[0]
+        if lengths:
+            return lengths[0]
+        return 0
         
     def set_headings(self, *args):
         [self._headings.append(arg) for arg in args]

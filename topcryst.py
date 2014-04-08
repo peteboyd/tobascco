@@ -138,7 +138,7 @@ class JobHandler(object):
             # remove SBUs if not listed in options.organic_sbus or options.metal_sbus
             combinations = run.generate_sbu_combinations()
         csvinfo = CSV(name='%s_info'%(self.options.jobname))
-        csvinfo.set_headings('topology', 'sbus', 'edge_count', 'time')
+        csvinfo.set_headings('topology', 'sbus', 'edge_count', 'time', 'space_group')
         # generate the MOFs.
         inittime = time()
         for combo in combinations:
@@ -159,18 +159,24 @@ class JobHandler(object):
                     self._check_barycentric_embedding(graph, self._topologies.voltages[top])
                 else:
                     if build.check_net:
+                        count = build.net.original_graph.size()
                         csvinfo.add_data(topology=top, 
                                          sbus=combo_str(combo),
-                                         edge_count=build.net.original_graph.size())
+                                         edge_count=count)
                         info("Setting up %s"%(combo_str(combo)) +
-                                " with net %s"%(top))
+                                " with net %s, with an edge count = %i "%(top, count))
                         t1 = time()
                         build.init_embed()
                         build.assign_vertices()
                         build.assign_edges()
                         build.obtain_embedding()
                         t2 = time()
-                        csvinfo.add_data(time=t2-t1)
+                        if build.success:
+                            sym = build.struct.space_group_name
+                        else:
+                            sym = "None"
+                        csvinfo.add_data(time=t2-t1,
+                                         space_group=sym)
                         
                         #build.custom_embedding(rep, mt)
                         if self.options.show_embedded_net:

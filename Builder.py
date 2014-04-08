@@ -27,6 +27,7 @@ class Build(object):
         self._edge_assign = {}
         self._sbu_degrees = None
         self._inner_product_matrix = None
+        self.success = False
 
     def _obtain_cycle_bases(self):
         self._net.simple_cycle_basis()
@@ -502,13 +503,16 @@ class Build(object):
             fc = sbu_pos[v]
             tv = np.dot(fc, cell)
             self.sbu_translate(v, tv)
+            # compute dihedral angle, if one exists...
             struct.add_sbu(self._vertex_sbu[v])
         struct.connect_sbus(self._vertex_sbu)
-        if not struct.compute_overlap:
-            struct.write_cif()
+        if struct.compute_overlap():
+            #struct.write_cif()
             warning("Overlap found in final structure, not creating MOF.")
         else:
             struct.write_cif()
+            self.struct = struct
+            self.success=True
             info("Structure Generated!")
 
     def rotation_function(self, params, vect1, vect2):
@@ -602,7 +606,8 @@ class Build(object):
         #min.lbfgsb(factr=10., epsilon=0.00001, pgtol=0.000001)
         #print report_errors(params)
         #min = minimize(self.rotation_function, params, args=(sbu_vects, arcs), method='anneal')
-        min.leastsq(xtol=1.e-8, ftol=1.e-7)
+        #min.leastsq(xtol=1.e-8, ftol=1.e-7)
+        min.lbfgsb(factr=1000., approx_grad=True, m=200, epsilon=1e-6, pgtol=1e-6)
         #min.fmin()
         #axis = np.array([params['a1'].value, params['a2'].value, params['a3'].value])
         #angle = params['angle'].value
@@ -679,7 +684,11 @@ class Build(object):
     @property
     def check_net(self):
         #if self._net.original_graph.size() < 25 and self.sbu_degrees == self.net_degrees():
-        if self.sbu_degrees == self.net_degrees():
+        min = self.options.min_edge_count
+        max = self.options.max_edge_count
+        if self.sbu_degrees == self.net_degrees() and \
+                self._net.original_graph.size() <= max and \
+                self._net.original_graph.size() >= min:
             return True
         return False
 
@@ -713,15 +722,14 @@ class Build(object):
         self.sbu_vertices = self._net.graph.vertices()
         met_incidence = [sbu.degree for sbu in self._sbus if sbu.is_metal]
         org_incidence = [sbu.degree for sbu in self._sbus if not sbu.is_metal]
-
         # Some special cases: linear sbus and no loops. 
         # Insert between metal-type vertices
         if self.linear_sbus and not self._net.graph.loop_edges():
-            for (v1, v2, e) in self._net.graph.edges:
+            for (v1, v2, e) in self._net.graph.edges():
                 nn1 = len(self._net.neighbours(v1))
                 nn2 = len(self._net.neighbours(v2))
                 if nn1 == nn2 and (nn1 in met_incidence):
-                    vertices, edges = self._net.add_edges_between(e, 5)
+                    vertices, edges = self._net.add_edges_between((v1, v2, e), 5)
                     self.sbu_vertices.append(vertices[2])
                     edges_split += edges
 

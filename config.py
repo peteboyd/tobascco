@@ -122,7 +122,9 @@ class Options(object):
                   'symmetry_precision']
         integers = ['organic_sbu_per_structure',
                     'metal_sbu_per_structure',
-                    'max_structures']
+                    'max_structures',
+                    'max_edge_count',
+                    'min_edge_count']
         lists = ['topologies', 'sbu_files', 'topology_files',
                 'organic_sbus',
                  'metal_sbus',

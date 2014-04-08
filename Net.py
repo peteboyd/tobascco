@@ -6,7 +6,7 @@ from uuid import uuid4
 from logging import info, debug, warning, error
 import numpy as np
 from LinAlg import DEG2RAD
-from scipy.optimize import fmin_l_bfgs_b, minimize, anneal, brute, basinhopping, fsolve, root 
+#from scipy.optimize import fmin_l_bfgs_b, minimize, anneal, brute, basinhopping, fsolve, root 
 sys.path.append('/home/pboyd/lib/lmfit-0.7.2')
 from lmfit import minimize, Parameters, Minimizer, report_errors
 from config import Terminate
@@ -546,7 +546,6 @@ class Net(object):
             M[i,i] = val/scale_factor
         nz = np.nonzero(np.triu(self.colattice_dotmatrix))
         sol = (np.array(M[nz] - self.colattice_dotmatrix[nz]))
-        #print sol.flatten()
         return sol.flatten()
 
     def assign_ip_matrix(self, mat):
@@ -572,9 +571,11 @@ class Net(object):
         # set up parameters class for the minimize function
         params = self.init_params(init_guess)
         self.vary_coc_mt(params)
+        #self.vary_cocycle_rep(params)
+        #minimize(self.min_function_lmfit, params, method='Newton-CG')
         min = Minimizer(self.min_function_lmfit, params)
-        #min.lbfgsb(factr=10., epsilon=1e-8, pgtol=1e-9)
-        min.leastsq(xtol=1.e-7, ftol=1.e-8)
+        min.lbfgsb(factr=1000., epsilon=1e-6, pgtol=1e-6)
+        #min.leastsq(xtol=1.e-7, ftol=1.e-7)
         fit = self.min_function_lmfit(params)
         self.report_errors(fit)
         #print report_errors(params)
@@ -786,7 +787,7 @@ class Net(object):
     #        return self._kernel
 
     def neighbours(self, vertex):
-        return self.graph.neighbors_out(vertex) + self.graph.neighbors_in(vertex)
+        return self.graph.outgoing_edges(vertex) + self.graph.incoming_edges(vertex)
 
     @property
     def eon_projection(self):

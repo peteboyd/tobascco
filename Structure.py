@@ -26,6 +26,8 @@ class Structure(object):
         self.charge = 0
         self.sbu_count = 0
         self.atom_count = 0
+        self.space_group_name = 'P1'
+        self.space_group_number = 1
 
     def add_sbu(self, sbu_obj):
         sbu_obj.update_atoms(self.atom_count, self.sbu_count)
@@ -121,10 +123,10 @@ class Structure(object):
             for (atom1, atom2), dist in np.ndenumerate(dist_mat):
                 id2 = indices[atom2]
                 elem2 = self.atoms[id2].element
-                if (id2 in non_bonded) and \
+                if (id != id2) and (id2 in non_bonded) and \
                     (Radii[elem1] + Radii[elem2])*self.options.overlap_tolerance > dist:
                     return True
-                elif (id2 in bonded) and 1.*self.options.overlap_tolerance > dist:
+                elif (id != id2) and (id2 in bonded) and 1.*self.options.overlap_tolerance > dist:
                     return True
         return False
 
@@ -187,6 +189,8 @@ class Structure(object):
             sym.add_structure(self)
             sym.refine_cell()
             h_equiv = sym.get_equivalent_hydrogens()
+            self.space_group_name = sym.get_space_group_name()
+            self.space_group_number = sym.get_space_group_number()
 
         for id, atom in enumerate(self.atoms):
             label = c.get_element_label(atom.element)
@@ -430,9 +434,11 @@ class Symmetry(object):
     def get_equivalent_hydrogens(self):
         at_equiv = self.get_equiv_atoms()
         h_equiv = {}
+        h_id = list(set([i for id, i in enumerate(at_equiv) 
+                    if self._element_symbols[id] == "H"]))
         for id, i in enumerate(self._element_symbols):
             if i == "H":
-                h_equiv[id] = at_equiv[id]
+                h_equiv[id] = h_id.index(at_equiv[id])
         return h_equiv
         #for a in self.get_equiv_atoms():
         #    print a

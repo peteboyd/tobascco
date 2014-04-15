@@ -528,15 +528,6 @@ class Net(object):
         for p in params:
             params[p].vary = True
 
-    def min_function_scipy(self, params):
-        """
-        Params is an array of related vectors
-        1 - 9 cell vectors a, b, c and angles alpha beta gamma
-        the rest: colattice vectors.
-        """
-        rep = np.matrix(np.zeros(self.shape, self.ndim))
-        mt = np.matrix(np.zeros(self.ndim, self.ndim))
-
     def min_function_lmfit(self, params):
         rep = np.matrix(np.zeros((self.shape, self.ndim)))
         mt = np.matrix(np.zeros((self.ndim,self.ndim)))
@@ -581,46 +572,100 @@ class Net(object):
                 self.colattice_dotmatrix[i,j] = val 
                 self.colattice_dotmatrix[j,i] = val
 
-    def debug_embedding(self, optim_code, ftol, xtol, gtol, epsfcn, factor):
-        """ Debug to find the best values to optimize a net with the leastsq method
-        ftol -> relative error in the sum of squares
-        xtol -> relative error in the approx. solution
-        gtol -> orthogonality between function vector and jacobian columns
-        epsfcn -> step length for forward-difference approximation of the jacobian
-        factor -> determine initial step bound.
+    def min_function_nlopt(self, x):
+        """TODO - pete fix this so it works.
+        the metric tensor needs to be squared in the diagonal
+        and the proper dot product needs to be represented in 
+        the off-diagonals.
+
+        the cocycle_rep needs to be properly concatenated with
+        the cycle_rep.
         """
-        params = self.init_params(np.zeros((self.order-1, self.ndim)))
-        self.vary_coc_mt(params)
-        #self.vary_metric_tensor(params)
-        #self.vary_cocycle_rep(params)
-        minimize(self.min_function_lmfit, params, method=optim_code,
-                    ftol=ftol, xtol=xtol, gtol=gtol, 
-                    epsfcn=epsfcn, factor=factor)
-        #min = Minimizer(self.min_function_lmfit, params)
-        #min.lbfgsb(factr=1000., epsilon=1e-6, pgtol=1e-6)
-        #min.fmin(ftol=1.e-5, xtol=1.e-5)
-        #min.anneal(schedule='cauchy')
-        #min.leastsq(xtol=1.e-3, ftol=1.e-7)
-        fit = self.min_function_lmfit(params)
-        self.report_errors(fit)
-        #print report_errors(params)
-        q = np.empty((self.shape, self.ndim))
+        f = math.factorial
+        angle_lim = f(self.ndim) / f(2) / f(self.ndim - 2)
+        # decompress 'x' into useable forms
+        cell_lengths = x[:self.ndim] 
+        angles = x[self.ndim: self.ndim + angle_lim]
+        cocycle = x[self.ndim + angle_lim : ]
+        # construct metric tensor and cocycle rep 
         mt = np.empty((self.ndim, self.ndim))
-        for j in params:
-            if j[0] == 'm':
-                i, k = self.to_ind(j)
-                mt[i,k] = params[j].value
-                mt[k,i] = params[j].value
-            elif j[0] == 'c':
-                q[self.to_ind(j)] = params[j].value
+        np.diag(mt) = cell_lengths
+        iu = np.triu_indices(self.ndim, 1)
+        id = np.trid_indices(self.ndim, 1)
+        mt[iu] = angles
+        mt[id] = angles
+        cocycle_rep = np.reshape(cocycle,(self.order-1, self.ndim))
+        #obtain net embedding defined by these parameters.
+        rep = np.concatenate(self.cycle_rep, cocycle_rep)
+        # MAKE SURE THIS IS PROPER MATRIX MULTIPLICATION!!!
+        la = np.dot(self.cycle_cocycle_I, rep)
+        # MAKE SURE THIS IS PROPER MATRIX MULTIPLICATION!!!
+        M = la*mt*la.T
+        scale_factor = M.max()
+        for (i, j) in zip(*np.triu_indices_from(M)):
+            val = M[i,j]
+            if i != j:
+                v = val/np.sqrt(M[i,i])/np.sqrt(M[j,j])
+                M[i,j] = v
+                M[j,i] = v
+        for i, val in np.ndenumerate(np.diag(M)):
+            M[i,i] = val/scale_factor
+        nz = np.nonzero(np.triu(self.colattice_dotmatrix))
+        sol = (np.array(M[nz] - self.colattice_dotmatrix[nz]))
+        print mt
+        print np.sum(sol.flatten())
+        return sol.flatten()
         
-        self.periodic_rep = q
-        self.metric_tensor = mt
-        la = self.lattice_arcs
-        scind = self.scale[0]
-        sclen = self.scale[1]
-        self.scale_factor = sclen/np.diag(self.lattice_arcs*self.metric_tensor*self.lattice_arcs.T)[scind]
-        self.metric_tensor *= self.scale_factor
+    def debug_embedding(self, optim_code, ftol, xtol, gtol, epsfcn, factor):
+        """Sorting out the new nlopt api
+        """
+
+        # first n params --> metric tensor
+        # last x params --> cocycle parameters
+
+        #declare array
+        f = math.factorial
+        mtsize = self.ndim + f(self.ndim) / f(2) / f(self.ndim - 2)
+
+        size = mtsize + self.cocycle_rep.shape[0] * self.ndim
+        x = np.empty(size)
+
+        def myfunc(x, grad):
+            if grad.size > 0:
+                grad[0] = 0.
+                grad[1] = 0.5 / np.sqrt(x[1])
+
+            return np.sqrt(x[1])
+
+        def myconstraint(x, grad, a, b):
+            if grad.size > 0:
+                grad[0] = 3*a*(a*x[0] + b)**2
+                grad[1] = -1.0
+            return (a*x[0] + b)**3 - x[1]
+        xinc = 0
+        for i in np.diag(self.metric_tensor):
+            x[xinc] = i
+            xinc += 1
+
+        for (i,j) in zip(*np.triu_indices(self.ndim, 1)):
+            x[xinc] = self.metric_tensor[i,j]
+            xinc += 1
+
+        # init the cocycle representation to zeros
+        x[xinc:] = 0.
+        opt = nlopt.opt(nlopt.LD_MMA, 2)
+        opt.set_lower_bounds([-float('inf'), 0])
+        opt.set_min_objective(myfunc)
+        opt.add_inequality_constraint(lambda x, grad: myconstraint(x,grad,2, 0), 1e-8)
+        opt.add_inequality_constraint(lambda x, grad: myconstraint(x,grad,-1,1), 1e-8)
+        opt.set_xtol_rel(1e-4)
+        x = opt.optimize([1.234, 5.678])
+        minf = opt.last_optimum_value()
+        print "optimum at ", x[0], x[1]
+        print "minimum value = ", minf
+        print "result code = ", opt.last_optimize_result()
+        
+        sys.exit()
 
     def get_embedding(self, optim_code, init_guess=None):
         if init_guess is None:

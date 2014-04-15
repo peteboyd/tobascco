@@ -7,8 +7,10 @@ from logging import info, debug, warning, error
 import numpy as np
 from LinAlg import DEG2RAD
 #from scipy.optimize import fmin_l_bfgs_b, minimize, anneal, brute, basinhopping, fsolve, root 
-sys.path.append('/home/pboyd/lib/lmfit-0.7.2')
-from lmfit import minimize, Parameters, Minimizer, report_errors
+#sys.path.append('/home/pboyd/lib/lmfit-0.7.4')
+#from lmfit import minimize, Parameters, Minimizer, report_errors
+sys.path.append('/home/pboyd/lib/nlopt-2.4.1/lib/python2.7/site-packages/')
+import nlopt
 from config import Terminate
 
 class SystreDB(dict):
@@ -449,12 +451,15 @@ class Net(object):
             val = self.metric_tensor[i,j]
             #val = np.identity(3)[i,j]
             if i == j:
-                params.add("m_%i_%i"%(i,j), value=val, vary=False, min=0.001) # NOT SURE WHAT THE MIN/MAX should be here!
+                params.add("m_%i_%i"%(i,j), value=val, vary=False, min=0.001, max=val) # NOT SURE WHAT THE MIN/MAX should be here!
             else:
                 #NB the inner products of <a,b> should not be limited to the range [-1,1]! The code is well behaved
                 # with these constraints so un-comment the line below if things go awry.
                 #params.add("m_%i_%i"%(i,j), value=val, vary=False, min=-1, max=1) # NOT SURE WHAT THE MIN/MAX should be here!
-                params.add("m_%i_%i"%(i,j), value=val, vary=False)
+                val = val / np.sqrt(self.metric_tensor[i,i]) / np.sqrt(self.metric_tensor[j,j])
+                params.add("angle_%i_%i"%(i,j), value=val, vary=False, min=-0.5, max=0.5)
+                params.add("m_%i_%i"%(i,j), expr='(angle_%i_%i)*((m_%i_%i)**0.5)*((m_%i_%i)**0.5)'%(i,j,i,i,j,j))
+        # add a bunch of constraints on the metric tensor --> angle tolerances and sizes.
         for (i,j), val in np.ndenumerate(self.cycle_rep.copy()):
             if val == 0.:
                 params.add("cy_%i_%i"%(i,j), value=val, vary=False, min=0, max=1)
@@ -487,7 +492,7 @@ class Net(object):
 
     def vary_metric_tensor(self, params):
         for p in params:
-            if p[0] == 'm':
+            if p[0] == 'a' or p[0] == 'm':
                 params[p].vary = True
             else:
                 params[p].vary = False
@@ -503,7 +508,7 @@ class Net(object):
         for p in params:
             if p.split("_")[0] == "co":
                 params[p].vary = True
-            elif p[0] == 'm':
+            elif p[0] == 'a' or p[0] == 'm':
                 params[p].vary = True
             else:
                 params[p].vary = False
@@ -522,7 +527,16 @@ class Net(object):
     def vary_all(self, params):
         for p in params:
             params[p].vary = True
-    
+
+    def min_function_scipy(self, params):
+        """
+        Params is an array of related vectors
+        1 - 9 cell vectors a, b, c and angles alpha beta gamma
+        the rest: colattice vectors.
+        """
+        rep = np.matrix(np.zeros(self.shape, self.ndim))
+        mt = np.matrix(np.zeros(self.ndim, self.ndim))
+
     def min_function_lmfit(self, params):
         rep = np.matrix(np.zeros((self.shape, self.ndim)))
         mt = np.matrix(np.zeros((self.ndim,self.ndim)))
@@ -533,7 +547,7 @@ class Net(object):
                 mt[j,i] = params[p].value
             elif p[0] == 'c':
                 rep[self.to_ind(p)] = params[p].value
-        la = self.cycle_cocycle.I*rep
+        la = self.cycle_cocycle_I*rep
         M = la*mt*la.T
         scale_factor = M.max()
         for (i, j) in zip(*np.triu_indices_from(M)):
@@ -546,6 +560,8 @@ class Net(object):
             M[i,i] = val/scale_factor
         nz = np.nonzero(np.triu(self.colattice_dotmatrix))
         sol = (np.array(M[nz] - self.colattice_dotmatrix[nz]))
+        print mt
+        print np.sum(sol.flatten())
         return sol.flatten()
 
     def assign_ip_matrix(self, mat):
@@ -565,17 +581,60 @@ class Net(object):
                 self.colattice_dotmatrix[i,j] = val 
                 self.colattice_dotmatrix[j,i] = val
 
-    def get_embedding(self, init_guess=None):
+    def debug_embedding(self, optim_code, ftol, xtol, gtol, epsfcn, factor):
+        """ Debug to find the best values to optimize a net with the leastsq method
+        ftol -> relative error in the sum of squares
+        xtol -> relative error in the approx. solution
+        gtol -> orthogonality between function vector and jacobian columns
+        epsfcn -> step length for forward-difference approximation of the jacobian
+        factor -> determine initial step bound.
+        """
+        params = self.init_params(np.zeros((self.order-1, self.ndim)))
+        self.vary_coc_mt(params)
+        #self.vary_metric_tensor(params)
+        #self.vary_cocycle_rep(params)
+        minimize(self.min_function_lmfit, params, method=optim_code,
+                    ftol=ftol, xtol=xtol, gtol=gtol, 
+                    epsfcn=epsfcn, factor=factor)
+        #min = Minimizer(self.min_function_lmfit, params)
+        #min.lbfgsb(factr=1000., epsilon=1e-6, pgtol=1e-6)
+        #min.fmin(ftol=1.e-5, xtol=1.e-5)
+        #min.anneal(schedule='cauchy')
+        #min.leastsq(xtol=1.e-3, ftol=1.e-7)
+        fit = self.min_function_lmfit(params)
+        self.report_errors(fit)
+        #print report_errors(params)
+        q = np.empty((self.shape, self.ndim))
+        mt = np.empty((self.ndim, self.ndim))
+        for j in params:
+            if j[0] == 'm':
+                i, k = self.to_ind(j)
+                mt[i,k] = params[j].value
+                mt[k,i] = params[j].value
+            elif j[0] == 'c':
+                q[self.to_ind(j)] = params[j].value
+        
+        self.periodic_rep = q
+        self.metric_tensor = mt
+        la = self.lattice_arcs
+        scind = self.scale[0]
+        sclen = self.scale[1]
+        self.scale_factor = sclen/np.diag(self.lattice_arcs*self.metric_tensor*self.lattice_arcs.T)[scind]
+        self.metric_tensor *= self.scale_factor
+
+    def get_embedding(self, optim_code, init_guess=None):
         if init_guess is None:
             init_guess = (np.zeros((self.order-1, self.ndim)))
         # set up parameters class for the minimize function
         params = self.init_params(init_guess)
         self.vary_coc_mt(params)
         #self.vary_cocycle_rep(params)
-        #minimize(self.min_function_lmfit, params, method='Newton-CG')
-        min = Minimizer(self.min_function_lmfit, params)
-        min.lbfgsb(factr=1000., epsilon=1e-6, pgtol=1e-6)
-        #min.leastsq(xtol=1.e-7, ftol=1.e-7)
+        minimize(self.min_function_lmfit, params, method=optim_code, epsfcn=1.e-4, factor=.1, xtol=1.e-5, col_deriv=1)
+        #min = Minimizer(self.min_function_lmfit, params)
+        #min.lbfgsb(factr=1000., epsilon=1e-6, pgtol=1e-6)
+        #min.fmin(ftol=1.e-5, xtol=1.e-5)
+        #min.anneal(schedule='cauchy')
+        #min.leastsq(xtol=1.e-3, ftol=1.e-7)
         fit = self.min_function_lmfit(params)
         self.report_errors(fit)
         #print report_errors(params)
@@ -805,7 +864,7 @@ class Net(object):
        
     @property
     def lattice_arcs(self):
-        return self.cycle_cocycle.I*self.periodic_rep
+        return self.cycle_cocycle_I*self.periodic_rep
 
     @property
     def shape(self):
@@ -822,6 +881,14 @@ class Net(object):
     @graph.setter
     def graph(self, g):
         self._graph = DiGraph(g, multiedges=True, loops=True)
+
+    @property
+    def cycle_cocycle_I(self):
+        try:
+            return self._cycle_cocycle_I
+        except AttributeError:
+            self._cycle_cocycle_I = self.cycle_cocycle.I
+            return self._cycle_cocycle_I
 
     @property
     def cycle_cocycle(self):

@@ -119,7 +119,12 @@ class Options(object):
         floats = ['overlap_tolerance',
                   'sbu_bond_length',
                   'cell_vol_tolerance',
-                  'symmetry_precision']
+                  'symmetry_precision',
+                  'ftol',
+                  'xtol',
+                  'gtol',
+                  'epsfcn',
+                  'factor']
         integers = ['organic_sbu_per_structure',
                     'metal_sbu_per_structure',
                     'max_structures',
@@ -148,6 +153,8 @@ class Options(object):
                 val = self.job.getfloat(section, key)
             except ValueError:
                 val = 0.
+            except TypeError:
+                val = None
         # known lists
         elif key in lists:
             p = re.compile('[,;\s]+')

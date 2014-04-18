@@ -440,12 +440,7 @@ class Build(object):
         # this calls the optimization routine to match the tensor product matrix
         # of the SBUs and the net.
         #self._net.get_embedding(optim_code=self.options.optim_code)
-        self._net.debug_embedding(self.options.optim_code,
-                                  self.options.ftol, 
-                                  self.options.xtol, 
-                                  self.options.gtol, 
-                                  self.options.epsfcn, 
-                                  self.options.factor)
+        self._net.debug_embedding()
 
         init = np.array([0.5, 0.5, 0.5])
         if self.bad_embedding():
@@ -497,10 +492,10 @@ class Build(object):
         organics = "_".join(["o%i"%(sbu.identifier) for sbu in 
                                 self._sbus if not sbu.is_metal])
         name = "str_%s_%s_%s"%(metals, organics, self._net.name)
-        name += "_ftol_%11.5e"%self.options.ftol
-        name += "_xtol_%11.5e"%self.options.xtol
-        name += "_eps_%11.5e"%self.options.epsfcn
-        name += "_fac_%6.1f"%self.options.factor
+        #name += "_ftol_%11.5e"%self.options.ftol
+        #name += "_xtol_%11.5e"%self.options.xtol
+        #name += "_eps_%11.5e"%self.options.epsfcn
+        #name += "_fac_%6.1f"%self.options.factor
         struct = Structure(self.options, 
                            name=name,
                            params=self._net.get_3d_params())
@@ -656,7 +651,6 @@ class Build(object):
         #mt = self._net.metric_tensor/sf
         #obj = la*mt*la.T
         #print obj
-        #sys.exit()
 
         R = rotation_from_vectors(sbu_vects, arcs) 
         self.report_errors(sbu_vects, arcs, rot_mat=R)

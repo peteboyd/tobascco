@@ -48,7 +48,7 @@ class SystreDB(dict):
                 name = self.read_chunk(f)
                 g, v = self.gen_sage_graph_format(e)
                 self[name] = g
-                self.voltages[name] = np.matrix(v)
+                self.voltages[name] = np.array(v)
 
     def read_chunk(self, fileobject):
         name = uuid4()
@@ -133,7 +133,7 @@ class Net(object):
                 vect[inds] = -1.
             if self.cycle_cocycle_check(vect):# or len(self.neighbours(vert)) == 2:
                 count += 1
-                self.cocycle = self.add_to_matrix(vect, self.cocycle)
+                self.cocycle = self.add_to_array(vect, self.cocycle)
 
         if count != size:
             print "ERROR - could not find a linearly independent cocycle basis!"
@@ -195,7 +195,7 @@ class Net(object):
             return self.check_linear_dependency(vect, self.cycle)
         else:
             return self.check_linear_dependency(vect, 
-                                self.add_to_matrix(self.cocycle, self.cycle))
+                                self.add_to_array(self.cocycle, self.cycle))
 
     def get_cycle_basis(self):
         """Find the basis for the cycle vectors. The total number of cycle vectors
@@ -219,8 +219,8 @@ class Net(object):
         n = self.shape - self.order + 1
         count = 0
         if self.lattice_basis is not None:
-            self.cycle = self.add_to_matrix(self.lattice_basis, self.cycle)
-            self.cycle_rep = self.add_to_matrix(np.identity(self.ndim), self.cycle_rep)
+            self.cycle = self.add_to_array(self.lattice_basis, self.cycle)
+            self.cycle_rep = self.add_to_array(np.identity(self.ndim), self.cycle_rep)
             count += self.ndim
         for id, cycle in enumerate(c):
             if count >= n:
@@ -231,14 +231,14 @@ class Net(object):
             # REPLACE WITH CHECK_LINEAR_DEPENDENCY()
             check = self.cycle_cocycle_check(vect)
             if np.all(np.abs(volt) < 1.001) and np.sum(np.abs(volt) > 0.) and check:
-                self.cycle = self.add_to_matrix(vect, self.cycle)
-                self.cycle_rep = self.add_to_matrix(volt, self.cycle_rep)
+                self.cycle = self.add_to_array(vect, self.cycle)
+                self.cycle_rep = self.add_to_array(volt, self.cycle_rep)
                 count += 1
-        self.cycle = np.matrix(self.cycle)
-        self.cycle_rep = np.matrix(self.cycle_rep)
+        self.cycle = np.array(self.cycle)
+        self.cycle_rep = np.array(self.cycle_rep)
         del c
 
-    def add_to_matrix(self, vect, rep):
+    def add_to_array(self, vect, rep):
         """Works assuming the dimensions are the same"""
         if len(vect.shape) == 1:
             v = np.reshape(vect,(1,vect.shape[-1]))
@@ -250,7 +250,7 @@ class Net(object):
             return np.concatenate((rep, v))
 
     def get_voltage(self, cycle):
-        return np.array(cycle*self.voltage)[0]
+        return np.dot(cycle,self.voltage)
 
     def debug_print(self, val, msg):
         print "%s[%d] %s"%("  "*val, val, msg)
@@ -300,8 +300,8 @@ class Net(object):
             #cycle = [xx for xx in tree.edges_incident(path) if xx[0] in path and xx[1] in path] + [(v1, v2, e)]
         #print len(cycle_completes)
         #print self.graph.size() - (self.graph.order() - 1)
-        self.cycle = np.matrix(np.array(self.cycle))
-        self.cycle_rep = np.matrix(np.array(self.cycle_rep))
+        self.cycle = np.array(self.cycle)
+        self.cycle_rep = np.array(self.cycle_rep)
         #self.graph.show(edge_labels=True)
         #self.graph.show3d(iterations=500)
         #raw_input("Press [Enter]\n")
@@ -357,8 +357,8 @@ class Net(object):
                 used.pop(-1)
 
     def get_lattice_basis(self):
-        L = []   
-        for i in np.array(self.cycle_rep):
+        L = []
+        for i in self.cycle_rep:
             L.append(vector(QQ, i.tolist()))
         V = QQ**self.ndim
         lattice = []
@@ -383,7 +383,7 @@ class Net(object):
                         mincount = len(nz)
             lattice.append(tv)
             L.pop(-1)
-        self.lattice_basis = np.matrix(np.array(lattice))
+        self.lattice_basis = np.array(lattice)
         #print self.lattice_basis
 
     #def get_lattice_basis(self):
@@ -529,8 +529,8 @@ class Net(object):
             params[p].vary = True
 
     def min_function_lmfit(self, params):
-        rep = np.matrix(np.zeros((self.shape, self.ndim)))
-        mt = np.matrix(np.zeros((self.ndim,self.ndim)))
+        rep = np.array(np.zeros((self.shape, self.ndim)))
+        mt = np.array(np.zeros((self.ndim,self.ndim)))
         for p in params:
             if p[0] == 'm':
                 i,j = self.to_ind(p)
@@ -572,51 +572,98 @@ class Net(object):
                 self.colattice_dotmatrix[i,j] = val 
                 self.colattice_dotmatrix[j,i] = val
 
-    def min_function_nlopt(self, x):
-        """TODO - pete fix this so it works.
-        the metric tensor needs to be squared in the diagonal
-        and the proper dot product needs to be represented in 
-        the off-diagonals.
-
-        the cocycle_rep needs to be properly concatenated with
-        the cycle_rep.
-        """
+    def init_min_function_nlopt(self, ndim, cocycle_size, cycle_rep, B_star, matching_ip_matrix):
         f = math.factorial
-        angle_lim = f(self.ndim) / f(2) / f(self.ndim - 2)
-        # decompress 'x' into useable forms
-        cell_lengths = x[:self.ndim] 
-        angles = x[self.ndim: self.ndim + angle_lim]
-        cocycle = x[self.ndim + angle_lim : ]
-        # construct metric tensor and cocycle rep 
-        mt = np.empty((self.ndim, self.ndim))
-        np.diag(mt) = cell_lengths
-        iu = np.triu_indices(self.ndim, 1)
-        id = np.trid_indices(self.ndim, 1)
-        mt[iu] = angles
-        mt[id] = angles
-        cocycle_rep = np.reshape(cocycle,(self.order-1, self.ndim))
-        #obtain net embedding defined by these parameters.
-        rep = np.concatenate(self.cycle_rep, cocycle_rep)
-        # MAKE SURE THIS IS PROPER MATRIX MULTIPLICATION!!!
-        la = np.dot(self.cycle_cocycle_I, rep)
-        # MAKE SURE THIS IS PROPER MATRIX MULTIPLICATION!!!
-        M = la*mt*la.T
-        scale_factor = M.max()
-        for (i, j) in zip(*np.triu_indices_from(M)):
-            val = M[i,j]
-            if i != j:
-                v = val/np.sqrt(M[i,i])/np.sqrt(M[j,j])
-                M[i,j] = v
-                M[j,i] = v
-        for i, val in np.ndenumerate(np.diag(M)):
-            M[i,i] = val/scale_factor
-        nz = np.nonzero(np.triu(self.colattice_dotmatrix))
-        sol = (np.array(M[nz] - self.colattice_dotmatrix[nz]))
-        print mt
-        print np.sum(sol.flatten())
-        return sol.flatten()
+        angle_inds = f(ndim) / f(2) / f(ndim - 2)
+        nz = np.nonzero(np.triu(matching_ip_matrix))
+        iu = np.triu_indices(ndim, k=1)
+        il = np.tril_indices(ndim, k=-1)
         
-    def debug_embedding(self, optim_code, ftol, xtol, gtol, epsfcn, factor):
+        def min_function_nlopt(x, grad):
+            """TODO - fix this so it works.
+            the metric tensor needs to be squared in the diagonal
+            and the proper dot product needs to be represented in 
+            the off-diagonals.
+
+            the cocycle_rep needs to be properly concatenated with
+            the cycle_rep.
+            """
+            if grad.size > 0:
+                grad[0] = 4.
+            # decompress 'x' into useable forms
+            mt, cocycle_rep = self.convert_params(x, ndim, angle_inds, cocycle_size, iu, il)
+            #cell_lengths = x[:ndim] 
+            #angles = x[ndim: ndim + angle_inds]
+            #cocycle = x[ndim + angle_inds : ]
+            ## construct metric tensor and cocycle rep 
+            #mt = np.empty((ndim, ndim))
+            ## convention alpha --> b,c beta --> a,c gamma --> a,b
+            ## in the metric tensor, these are related to the
+            ## (1,2), (0,2), and (0,1) array elements, which
+            ## are in the reversed order of how they would
+            ## be iterated.
+            ## assuming the parameters are defined in 'x' as 
+            ## x[3] --> a.b  \
+            ## x[4] --> a.c  |--> these are in reversed order. 
+            ## x[5] --> b.c  /
+            ##rev_angles = angles[::-1]
+            #mt[iu] = angles[:]
+            #mt[il] = angles[:]
+            ## obtain diagonal and off-diagonal elements of the metric tensor
+            #for i in range(ndim):
+            #    mt[i,i] = cell_lengths[i] * cell_lengths[i]
+            #for (i,j),(k,l) in zip(zip(*iu), zip(*il)):
+            #    mt[i,j] = mt[i,j] * cell_lengths[i] * cell_lengths[j]
+            #    mt[k,l] = mt[k,l] * cell_lengths[k] * cell_lengths[l]
+
+            #cocycle_rep = np.reshape(cocycle,(cocycle_size, ndim))
+            #obtain net embedding defined by these parameters.
+            rep = np.concatenate((cycle_rep, cocycle_rep))
+            la = np.dot(B_star, rep)
+            M = np.dot(np.dot(la,mt),la.T)
+            scale_factor = np.diag(M).max()
+            for (i, j) in zip(*np.triu_indices_from(M)):
+                val = M[i,j]
+                if i != j:
+                    v = val/np.sqrt(M[i,i])/np.sqrt(M[j,j])
+                    M[i,j] = v
+                    M[j,i] = v
+            M[np.diag_indices_from(M)] /= scale_factor
+            sol = (np.array(M[nz] - matching_ip_matrix[nz]))
+            ret_val = np.sum(np.abs(sol.flatten()))
+            #print ret_val
+            return ret_val 
+
+        return min_function_nlopt
+
+    def convert_params(self, x, ndim, angle_inds, cocycle_size, iu, il):
+        cell_lengths = x[:ndim] 
+        angles = x[ndim: ndim + angle_inds]
+        cocycle = x[ndim + angle_inds : ]
+        mt = np.empty((ndim, ndim))
+        # convention alpha --> b,c beta --> a,c gamma --> a,b
+        # in the metric tensor, these are related to the
+        # (1,2), (0,2), and (0,1) array elements, which
+        # are in the reversed order of how they would
+        # be iterated.
+        # assuming the parameters are defined in 'x' as 
+        # x[3] --> a.b  \
+        # x[4] --> a.c  |--> these are in reversed order. 
+        # x[5] --> b.c  /
+        #rev_angles = angles[::-1]
+        mt[iu] = angles[:]
+        mt[il] = angles[:]
+        # obtain diagonal and off-diagonal elements of the metric tensor
+        for i in range(ndim):
+            mt[i,i] = cell_lengths[i] * cell_lengths[i]
+        for (i,j),(k,l) in zip(zip(*iu), zip(*il)):
+            mt[i,j] = mt[i,j] * cell_lengths[i] * cell_lengths[j]
+            mt[k,l] = mt[k,l] * cell_lengths[k] * cell_lengths[l]
+
+        cocycle_rep = np.reshape(cocycle,(cocycle_size, ndim))
+        return mt, cocycle_rep
+
+    def debug_embedding(self):
         """Sorting out the new nlopt api
         """
 
@@ -629,43 +676,57 @@ class Net(object):
 
         size = mtsize + self.cocycle_rep.shape[0] * self.ndim
         x = np.empty(size)
+        ub = np.empty(size)
+        lb = np.empty(size)
+        max_cell = np.sqrt(np.diag(self.metric_tensor).max())
+        min_cell = np.sqrt(np.diag(self.metric_tensor).min()) * 0.1
 
-        def myfunc(x, grad):
-            if grad.size > 0:
-                grad[0] = 0.
-                grad[1] = 0.5 / np.sqrt(x[1])
-
-            return np.sqrt(x[1])
-
-        def myconstraint(x, grad, a, b):
-            if grad.size > 0:
-                grad[0] = 3*a*(a*x[0] + b)**2
-                grad[1] = -1.0
-            return (a*x[0] + b)**3 - x[1]
         xinc = 0
         for i in np.diag(self.metric_tensor):
-            x[xinc] = i
+            x[xinc] = np.sqrt(i)
+            ub[xinc] = max_cell
+            lb[xinc] = min_cell
             xinc += 1
 
         for (i,j) in zip(*np.triu_indices(self.ndim, 1)):
-            x[xinc] = self.metric_tensor[i,j]
+            x[xinc] = self.metric_tensor[i,j] / np.sqrt(self.metric_tensor[i,i]) \
+                        /np.sqrt(self.metric_tensor[j,j])
+            # set max and min angles to 120, 60 respectively.
+            ub[xinc] = 0.5
+            lb[xinc] = -0.5
             xinc += 1
 
         # init the cocycle representation to zeros
         x[xinc:] = 0.
-        opt = nlopt.opt(nlopt.LD_MMA, 2)
-        opt.set_lower_bounds([-float('inf'), 0])
-        opt.set_min_objective(myfunc)
-        opt.add_inequality_constraint(lambda x, grad: myconstraint(x,grad,2, 0), 1e-8)
-        opt.add_inequality_constraint(lambda x, grad: myconstraint(x,grad,-1,1), 1e-8)
-        opt.set_xtol_rel(1e-4)
-        x = opt.optimize([1.234, 5.678])
-        minf = opt.last_optimum_value()
-        print "optimum at ", x[0], x[1]
-        print "minimum value = ", minf
-        print "result code = ", opt.last_optimize_result()
-        
-        sys.exit()
+        ub[xinc:] = 1.
+        lb[xinc:] = -1.
+        opt = nlopt.opt(nlopt.LN_BOBYQA, x.size)
+        min_objective = self.init_min_function_nlopt(self.ndim, 
+                                                     self.order-1,
+                                                     self.cycle_rep, 
+                                                     self.cycle_cocycle_I,
+                                                     self.colattice_dotmatrix)
+        opt.set_lower_bounds(np.array(lb))
+        opt.set_upper_bounds(np.array(ub))
+        opt.set_min_objective(min_objective)
+        opt.set_xtol_rel(1e-8)
+        q = opt.optimize(x)
+        f = math.factorial
+        angle_inds = f(self.ndim) / f(2) / f(self.ndim - 2)
+        iu = np.triu_indices(self.ndim, k=1)
+        il = np.tril_indices(self.ndim, k=-1)
+        self.metric_tensor, self.cocycle_rep = self.convert_params(q, self.ndim,
+                                                                   angle_inds,
+                                                                   self.order-1,
+                                                                   iu,il)
+        #self.periodic_rep = q
+        #self.metric_tensor = mt
+        #la = self.lattice_arcs
+        inner_p = np.dot(np.dot(self.lattice_arcs, self.metric_tensor), self.lattice_arcs.T)
+        scind = self.scale[0]
+        sclen = self.scale[1]
+        self.scale_factor = sclen/np.diag(inner_p)[scind]
+        self.metric_tensor *= self.scale_factor
 
     def get_embedding(self, optim_code, init_guess=None):
         if init_guess is None:
@@ -696,11 +757,12 @@ class Net(object):
         self.periodic_rep = q
         self.metric_tensor = mt
         la = self.lattice_arcs
+        inner_p = np.dot(np.dot(self.lattice_arcs, self.metric_tensor), self.lattice_arcs.T)
         scind = self.scale[0]
         sclen = self.scale[1]
-        self.scale_factor = sclen/np.diag(self.lattice_arcs*self.metric_tensor*self.lattice_arcs.T)[scind]
+        self.scale_factor = sclen/np.diag(inner_p)[scind]
         self.metric_tensor *= self.scale_factor
-        #print la*mt*la.T
+        #print inner_p 
         #print self.sbu_tensor_matrix
 
     def report_errors(self, fit):
@@ -726,7 +788,8 @@ class Net(object):
 
     def get_metric_tensor(self):
         #self.metric_tensor = self.lattice_basis*self.projection*self.lattice_basis.T
-        self.metric_tensor = self.lattice_basis*self.eon_projection*self.lattice_basis.T
+        self.metric_tensor = np.dot(np.dot(self.lattice_basis, self.eon_projection),
+                                    self.lattice_basis.T)
 
     def barycentric_embedding(self):
         if self.cocycle is not None:
@@ -739,7 +802,8 @@ class Net(object):
         self.get_metric_tensor()
     
     def get_2d_params(self):
-        self.metric_tensor = self.lattice_basis*self.projection*self.lattice_basis.T
+        self.metric_tensor = np.dot(np.dot(self.lattice_basis,self.projection),
+                                    self.lattice_basis.T)
         lena=math.sqrt(self.metric_tensor[0,0])
         lenb=math.sqrt(self.metric_tensor[1,1])
         gamma=math.acos(self.metric_tensor[1,0]/lena/lenb)
@@ -749,9 +813,9 @@ class Net(object):
         lena = math.sqrt(self.metric_tensor[0,0])
         lenb = math.sqrt(self.metric_tensor[1,1])
         lenc = math.sqrt(self.metric_tensor[2,2])
-        gamma = math.acos(self.metric_tensor[0,1]/lena/lenb)
-        beta = math.acos(self.metric_tensor[0,2]/lena/lenc)
         alpha = math.acos(self.metric_tensor[1,2]/lenb/lenc)
+        beta = math.acos(self.metric_tensor[0,2]/lena/lenc)
+        gamma = math.acos(self.metric_tensor[0,1]/lena/lenb)
         return lena, lenb, lenc, alpha, beta, gamma
     
     def vertex_positions(self, edges, used, pos={}, bad_ones = {}):
@@ -793,7 +857,7 @@ class Net(object):
             return self.vertex_positions(edges, used, pos, bad_ones)
 
     def indices_with_voltage(self, volt):
-        return np.where([np.all(i==volt) for i in np.array(self.cycle_rep)])
+        return np.where([np.all(i==volt) for i in self.cycle_rep])
     
     def is_integral(self, vect):
         return np.all(np.equal(np.mod(vect,1),0))
@@ -813,13 +877,13 @@ class Net(object):
         self._kernel = None
         # obtain a basis of the cycle voltages
         L = []
-        for i in np.array(self.cycle_rep):
+        for i in self.cycle_rep:
             L.append(vector(QQ, i.tolist()))
         V = QQ**self.ndim
         for v in V.linear_dependence(L, zeros='left'):
             nz = np.nonzero(v)
             # obtain the linear combination of cycle vectors
-            cv_comb =  np.array(self.cycle)[nz] * np.array(v)[nz][:, None]
+            cv_comb =  self.cycle[nz] * np.array(v)[nz][:, None]
             if self.is_integral(np.sum(cv_comb, axis=0)):
                 kernel_vectors.append(np.sum(cv_comb, axis=0))
             if len(kernel_vectors) >= max_count:
@@ -896,8 +960,10 @@ class Net(object):
     @property
     def eon_projection(self):
         if self.cocycle is not None:
-            d = self.kernel*self.kernel.T
-            sub_mat = np.matrix(self.kernel.T* d.I* self.kernel)
+            d = np.dot(self.kernel, self.kernel.T)
+            d_inv = np.array(np.matrix(d).I)
+            sub_mat = np.dot(np.dot(self.kernel.T, d_inv), 
+                             self.kernel)
             return np.identity(self.shape) - sub_mat
         # if the projection gets here this is a minimal embedding
         return np.identity(self.shape)
@@ -905,11 +971,13 @@ class Net(object):
     @property
     def projection(self):
         la = self.lattice_arcs
-        return la*(la.T*la).I*la.T
+        d = np.dot(la.T, la)
+        d_inv = np.array(np.matrix(d).I)
+        return np.dot(np.dot(la, d_inv), la.T)
        
     @property
     def lattice_arcs(self):
-        return self.cycle_cocycle_I*self.periodic_rep
+        return np.dot(self.cycle_cocycle_I, self.periodic_rep)
 
     @property
     def shape(self):
@@ -932,7 +1000,7 @@ class Net(object):
         try:
             return self._cycle_cocycle_I
         except AttributeError:
-            self._cycle_cocycle_I = self.cycle_cocycle.I
+            self._cycle_cocycle_I = np.array(np.matrix(self.cycle_cocycle).I)
             return self._cycle_cocycle_I
 
     @property

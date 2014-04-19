@@ -589,51 +589,30 @@ class Net(object):
             the cycle_rep.
             """
             if grad.size > 0:
-                grad[0] = 4.
+                grad[0] = 0.
             # decompress 'x' into useable forms
             mt, cocycle_rep = self.convert_params(x, ndim, angle_inds, cocycle_size, iu, il)
-            #cell_lengths = x[:ndim] 
-            #angles = x[ndim: ndim + angle_inds]
-            #cocycle = x[ndim + angle_inds : ]
-            ## construct metric tensor and cocycle rep 
-            #mt = np.empty((ndim, ndim))
-            ## convention alpha --> b,c beta --> a,c gamma --> a,b
-            ## in the metric tensor, these are related to the
-            ## (1,2), (0,2), and (0,1) array elements, which
-            ## are in the reversed order of how they would
-            ## be iterated.
-            ## assuming the parameters are defined in 'x' as 
-            ## x[3] --> a.b  \
-            ## x[4] --> a.c  |--> these are in reversed order. 
-            ## x[5] --> b.c  /
-            ##rev_angles = angles[::-1]
-            #mt[iu] = angles[:]
-            #mt[il] = angles[:]
-            ## obtain diagonal and off-diagonal elements of the metric tensor
-            #for i in range(ndim):
-            #    mt[i,i] = cell_lengths[i] * cell_lengths[i]
-            #for (i,j),(k,l) in zip(zip(*iu), zip(*il)):
-            #    mt[i,j] = mt[i,j] * cell_lengths[i] * cell_lengths[j]
-            #    mt[k,l] = mt[k,l] * cell_lengths[k] * cell_lengths[l]
-
-            #cocycle_rep = np.reshape(cocycle,(cocycle_size, ndim))
             #obtain net embedding defined by these parameters.
             rep = np.concatenate((cycle_rep, cocycle_rep))
             la = np.dot(B_star, rep)
             M = np.dot(np.dot(la,mt),la.T)
-            scale_factor = np.diag(M).max()
+            sc_fact = np.diag(M).max()
             for (i, j) in zip(*np.triu_indices_from(M)):
                 val = M[i,j]
                 if i != j:
                     v = val/np.sqrt(M[i,i])/np.sqrt(M[j,j])
                     M[i,j] = v
                     M[j,i] = v
-            M[np.diag_indices_from(M)] /= scale_factor
+            M[np.diag_indices_from(M)] /= sc_fact
+            length_part = np.diag(M)
+            nz_triu = np.nonzero(np.triu(matching_ip_matrix,k=1))
+            angle_part = M[nz_triu]
+            print 'length_diff ', np.sum(length_part - np.diag(matching_ip_matrix))
+            print 'angle diff ', np.sum(angle_part - matching_ip_matrix[nz_triu])
             sol = (np.array(M[nz] - matching_ip_matrix[nz]))
             ret_val = np.sum(np.abs(sol.flatten()))
-            #print ret_val
+            #print M[nz] - matching_ip_matrix[nz]
             return ret_val 
-
         return min_function_nlopt
 
     def convert_params(self, x, ndim, angle_inds, cocycle_size, iu, il):
@@ -678,8 +657,8 @@ class Net(object):
         x = np.empty(size)
         ub = np.empty(size)
         lb = np.empty(size)
-        max_cell = np.sqrt(np.diag(self.metric_tensor).max())
-        min_cell = np.sqrt(np.diag(self.metric_tensor).min()) * 0.1
+        max_cell = np.sqrt(np.diag(self.metric_tensor).max()) * 534543
+        min_cell = np.sqrt(np.diag(self.metric_tensor).min()) * 0.3
 
         xinc = 0
         for i in np.diag(self.metric_tensor):
@@ -700,7 +679,8 @@ class Net(object):
         x[xinc:] = 0.
         ub[xinc:] = 1.
         lb[xinc:] = -1.
-        opt = nlopt.opt(nlopt.LN_BOBYQA, x.size)
+        opt = nlopt.opt(nlopt.LN_BOBYQA,
+                        x.size)
         min_objective = self.init_min_function_nlopt(self.ndim, 
                                                      self.order-1,
                                                      self.cycle_rep, 
@@ -719,6 +699,9 @@ class Net(object):
                                                                    angle_inds,
                                                                    self.order-1,
                                                                    iu,il)
+
+        self.periodic_rep = np.concatenate((self.cycle_rep, self.cocycle_rep))
+        self.report_errors_nlopt()
         #self.periodic_rep = q
         #self.metric_tensor = mt
         #la = self.lattice_arcs
@@ -727,6 +710,38 @@ class Net(object):
         sclen = self.scale[1]
         self.scale_factor = sclen/np.diag(inner_p)[scind]
         self.metric_tensor *= self.scale_factor
+    
+    def report_errors_nlopt(self):
+        la = np.dot(self.cycle_cocycle_I, self.periodic_rep)
+        inner_p = np.dot(np.dot(la, self.metric_tensor),la.T)
+        sc_fact = np.diag(inner_p).max()
+        for (i, j) in zip(*np.triu_indices_from(inner_p)):
+            val = inner_p[i,j]
+            if i != j:
+                v = val/np.sqrt(inner_p[i,i])/np.sqrt(inner_p[j,j])
+                inner_p[i,j] = v
+                inner_p[j,i] = v
+        inner_p[np.diag_indices_from(inner_p)] /= sc_fact
+        nz = np.nonzero(np.triu(np.array(self.colattice_dotmatrix)))
+        fit = inner_p[nz] - self.colattice_dotmatrix[nz]
+        edge_lengths = []
+        angles = []
+        count = 0
+        for (i, j) in zip(*nz):
+            if i != j:
+                angles.append(fit[count])
+            else:
+                edge_lengths.append(fit[count])
+            count += 1
+        edge_average, edge_std = np.mean(edge_lengths), np.std(edge_lengths)
+        debug("Average error in edge length: %12.5f +/- %9.5f Angstroms"%(
+                                    math.copysign(1, edge_average)*
+                                    np.sqrt(abs(edge_average)*self.scale[1]),
+                                    math.copysign(1, edge_std)*
+                                    np.sqrt(abs(edge_std)*self.scale[1])))
+        angle_average, angle_std = np.mean(angles), np.std(angles)
+        debug("Average error in edge angles: %12.5f +/- %9.5f degrees"%(
+                        angle_average/DEG2RAD, angle_std/DEG2RAD))
 
     def get_embedding(self, optim_code, init_guess=None):
         if init_guess is None:

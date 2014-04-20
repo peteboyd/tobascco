@@ -393,6 +393,7 @@ class Build(object):
         # get tricky.
         g = self._net.graph
         self._inner_product_matrix = np.zeros((self.net.shape, self.net.shape))
+        self.colattice_inds = ([], [])
         for v in self.sbu_vertices:
             allvects = {}
             self.assign_edge_labels(v)
@@ -419,6 +420,8 @@ class Build(object):
             for (e1, e2) in itertools.combinations_with_replacement(allvects.keys(), 2):
                 (i1, i2) = self._net.return_indices([e1, e2])
                 dp = np.dot(allvects[e1], allvects[e2])
+                self.colattice_inds[0].append(i1)
+                self.colattice_inds[1].append(i2)
                 self._inner_product_matrix[i1, i2] = dp
                 self._inner_product_matrix[i2, i1] = dp
         self._inner_product_matrix = np.asmatrix(self._inner_product_matrix)
@@ -435,7 +438,7 @@ class Build(object):
         # We first need to normalize the edge lengths of the net. This will be
         # done initially by setting the longest vector equal to the longest
         # vector of the barycentric embedding.
-        self._net.assign_ip_matrix(np.matrix(self._inner_product_matrix))
+        self._net.assign_ip_matrix(self._inner_product_matrix, self.colattice_inds)
 
         # this calls the optimization routine to match the tensor product matrix
         # of the SBUs and the net.

@@ -578,6 +578,7 @@ class Net(object):
         nz = np.nonzero(np.triu(matching_ip_matrix))
         iu = np.triu_indices(ndim, k=1)
         il = np.tril_indices(ndim, k=-1)
+        scale_ind = self.scale[0]
         
         def min_function_nlopt(x, grad):
             """TODO - fix this so it works.
@@ -596,21 +597,22 @@ class Net(object):
             rep = np.concatenate((cycle_rep, cocycle_rep))
             la = np.dot(B_star, rep)
             M = np.dot(np.dot(la,mt),la.T)
-            sc_fact = np.diag(M).max()
+            scale_fact = np.diag(M)[scale_ind]#.max()
             for (i, j) in zip(*np.triu_indices_from(M)):
                 val = M[i,j]
                 if i != j:
                     v = val/np.sqrt(M[i,i])/np.sqrt(M[j,j])
                     M[i,j] = v
                     M[j,i] = v
-            M[np.diag_indices_from(M)] /= sc_fact
+            M[np.diag_indices_from(M)] /= scale_fact
             length_part = np.diag(M)
             nz_triu = np.nonzero(np.triu(matching_ip_matrix,k=1))
             angle_part = M[nz_triu]
-            print 'length_diff ', np.sum(length_part - np.diag(matching_ip_matrix))
-            print 'angle diff ', np.sum(angle_part - matching_ip_matrix[nz_triu])
             sol = (np.array(M[nz] - matching_ip_matrix[nz]))
             ret_val = np.sum(np.abs(sol.flatten()))
+            print 'length diff %15.9f'%np.sum(np.abs(length_part - np.diag(matching_ip_matrix)))
+            print 'angle diff  %15.9f'%np.sum(np.abs(angle_part - matching_ip_matrix[nz_triu]))
+            print 'functn val  %15.9f'%ret_val
             #print M[nz] - matching_ip_matrix[nz]
             return ret_val 
         return min_function_nlopt
@@ -689,7 +691,8 @@ class Net(object):
         opt.set_lower_bounds(np.array(lb))
         opt.set_upper_bounds(np.array(ub))
         opt.set_min_objective(min_objective)
-        opt.set_xtol_rel(1e-8)
+        opt.set_xtol_rel(0.01)
+        opt.set_initial_step(.001)
         q = opt.optimize(x)
         f = math.factorial
         angle_inds = f(self.ndim) / f(2) / f(self.ndim - 2)

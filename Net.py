@@ -105,6 +105,7 @@ class Net(object):
         self.edge_labels = None
         self.node_labels = None
         self.colattice_dotmatrix = None
+        self.colattice_inds = None # keep track of all the valid colattice dot indices
         self.voltage = None
         self._graph = graph
         # n-dimensional representation, default is 3
@@ -528,6 +529,12 @@ class Net(object):
         for p in params:
             params[p].vary = True
 
+    def init_min_function_lmfit(self):
+        result = np.empty()
+        rep = np.empty()
+        mt = np.empty()
+        M = np.zeros(())
+
     def min_function_lmfit(self, params):
         rep = np.array(np.zeros((self.shape, self.ndim)))
         mt = np.array(np.zeros((self.ndim,self.ndim)))
@@ -550,10 +557,10 @@ class Net(object):
         for i, val in np.ndenumerate(np.diag(M)):
             M[i,i] = val/scale_factor
         nz = np.nonzero(np.triu(self.colattice_dotmatrix))
-        del mt, rep
+        del mt, rep, la
         return (M[nz] - self.colattice_dotmatrix[nz]).flatten() 
 
-    def assign_ip_matrix(self, mat):
+    def assign_ip_matrix(self, mat, inds):
         """Get the colattice dot matrix from Builder.py. This is an inner 
         product matrix of all the SBUs assigned to particular nodes.
         """
@@ -561,6 +568,7 @@ class Net(object):
         self.scale = (max_ind, max_val)
         # this sbu_tensor_matrix is probably not needed...
         self.sbu_tensor_matrix = mat
+        self.colattice_inds = inds
         self.colattice_dotmatrix = np.zeros((mat.shape[0], mat.shape[1]))
         for (i, j) in zip(*np.triu_indices_from(mat)):
             if i == j:
@@ -573,10 +581,10 @@ class Net(object):
     def init_min_function_nlopt(self, ndim, cocycle_size, cycle_rep, B_star, matching_ip_matrix):
         f = math.factorial
         angle_inds = f(ndim) / f(2) / f(ndim - 2)
-        angles = np.empty(ndim+angle_inds)
+        angles = np.empty(angle_inds)
         cell_lengths = np.empty(ndim)
         cocycle = np.empty(cocycle_size * ndim)
-        nz = np.nonzero(np.triu(matching_ip_matrix))
+        nz = np.nonzero(np.triu(matching_ip_matrix))#self.colattice_inds 
         iu = np.triu_indices(ndim, k=1)
         il = np.tril_indices(ndim, k=-1)
         scale_ind = self.scale[0]
@@ -787,7 +795,7 @@ class Net(object):
         params = self.init_params(init_guess)
         self.vary_coc_mt(params)
         #self.vary_cocycle_rep(params)
-        minimize(self.min_function_lmfit, params, method=optim_code, epsfcn=1.e-4, factor=.1, xtol=1.e-5, col_deriv=1)
+        minimize(self.min_function_lmfit, params, method=optim_code)
         #min = Minimizer(self.min_function_lmfit, params)
         #min.lbfgsb(factr=1000., epsilon=1e-6, pgtol=1e-6)
         #min.fmin(ftol=1.e-5, xtol=1.e-5)

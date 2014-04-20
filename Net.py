@@ -7,8 +7,8 @@ from logging import info, debug, warning, error
 import numpy as np
 from LinAlg import DEG2RAD
 #from scipy.optimize import fmin_l_bfgs_b, minimize, anneal, brute, basinhopping, fsolve, root 
-#sys.path.append('/home/pboyd/lib/lmfit-0.7.4')
-#from lmfit import minimize, Parameters, Minimizer, report_errors
+sys.path.append('/home/pboyd/lib/lmfit-0.7.4')
+from lmfit import minimize, Parameters, Minimizer, report_errors
 sys.path.append('/home/pboyd/lib/nlopt-2.4.1/lib/python2.7/site-packages/')
 import nlopt
 from config import Terminate
@@ -538,8 +538,8 @@ class Net(object):
                 mt[j,i] = params[p].value
             elif p[0] == 'c':
                 rep[self.to_ind(p)] = params[p].value
-        la = self.cycle_cocycle_I*rep
-        M = la*mt*la.T
+        la = np.dot(self.cycle_cocycle_I,rep)
+        M = np.dot(np.dot(la,mt),la.T)
         scale_factor = M.max()
         for (i, j) in zip(*np.triu_indices_from(M)):
             val = M[i,j]
@@ -550,10 +550,8 @@ class Net(object):
         for i, val in np.ndenumerate(np.diag(M)):
             M[i,i] = val/scale_factor
         nz = np.nonzero(np.triu(self.colattice_dotmatrix))
-        sol = (np.array(M[nz] - self.colattice_dotmatrix[nz]))
-        print mt
-        print np.sum(sol.flatten())
-        return sol.flatten()
+        del mt, rep
+        return (M[nz] - self.colattice_dotmatrix[nz]).flatten() 
 
     def assign_ip_matrix(self, mat):
         """Get the colattice dot matrix from Builder.py. This is an inner 
@@ -575,11 +573,13 @@ class Net(object):
     def init_min_function_nlopt(self, ndim, cocycle_size, cycle_rep, B_star, matching_ip_matrix):
         f = math.factorial
         angle_inds = f(ndim) / f(2) / f(ndim - 2)
+        angles = np.empty(ndim+angle_inds)
+        cell_lengths = np.empty(ndim)
+        cocycle = np.empty(cocycle_size * ndim)
         nz = np.nonzero(np.triu(matching_ip_matrix))
         iu = np.triu_indices(ndim, k=1)
         il = np.tril_indices(ndim, k=-1)
         scale_ind = self.scale[0]
-        
         def min_function_nlopt(x, grad):
             """TODO - fix this so it works.
             the metric tensor needs to be squared in the diagonal
@@ -590,11 +590,35 @@ class Net(object):
             the cycle_rep.
             """
             if grad.size > 0:
-                grad[0] = 0.
+                grad[:] = 0.
             # decompress 'x' into useable forms
-            mt, cocycle_rep = self.convert_params(x, ndim, angle_inds, cocycle_size, iu, il)
+            #mt, cocycle_rep = self.convert_params(x, ndim, angle_inds, cocycle_size, iu, il)
+            cell_lengths[:] = x[:ndim] 
+            angles[:] = x[ndim: ndim + angle_inds]
+            cocycle[:] = x[ndim + angle_inds : ]
+            mt = np.empty((ndim, ndim))
+            # convention alpha --> b,c beta --> a,c gamma --> a,b
+            # in the metric tensor, these are related to the
+            # (1,2), (0,2), and (0,1) array elements, which
+            # are in the reversed order of how they would
+            # be iterated.
+            # assuming the parameters are defined in 'x' as 
+            # x[3] --> a.b  \
+            # x[4] --> a.c  |--> these are in reversed order. 
+            # x[5] --> b.c  /
+            #rev_angles = angles[::-1]
+            mt[iu] = angles
+            mt[il] = angles
+            # obtain diagonal and off-diagonal elements of the metric tensor
+            mt[np.diag_indices_from(mt)] = cell_lengths
+            #for i in range(ndim):
+            #    mt[i,i] = cell_lengths[i] * cell_lengths[i]
+            #for (i,j),(k,l) in zip(zip(*iu), zip(*il)):
+            #    mt[i,j] = mt[i,j] * cell_lengths[i] * cell_lengths[j]
+            #    mt[k,l] = mt[k,l] * cell_lengths[k] * cell_lengths[l]
+            cocycle_rep = np.reshape(cocycle,(cocycle_size, ndim))
             #obtain net embedding defined by these parameters.
-            rep = np.concatenate((cycle_rep, cocycle_rep))
+            rep = np.concatenate((cycle_rep[:], cocycle_rep[:]))
             la = np.dot(B_star, rep)
             M = np.dot(np.dot(la,mt),la.T)
             scale_fact = np.diag(M)[scale_ind]#.max()
@@ -605,15 +629,17 @@ class Net(object):
                     M[i,j] = v
                     M[j,i] = v
             M[np.diag_indices_from(M)] /= scale_fact
-            length_part = np.diag(M)
-            nz_triu = np.nonzero(np.triu(matching_ip_matrix,k=1))
-            angle_part = M[nz_triu]
+            
+            #length_part = np.diag(M)
+            #nz_triu = np.nonzero(np.triu(matching_ip_matrix,k=1))
+            #angle_part = M[nz_triu]
             sol = (np.array(M[nz] - matching_ip_matrix[nz]))
             ret_val = np.sum(np.abs(sol.flatten()))
-            print 'length diff %15.9f'%np.sum(np.abs(length_part - np.diag(matching_ip_matrix)))
-            print 'angle diff  %15.9f'%np.sum(np.abs(angle_part - matching_ip_matrix[nz_triu]))
-            print 'functn val  %15.9f'%ret_val
+            #print 'length diff %15.9f'%np.sum(np.abs(length_part - np.diag(matching_ip_matrix)))
+            #print 'angle diff  %15.9f'%np.sum(np.abs(angle_part - matching_ip_matrix[nz_triu]))
+            #print 'functn val  %15.9f'%ret_val
             #print M[nz] - matching_ip_matrix[nz]
+            del rep, cocycle_rep, mt
             return ret_val 
         return min_function_nlopt
 
@@ -632,14 +658,15 @@ class Net(object):
         # x[4] --> a.c  |--> these are in reversed order. 
         # x[5] --> b.c  /
         #rev_angles = angles[::-1]
-        mt[iu] = angles[:]
-        mt[il] = angles[:]
+        mt[iu] = angles
+        mt[il] = angles
         # obtain diagonal and off-diagonal elements of the metric tensor
-        for i in range(ndim):
-            mt[i,i] = cell_lengths[i] * cell_lengths[i]
-        for (i,j),(k,l) in zip(zip(*iu), zip(*il)):
-            mt[i,j] = mt[i,j] * cell_lengths[i] * cell_lengths[j]
-            mt[k,l] = mt[k,l] * cell_lengths[k] * cell_lengths[l]
+        mt[np.diag_indices_from(mt)] = cell_lengths
+        #for i in range(ndim):
+        #    mt[i,i] = cell_lengths[i] * cell_lengths[i]
+        #for (i,j),(k,l) in zip(zip(*iu), zip(*il)):
+        #    mt[i,j] = mt[i,j] * cell_lengths[i] * cell_lengths[j]
+        #    mt[k,l] = mt[k,l] * cell_lengths[k] * cell_lengths[l]
 
         cocycle_rep = np.reshape(cocycle,(cocycle_size, ndim))
         return mt, cocycle_rep
@@ -659,19 +686,20 @@ class Net(object):
         x = np.empty(size)
         ub = np.empty(size)
         lb = np.empty(size)
-        max_cell = np.sqrt(np.diag(self.metric_tensor).max()) * 534543
-        min_cell = np.sqrt(np.diag(self.metric_tensor).min()) * 0.3
+        max_cell = np.diag(self.metric_tensor).max() 
+        min_cell = np.diag(self.metric_tensor).min()
 
         xinc = 0
         for i in np.diag(self.metric_tensor):
-            x[xinc] = np.sqrt(i)
+            #x[xinc] = np.sqrt(i)
+            x[xinc] = i
             ub[xinc] = max_cell
             lb[xinc] = min_cell
             xinc += 1
 
         for (i,j) in zip(*np.triu_indices(self.ndim, 1)):
-            x[xinc] = self.metric_tensor[i,j] / np.sqrt(self.metric_tensor[i,i]) \
-                        /np.sqrt(self.metric_tensor[j,j])
+            x[xinc] = self.metric_tensor[i,j] #/ np.sqrt(self.metric_tensor[i,i]) 
+                       # /np.sqrt(self.metric_tensor[j,j])
             # set max and min angles to 120, 60 respectively.
             ub[xinc] = 0.5
             lb[xinc] = -0.5
@@ -679,9 +707,10 @@ class Net(object):
 
         # init the cocycle representation to zeros
         x[xinc:] = 0.
-        ub[xinc:] = 1.
-        lb[xinc:] = -1.
-        opt = nlopt.opt(nlopt.LN_BOBYQA,
+        ub[xinc:] = 0.2
+        lb[xinc:] = -0.2
+        # BOBYQA did OK with m1 o2 pcu (shitty with m1 o1 pcu)
+        opt = nlopt.opt(nlopt.LN_COBYLA,
                         x.size)
         min_objective = self.init_min_function_nlopt(self.ndim, 
                                                      self.order-1,
@@ -691,9 +720,14 @@ class Net(object):
         opt.set_lower_bounds(np.array(lb))
         opt.set_upper_bounds(np.array(ub))
         opt.set_min_objective(min_objective)
-        opt.set_xtol_rel(0.01)
-        opt.set_initial_step(.001)
+        opt.set_stopval(0.0)
+        opt.set_ftol_abs(1.e-8)
+        opt.set_initial_step(1.e-5)
         q = opt.optimize(x)
+        print "NEXT PHASE!"
+        opt.set_ftol_abs(1.e-12)
+        opt.set_initial_step(1.e-6)
+        q = opt.optimize(q)
         f = math.factorial
         angle_inds = f(self.ndim) / f(2) / f(self.ndim - 2)
         iu = np.triu_indices(self.ndim, k=1)

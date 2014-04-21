@@ -554,11 +554,11 @@ class Net(object):
                 v = val/np.sqrt(M[i,i])/np.sqrt(M[j,j])
                 M[i,j] = v
                 M[j,i] = v
-        for i, val in np.ndenumerate(np.diag(M)):
-            M[i,i] = val/scale_factor
+
+        M[np.diag_indices_from(M)] /= scale_factor
         nz = np.nonzero(np.triu(self.colattice_dotmatrix))
         del mt, rep, la
-        return (M[nz] - self.colattice_dotmatrix[nz]).flatten() 
+        return (M[self.colattice_inds] - self.colattice_dotmatrix[self.colattice_inds]).flatten() 
 
     def assign_ip_matrix(self, mat, inds):
         """Get the colattice dot matrix from Builder.py. This is an inner 
@@ -566,7 +566,7 @@ class Net(object):
         """
         max_ind, max_val =  mat[np.diag_indices_from(mat)].argmax(), \
                             mat[np.diag_indices_from(mat)].max()
-        self.scale = ([max_ind,max_ind], max_val)
+        self.scale = (([max_ind],[max_ind]), max_val)
         # this sbu_tensor_matrix is probably not needed...
         self.sbu_tensor_matrix = mat
         self.colattice_inds = inds
@@ -585,7 +585,7 @@ class Net(object):
         nz = self.colattice_inds#np.nonzero(np.triu(matching_ip_matrix))
         iu = np.triu_indices(ndim, k=1)
         il = np.tril_indices(ndim, k=-1)
-        scale_ind = (self.scale[0][0], self.scale[0][1])
+        scale_ind = self.scale[0]
         def min_function_nlopt(x, grad):
             """TODO - fix this so it works.
             the metric tensor needs to be squared in the diagonal
@@ -627,7 +627,6 @@ class Net(object):
             rep = np.concatenate((cycle_rep[:], cocycle_rep[:]))
             la = np.dot(B_star, rep)
             M = np.dot(np.dot(la,mt),la.T)
-            q = np.diag_indices_from(M)
             scale_fact = M[scale_ind]#.max()
             for (i, j) in zip(*np.triu_indices_from(M)):
                 val = M[i,j]
@@ -752,7 +751,7 @@ class Net(object):
         inner_p = np.dot(np.dot(self.lattice_arcs, self.metric_tensor), self.lattice_arcs.T)
         scind = self.scale[0]
         sclen = self.scale[1]
-        self.scale_factor = sclen/np.diag(inner_p)[scind]
+        self.scale_factor = sclen/inner_p[scind]
         self.metric_tensor *= self.scale_factor
     
     def report_errors_nlopt(self):
@@ -819,7 +818,7 @@ class Net(object):
         inner_p = np.dot(np.dot(self.lattice_arcs, self.metric_tensor), self.lattice_arcs.T)
         scind = self.scale[0]
         sclen = self.scale[1]
-        self.scale_factor = sclen/np.diag(inner_p)[scind]
+        self.scale_factor = sclen/inner_p[scind]
         self.metric_tensor *= self.scale_factor
         #print inner_p 
         #print self.sbu_tensor_matrix

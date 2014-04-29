@@ -140,7 +140,6 @@ class Net(object):
             print "ERROR - could not find a linearly independent cocycle basis!"
             Terminate(errcode=1) 
         # special case - pcu
-        # NOTE : YOU WILL HAVE TO ADD 2 - coordinate nodes to pcu to get this to work!!!
         if size == 0:
             self.cocycle = None
             self.cocycle_rep = None
@@ -470,7 +469,7 @@ class Net(object):
                 params.add("cy_%i_%i"%(i,j), value=val, vary=False, min=-1, max=0)
         pp = self.cycle_rep.shape[0]
         for (i,j), val in np.ndenumerate(init_guess):
-            params.add("co_%i_%i"%(i+pp,j), value=val, vary=False, min=-1, max=1)
+            params.add("co_%i_%i"%(i+pp,j), value=val, vary=False, min=-0.5, max=0.5)
         return params
 
     def vary_cycle_rep_intonly(self, params):
@@ -586,9 +585,9 @@ class Net(object):
         params = self.init_params(init_guess)
         self.vary_coc_mt(params)
         #self.vary_cocycle_rep(params)
-        minimize(self.min_function_lmfit, params, method=optim_code)
-        #min = Minimizer(self.min_function_lmfit, params)
-        #min.lbfgsb(factr=1000., epsilon=1e-6, pgtol=1e-6)
+        #minimize(self.min_function_lmfit, params, method=optim_code)
+        min = Minimizer(self.min_function_lmfit, params)
+        min.lbfgsb(factr=1000., epsilon=1e-6, pgtol=1e-6)
         #min.fmin(ftol=1.e-5, xtol=1.e-5)
         #min.anneal(schedule='cauchy')
         #min.leastsq(xtol=1.e-3, ftol=1.e-7)

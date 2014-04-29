@@ -732,25 +732,33 @@ class Build(object):
         org_incidence = [sbu.degree for sbu in self._sbus if not sbu.is_metal]
         # Some special cases: linear sbus and no loops. 
         # Insert between metal-type vertices
-        if self.linear_sbus and not self._net.graph.loop_edges():
-            for (v1, v2, e) in self._net.graph.edges():
+        #if self.linear_sbus and not self._net.graph.loop_edges():
+        #    for (v1, v2, e) in self._net.graph.edges():
+        #        nn1 = len(self._net.neighbours(v1))
+        #        nn2 = len(self._net.neighbours(v2))
+        #        if nn1 == nn2 and (nn1 in met_incidence):
+        #            vertices, edges = self._net.add_edges_between((v1, v2, e), 5)
+        #            self.sbu_vertices.append(vertices[2])
+        #            edges_split += edges
+
+        for (v1, v2, e) in self._net.graph.edges():
+            if (v1, v2, e) not in edges_split:
                 nn1 = len(self._net.neighbours(v1))
                 nn2 = len(self._net.neighbours(v2))
-                if nn1 == nn2 and (nn1 in met_incidence):
-                    vertices, edges = self._net.add_edges_between((v1, v2, e), 5)
-                    self.sbu_vertices.append(vertices[2])
-                    edges_split += edges
-
-        for e in self._net.graph.edges():
-            if e not in edges_split:
-                if e in self._net.graph.loop_edges() and self.linear_sbus:
-                    vertices, edges = self._net.add_edges_between(e, 5)
+                # LOADS of ands here.
+                if self.linear_sbus:
+                    if ((v1, v2, e) in self._net.graph.loop_edges()) or \
+                        ((nn1==nn2) and (nn1 in met_incidence)):  
+                        vertices, edges = self._net.add_edges_between((v1, v2, e), 5)
                     # add the middle vertex to the SBU vertices..
                     # this is probably not a universal thing.
-                    self.sbu_vertices.append(vertices[2])
-                    edges_split += edges
+                        self.sbu_vertices.append(vertices[2])
+                        edges_split += edges
+                    else:
+                        vertices, edges = self._net.add_edges_between((v1, v2, e), 2)
+                        edges_split += edges
                 else:
-                    vertices, edges = self._net.add_edges_between(e, 2)
+                    vertices, edges = self._net.add_edges_between((v1, v2, e), 2)
                     edges_split += edges
 
         self._obtain_cycle_bases()

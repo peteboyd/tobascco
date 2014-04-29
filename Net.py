@@ -144,8 +144,8 @@ class Net(object):
             self.cocycle = None
             self.cocycle_rep = None
         else:
-            self.cocycle = np.matrix(self.cocycle)
-            self.cocycle_rep = np.matrix(np.zeros((size, self.ndim)))
+            self.cocycle = np.array(self.cocycle)
+            self.cocycle_rep = np.zeros((size, self.ndim))
 
     def add_name(self):
         try:
@@ -556,8 +556,9 @@ class Net(object):
 
         M[np.diag_indices_from(M)] /= scale_factor
         nz = np.nonzero(np.triu(self.colattice_dotmatrix))
-        del mt, rep, la
-        return (M[self.colattice_inds] - self.colattice_dotmatrix[self.colattice_inds]).flatten() 
+        res = (M[self.colattice_inds] - self.colattice_dotmatrix[self.colattice_inds])**2
+        print np.sum(res)
+        return res.flatten() 
 
     def assign_ip_matrix(self, mat, inds):
         """Get the colattice dot matrix from Builder.py. This is an inner 
@@ -587,10 +588,10 @@ class Net(object):
         #self.vary_cocycle_rep(params)
         #minimize(self.min_function_lmfit, params, method=optim_code)
         min = Minimizer(self.min_function_lmfit, params)
-        min.lbfgsb(factr=1000., epsilon=1e-6, pgtol=1e-6)
+        #min.lbfgsb(factr=1000., epsilon=1e-6, pgtol=1e-6)
         #min.fmin(ftol=1.e-5, xtol=1.e-5)
         #min.anneal(schedule='cauchy')
-        #min.leastsq(xtol=1.e-3, ftol=1.e-7)
+        min.leastsq(xtol=1.e-7, ftol=1.e-7)
         fit = self.min_function_lmfit(params)
         self.report_errors(fit)
         #print report_errors(params)
@@ -682,6 +683,7 @@ class Net(object):
             #print 'angle diff  %15.9f'%np.sum(np.abs(angle_part - matching_ip_matrix[nz_triu]))
             #print 'functn val  %15.9f'%ret_val
             #print M[nz] - matching_ip_matrix[nz]
+            print ret_val
             return ret_val 
         return min_function_nlopt
 
@@ -725,14 +727,16 @@ class Net(object):
         mtsize = self.ndim + f(self.ndim) / f(2) / f(self.ndim - 2)
 
         size = mtsize + self.cocycle_rep.shape[0] * self.ndim
-        x = np.empty(size)
-        ub = np.empty(size)
-        lb = np.empty(size)
-        max_cell = np.diag(self.metric_tensor).max() 
-        min_cell = np.diag(self.metric_tensor).min()
+        x = np.empty(size, dtype=np.float64)
+        ub = np.empty(size, dtype=np.float64)
+        lb = np.empty(size, dtype=np.float64)
+        max_cell = self.metric_tensor[np.diag_indices_from(self.metric_tensor)].max()*1.1 
+        min_cell = min(self.metric_tensor[np.diag_indices_from(self.metric_tensor)].min(), 0.1*max_cell)
 
         xinc = 0
-        for i in np.diag(self.metric_tensor):
+        print type(self.metric_tensor)
+        for i in self.metric_tensor[np.diag_indices_from(self.metric_tensor)]:
+            print i
             #x[xinc] = np.sqrt(i)
             x[xinc] = i
             ub[xinc] = max_cell
@@ -740,17 +744,17 @@ class Net(object):
             xinc += 1
 
         for (i,j) in zip(*np.triu_indices(self.ndim, 1)):
-            x[xinc] = self.metric_tensor[i,j] #/ np.sqrt(self.metric_tensor[i,i]) 
-                       # /np.sqrt(self.metric_tensor[j,j])
+            x[xinc] = self.metric_tensor[i,j] # / np.sqrt(self.metric_tensor[i,i]) 
+                        #/np.sqrt(self.metric_tensor[j,j])
             # set max and min angles to 120, 60 respectively.
-            ub[xinc] = 0.5
-            lb[xinc] = -0.5
+            ub[xinc] = max_cell
+            lb[xinc] = -max_cell
             xinc += 1
 
         # init the cocycle representation to zeros
         x[xinc:] = 0.
-        ub[xinc:] = 0.2
-        lb[xinc:] = -0.2
+        ub[xinc:] = 0.5
+        lb[xinc:] = -0.5
         # BOBYQA did OK with m1 o2 pcu (shitty with m1 o1 pcu)
         opt = nlopt.opt(nlopt.LN_COBYLA,
                         x.size)
@@ -759,17 +763,13 @@ class Net(object):
                                                      self.cycle_rep, 
                                                      self.cycle_cocycle_I,
                                                      self.colattice_dotmatrix)
-        opt.set_lower_bounds(np.array(lb))
-        opt.set_upper_bounds(np.array(ub))
+        opt.set_upper_bounds(ub)
+        opt.set_lower_bounds(lb)
         opt.set_min_objective(min_objective)
         opt.set_stopval(0.0)
         opt.set_ftol_abs(1.e-8)
-        opt.set_initial_step(1.e-5)
+        opt.set_initial_step(1.e-3)
         q = opt.optimize(x)
-        print "NEXT PHASE!"
-        opt.set_ftol_abs(1.e-12)
-        opt.set_initial_step(1.e-6)
-        q = opt.optimize(q)
         f = math.factorial
         angle_inds = f(self.ndim) / f(2) / f(self.ndim - 2)
         iu = np.triu_indices(self.ndim, k=1)
@@ -971,7 +971,7 @@ class Net(object):
                         self.check_linear_dependency(vect, np.array(kernel_vectors)):
                     kernel_vectors.append(vect)
 
-        self._kernel = np.concatenate((np.matrix(kernel_vectors), self.cocycle))
+        self._kernel = np.concatenate((np.array(kernel_vectors), self.cocycle))
         return self._kernel
     #@property
     #def kernel(self):

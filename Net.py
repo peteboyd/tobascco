@@ -675,8 +675,8 @@ class Net(object):
             #length_part = np.diag(M)
             #nz_triu = np.nonzero(np.triu(matching_ip_matrix,k=1))
             #angle_part = M[nz_triu]
-            sol = (np.array(M[nz] - matching_ip_matrix[nz])).flatten()
-            ret_val = np.sum(np.abs(sol))
+            sol = (M[nz] - matching_ip_matrix[nz])**2
+            ret_val = np.sum(sol)
             #ret_val = np.random.random()*5000.
             #print 'length diff %15.9f'%np.sum(np.abs(length_part - np.diag(matching_ip_matrix)))
             #print 'angle diff  %15.9f'%np.sum(np.abs(angle_part - matching_ip_matrix[nz_triu]))

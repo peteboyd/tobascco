@@ -557,7 +557,7 @@ class Net(object):
         M[np.diag_indices_from(M)] /= scale_factor
         nz = np.nonzero(np.triu(self.colattice_dotmatrix))
         res = (M[self.colattice_inds] - self.colattice_dotmatrix[self.colattice_inds])**2
-        print np.sum(res)
+        #print np.sum(res)
         return res.flatten() 
 
     def assign_ip_matrix(self, mat, inds):
@@ -588,10 +588,10 @@ class Net(object):
         #self.vary_cocycle_rep(params)
         #minimize(self.min_function_lmfit, params, method=optim_code)
         min = Minimizer(self.min_function_lmfit, params)
-        #min.lbfgsb(factr=1000., epsilon=1e-6, pgtol=1e-6)
+        min.lbfgsb(factr=1000., epsilon=1e-5, pgtol=1e-4)
         #min.fmin(ftol=1.e-5, xtol=1.e-5)
         #min.anneal(schedule='cauchy')
-        min.leastsq(xtol=1.e-7, ftol=1.e-7)
+        #min.leastsq(xtol=1.e-7, ftol=1.e-7)
         fit = self.min_function_lmfit(params)
         self.report_errors(fit)
         #print report_errors(params)
@@ -683,7 +683,7 @@ class Net(object):
             #print 'angle diff  %15.9f'%np.sum(np.abs(angle_part - matching_ip_matrix[nz_triu]))
             #print 'functn val  %15.9f'%ret_val
             #print M[nz] - matching_ip_matrix[nz]
-            print ret_val
+            #print ret_val
             return ret_val 
         return min_function_nlopt
 
@@ -734,9 +734,7 @@ class Net(object):
         min_cell = min(self.metric_tensor[np.diag_indices_from(self.metric_tensor)].min(), 0.1*max_cell)
 
         xinc = 0
-        print type(self.metric_tensor)
         for i in self.metric_tensor[np.diag_indices_from(self.metric_tensor)]:
-            print i
             #x[xinc] = np.sqrt(i)
             x[xinc] = i
             ub[xinc] = max_cell
@@ -747,8 +745,8 @@ class Net(object):
             x[xinc] = self.metric_tensor[i,j] # / np.sqrt(self.metric_tensor[i,i]) 
                         #/np.sqrt(self.metric_tensor[j,j])
             # set max and min angles to 120, 60 respectively.
-            ub[xinc] = max_cell
-            lb[xinc] = -max_cell
+            ub[xinc] = max_cell**2
+            lb[xinc] = -(max_cell**2)
             xinc += 1
 
         # init the cocycle representation to zeros
@@ -756,19 +754,43 @@ class Net(object):
         ub[xinc:] = 0.5
         lb[xinc:] = -0.5
         # BOBYQA did OK with m1 o2 pcu (shitty with m1 o1 pcu)
-        opt = nlopt.opt(nlopt.LN_COBYLA,
+        opt = nlopt.opt(nlopt.LN_BOBYQA,
                         x.size)
         min_objective = self.init_min_function_nlopt(self.ndim, 
                                                      self.order-1,
                                                      self.cycle_rep, 
                                                      self.cycle_cocycle_I,
                                                      self.colattice_dotmatrix)
+        print "ndim = ", self.ndim
+        print "init_x = ", '[' + ','.join([str(i) for i in x]) + ']'
+        print "upper = ", '[' + ','.join([str(j) for j in ub]) + ']'
+        print "lower = ", '[' + ','.join([str(k) for k in lb]) + ']'
+        print "inner_product_matrix = ["
+        for i in self.colattice_dotmatrix:
+            print '[' + ",".join([str(f) for f in i]) + ']'
+        print ']'
+
+        string =  "nz = ["
+        for (i,j) in zip(*self.colattice_inds):
+            string += "(%i,%i),"%(i,j)
+        string += "]"
+        print string
+        
+        print "cycle_rep = ["
+        for i in self.cycle_rep:
+            print '[' + ",".join([str(f) for f in i]) + ']'
+        print ']'
+        print "cycle_cocycle_I = ["
+        for i in self.cycle_cocycle_I:
+            print '[' + ",".join([str(f) for f in i]) + ']'
+        print ']'
+        
         opt.set_upper_bounds(ub)
         opt.set_lower_bounds(lb)
         opt.set_min_objective(min_objective)
         opt.set_stopval(0.0)
-        opt.set_ftol_abs(1.e-8)
-        opt.set_initial_step(1.e-3)
+        opt.set_ftol_rel(1.e-15)
+        opt.set_initial_step(1.e-4)
         q = opt.optimize(x)
         f = math.factorial
         angle_inds = f(self.ndim) / f(2) / f(self.ndim - 2)

@@ -165,7 +165,7 @@ class SBU(object):
         
         # rotate the atoms
         [a.rotate(rotation_matrix) for a in self.atoms]
-    
+   
     def translate(self, v):
         vector = v - self.COM[:3]
         [c.translate(vector) for c in self.connect_points]

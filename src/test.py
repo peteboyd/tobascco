@@ -86,7 +86,7 @@ class PCU_RUN(object):
     def optim_call(self):
         nzi = np.array([i[0] for i in self.nz])
         nzj = np.array([i[1] for i in self.nz])
-        nl.nloptimize(self.ndim,
+        x = nl.nloptimize(self.ndim,
                       self.diag_ind,
                       self.lower,
                       self.upper,
@@ -95,6 +95,7 @@ class PCU_RUN(object):
                       self.cycle_cocycle_I,
                       self.ip_mat,
                       nzi,nzj)
+        print x
     def init_min_function_nlopt(self):
         f = math.factorial
         ndim = self.ndim
@@ -174,8 +175,8 @@ class PCU_RUN(object):
 pcu = PCU_RUN()
 for i in range(1):
     pcu.optim_call()
-    f = pcu.init_min_function_nlopt()
-    print f(pcu.init_x, np.array([]))
+    #f = pcu.init_min_function_nlopt()
+    #print f(pcu.init_x, np.array([]))
     #c = np.concatenate((pcu.cycle_rep, np.zeros(((pcu.init_x.shape[0]-6)/3, 3))))
     #print pcu.cycle_cocycle_I.shape, c.shape
     #print np.dot(pcu.cycle_cocycle_I, c)

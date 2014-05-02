@@ -7,12 +7,12 @@
 #include <nlopt.h>
 #include <numpy/arrayobject.h>
 
-void create_full_rep(int, int, double**, int, int, double*, double**);
+void create_full_rep(int, int, double**, int, int, const double*, double**);
 static PyObject * nloptimize(PyObject *self, PyObject *args);
-//double objectivefunc(unsigned, const double*, double*, void*);
+double objectivefunc(unsigned, const double*, double*, void*);
 double sumsquarediff(int, int*, int*, double**, double**);
 void matrix_multiply(int, int, double **, int, int, double **, double**);
-void create_metric_tensor(int, double*, double**);
+void create_metric_tensor(int, const double*, double**);
 void transpose_2darray(int, int, double**, double**);
 void setup_matrix(int, int, double**);
 double * get1darrayd(PyArrayObject*);
@@ -21,6 +21,7 @@ double ** get2darrayd(PyArrayObject*);
 double ** construct2darray(int rows, int cols);
 void free_2d_array(double**, int);
 int factorial(int, int);
+
 static PyMethodDef functions[] = {
     {"nloptimize", nloptimize, METH_VARARGS, NULL},
     {NULL, NULL, 0, NULL} 
@@ -28,8 +29,8 @@ static PyMethodDef functions[] = {
 
 
 struct data_info{
-    int rep_size, cycle_size, nz_size;
-    int B_shape, ndim;
+    int rep_size, cycle_size, nz_size, x_size;
+    int B_shape, ndim, diag_ind;
     int angle_inds, start;
     double *lb, *ub;
     int *_zi, *_zj;
@@ -55,16 +56,15 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
 {
     int ndim;
     int diag_ind;
-
+    data_info data;
     PyArrayObject* lower_bounds;
     PyArrayObject* upper_bounds;
     PyArrayObject* init_x;
-    PyArrayObject* array_x;
+    PyArrayObject* array_x = NULL;
     PyArrayObject* inner_product_matrix;
     PyArrayObject* cycle_rep;
     PyArrayObject* cycle_cocycle_I;
     PyArrayObject* zero_indi, *zero_indj;
-    int x_size;
     //read in all the parameters
     if (!PyArg_ParseTuple(args, "iiOOOOOOOO",
                           &ndim,
@@ -80,55 +80,44 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
         return NULL;
     };
     nlopt_opt opt;
-    double *lb, *ub, *x;
-    int *_zi, *_zj;
-    double ** _cycle_cocycle_I;
-    double ** _cycle_rep;
-    double ** _ip_mat;
-    npy_intp* tt;
-    lb = get1darrayd(lower_bounds);
-    ub = get1darrayd(upper_bounds);
+    double *x;
+    data.lb = get1darrayd(lower_bounds);
+    data.ub = get1darrayd(upper_bounds);
     x = get1darrayd(init_x);
+    npy_intp* tt;
     tt = PyArray_SHAPE(init_x);
-    x_size = (int)tt[0];
-    _cycle_cocycle_I = get2darrayd(cycle_cocycle_I);
-    _cycle_rep = get2darrayd(cycle_rep);
-    _ip_mat = get2darrayd(inner_product_matrix);
-    _zi = get1darrayi(zero_indi);
-    _zj = get1darrayi(zero_indj);
+    data.x_size = (int)tt[0];
+    data._cycle_cocycle_I = get2darrayd(cycle_cocycle_I);
+    data._cycle_rep = get2darrayd(cycle_rep);
+    data._ip_mat = get2darrayd(inner_product_matrix);
+    data._zi = get1darrayi(zero_indi);
+    data._zj = get1darrayi(zero_indj);
 
-    int rep_size, cycle_size, nz_size;
+    data.ndim = ndim;
+    data.diag_ind = diag_ind;
     tt = PyArray_SHAPE(zero_indi);
-    nz_size = (int)tt[0];
+    data.nz_size = (int)tt[0];
     tt = PyArray_SHAPE(cycle_rep);
-    cycle_size = (int)tt[0];
-    rep_size = (int)tt[0] + x_size/ndim;
-    double ** rep;
-    rep = construct2darray(rep_size, ndim);
+    data.cycle_size = (int)tt[0];
+    data.rep_size = (int)tt[0] + data.x_size/data.ndim;
+    data.rep = construct2darray(data.rep_size, data.ndim);
     tt = PyArray_SHAPE(cycle_cocycle_I);
-    int B_shape;
-    B_shape = (int) tt[0];
+    data.B_shape = (int) tt[0];
     // B_I * rep = edge_vectors
     // edge_vectors * metric_tensor = first_product
     // first_product * edge_vectors.T = inner_product
     //
     // piecewise calculation of (inner_product[i][j] - _ip_mat[i][j])^2
     // summation of squared errors = return val.
-    double ** edge_vectors;
-    double ** edge_vectors_T;
-    double ** first_product;
-    double ** inner_product;
-    double ** metric_tensor;;
-
-    edge_vectors = construct2darray(B_shape,ndim);
-    edge_vectors_T = construct2darray(ndim, B_shape);
-    first_product = construct2darray(B_shape,ndim);
-    inner_product = construct2darray(B_shape, B_shape);
-    metric_tensor = construct2darray(ndim, ndim);
+    data.edge_vectors = construct2darray(data.B_shape, data.ndim);
+    data.edge_vectors_T = construct2darray(data.ndim, data.B_shape);
+    data.first_product = construct2darray(data.B_shape, data.ndim);
+    data.inner_product = construct2darray(data.B_shape, data.B_shape);
+    data.metric_tensor = construct2darray(data.ndim, data.ndim);
 
     int res=1;
-    int angle_inds = factorial(ndim, res) / factorial(2, res) / factorial(ndim-2, res);
-    int start = angle_inds + ndim;
+    data.angle_inds = factorial(ndim, res) / factorial(2, res) / factorial(ndim-2, res); 
+    data.start = data.angle_inds + data.ndim;
     /* 
     for (int i=0; i<ndim; i++){
         for (int j=0; j<ndim; j++){
@@ -170,61 +159,84 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     //
     //
     //construct the objective function
-    opt = nlopt_create(NLOPT_LN_COBYLA, x_size); /* algorithm and dimensionality */
-    //nlopt_set_lower_bounds(opt, lb);
-    //nlopt_set_upper_bounds(opt, ub);
-    //nlopt_set_min_objective(opt, objectivefunc, NULL);
-    //nlopt_set_xtol_rel(opt, 1e-4);
-    //double minf; /* the minimum objective value, upon return */
+    opt = nlopt_create(NLOPT_LN_BOBYQA, data.x_size); /* algorithm and dimensionality */
+    nlopt_set_lower_bounds(opt, data.lb);
+    nlopt_set_upper_bounds(opt, data.ub);
+    nlopt_set_min_objective(opt, objectivefunc, &data);
     /*
+    unsigned int n;
+    double * grad;
+    objectivefunc(n, x, grad, &data);
+    objectivefunc(n, x, grad, &data);
+    */
+    nlopt_set_ftol_rel(opt, 1e-8);
+    double minf; /* the minimum objective value, upon return */
+    //nlopt_optimize(opt, x, &minf);
+    
     if (nlopt_optimize(opt, x, &minf) < 0) {
             printf("nlopt failed!\n");
     }
+    /*
     else {
             printf("found minimum at f(%g,%g) = %0.10g\n", x[0], x[1], minf);
     }
     */
+    void* xptr;
+    npy_intp* dim;
+    dim = (npy_intp*) data.x_size;
+    PyObject* val;
+    array_x = (PyArrayObject*)PyArray_ZEROS(1, dim, NPY_INT, 0);
+    /* 
+    array_x = (PyArrayObject*) PyArray_ZEROS(1, dim, NPY_FLOAT, 0);
+    for (int i=0; i<data.x_size; i++){
+        xptr = PyArray_GETPTR1(array_x, i);
+        val = PyFloat_FromDouble(x[i]);
+        PyArray_SETITEM(array_x, (char*) xptr, val);
+        Py_DECREF(val);
+    }
+    */
     nlopt_destroy(opt); 
     
-    free(lb);
-    free(ub);
+    free(data.lb);
+    free(data.ub);
     free(x);
-    free(_zi);
-    free(_zj);
-    free_2d_array(edge_vectors, B_shape);
-    free_2d_array(edge_vectors_T, ndim);
-    free_2d_array(first_product, B_shape);
-    free_2d_array(inner_product, B_shape);
-    free_2d_array(metric_tensor, ndim);
-    free_2d_array(rep,rep_size);
-    tt = PyArray_SHAPE(cycle_cocycle_I);
-    free_2d_array(_cycle_cocycle_I, (int) tt[0]);
-    tt = PyArray_SHAPE(cycle_rep);
-    free_2d_array(_cycle_rep, (int) tt[0]);
-    tt = PyArray_SHAPE(inner_product_matrix);
-    free_2d_array(_ip_mat, (int) tt[0]);
-    Py_INCREF(Py_None);
-    return Py_None; 
+    free(data._zi);
+    free(data._zj);
+    free_2d_array(data.edge_vectors, data.B_shape);
+    free_2d_array(data.edge_vectors_T, data.ndim);
+    free_2d_array(data.first_product, data.B_shape);
+    free_2d_array(data.inner_product, data.B_shape);
+    free_2d_array(data.metric_tensor, data.ndim);
+    free_2d_array(data.rep, data.rep_size);
+    free_2d_array(data._cycle_cocycle_I, data.B_shape);
+    free_2d_array(data._cycle_rep, data.cycle_size);
+    free_2d_array(data._ip_mat, data.B_shape);
+    return PyArray_Return(array_x);
 }
-/*
-double objectivefunc(unsigned n, const double *x, double *grad, void *my_func_data)
+double objectivefunc(unsigned n, const double *x, double *grad, void *dd)
 {
+    double ans;
     if (grad) {
         grad[0] = 0.0;
         grad[1] = 0.5 / sqrt(x[1]);
     }
-    create_full_rep(cycle_size, ndim, _cycle_rep, start, x_size/ndim, x, rep);
-    create_metric_tensor(ndim, x, metric_tensor);
-    matrix_multiply(B_shape, B_shape, _cycle_cocycle_I, B_shape, ndim, rep, edge_vectors);
-    transpose_2darray(B_shape, ndim, edge_vectors, edge_vectors_T);
-    matrix_multiply(B_shape, ndim, edge_vectors, ndim, ndim, metric_tensor, first_product);
-    matrix_multiply(B_shape, ndim, first_product, ndim, B_shape, edge_vectors_T, inner_product);
-    setup_matrix(diag_ind, B_shape, inner_product);
-    double ans;
-    ans = sumsquarediff(nz_size, _zi, _zj, inner_product, _ip_mat);
+    data_info d = *((struct data_info *)dd); 
+    create_full_rep(d.cycle_size, d.ndim, d._cycle_rep, d.start, d.x_size/d.ndim, x, d.rep);
+    create_metric_tensor(d.ndim, x, d.metric_tensor);
+    matrix_multiply(d.B_shape, d.B_shape, d._cycle_cocycle_I, d.B_shape, d.ndim, d.rep, d.edge_vectors);
+    transpose_2darray(d.B_shape, d.ndim, d.edge_vectors, d.edge_vectors_T);
+    matrix_multiply(d.B_shape, d.ndim, d.edge_vectors, d.ndim, d.ndim, d.metric_tensor, d.first_product);
+    matrix_multiply(d.B_shape, d.ndim, d.first_product, d.ndim, d.B_shape, d.edge_vectors_T, d.inner_product);
+    setup_matrix(d.diag_ind, d.B_shape, d.inner_product);
+    ans = sumsquarediff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
+    //std::cout<<ans<<std::endl;
+    /*
+    for (int i =0; i<d.nz_size; i++){
+        std::cout<<d._zi[i]<<' '<<d._zj[i]<<std::endl;
+    }
+    */
     return ans; 
 }
-*/
 double ** construct2darray(int rows, int cols){
     double **carray;
     carray = (double**)malloc(sizeof(double*)*rows);
@@ -304,7 +316,7 @@ void free_2d_array(double ** carr, int rows){
     return;
 }
     
-void create_full_rep(int row1, int col1, double **cycle, int start, int row2, double *cocycle, double ** rep){
+void create_full_rep(int row1, int col1, double **cycle, int start, int row2, const double *cocycle, double ** rep){
     int counter=start;
     for (int i=0; i<row1+row2; i++){
         if (i<row1){
@@ -321,7 +333,7 @@ void create_full_rep(int row1, int col1, double **cycle, int start, int row2, do
     }
 }
 
-void create_metric_tensor(int ndim, double *x, double **metric_tensor){
+void create_metric_tensor(int ndim, const double *x, double **metric_tensor){
     for (int i=0; i<ndim; i++){
         metric_tensor[i][i] = x[i];
     }

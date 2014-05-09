@@ -47,7 +47,7 @@ class Build(object):
         edges = g.outgoing_edges(vertex) + g.incoming_edges(vertex)
         indices = self._net.return_indices(edges)
         lattice_arcs = self._net.lattice_arcs[indices]
-        ipv = lattice_arcs*self._net.metric_tensor*lattice_arcs.T
+        ipv = np.dot(np.dot(lattice_arcs, self._net.metric_tensor), lattice_arcs.T)
         ipv = self.scaled_ipmatrix(ipv)
         inds = np.triu_indices(ipv.shape[0], k=1) 
         # just take the max and min angles... 
@@ -143,7 +143,7 @@ class Build(object):
         for v in self.sbu_vertices:
             ee = g.outgoing_edges(v) + g.incoming_edges(v)
             l_arcs = self._net.lattice_arcs[self._net.return_indices(ee)]
-            lai = l_arcs*self._net.metric_tensor*l_arcs.T
+            lai = np.dot(np.dot(l_arcs, self._net.metric_tensor), l_arcs.T)
             ipc = self.scaled_ipmatrix(lai)
             imax, imin = np.absolute(ipc[inds]).max(), np.absolute(ipc[inds]).min()
             mm = np.sum(np.absolute([max-imax, min-imin]))
@@ -158,7 +158,7 @@ class Build(object):
         edges = self._net.graph.outgoing_edges(v) + self._net.graph.incoming_edges(v)
         indices = self._net.return_indices(edges)
         lattice_arcs = self._net.lattice_arcs[indices]
-        ipv = lattice_arcs*self._net.metric_tensor*lattice_arcs.T
+        ipv = np.dot(np.dot(lattice_arcs, self._net.metric_tensor), lattice_arcs.T)
         ipv = self.scaled_ipmatrix(ipv)
         # just take the max and min angles... 
         inds = np.triu_indices(ipv.shape[0], k=1) 
@@ -442,11 +442,13 @@ class Build(object):
 
         # this calls the optimization routine to match the tensor product matrix
         # of the SBUs and the net.
-        self._net.get_embedding(optim_code=self.options.optim_code)
+        optimized = True
+        #self._net.get_embedding(optim_code=self.options.optim_code)
         #self._net.debug_embedding()
+        optimized = self._net.debug_2embedding()
 
         init = np.array([0.5, 0.5, 0.5])
-        if self.bad_embedding():
+        if self.bad_embedding() or not optimized:
             debug("net %s didn't embed properly with the "%(self._net.name) +
             "geometries dictated by the SBUs")
         else:
@@ -458,8 +460,8 @@ class Build(object):
     def custom_embedding(self, rep, mt):
         self._net.metric_tensor = np.matrix(mt)
         self._net.periodic_rep = np.matrix(rep)
-        la = self._net.cycle_cocycle.I*rep
-        ip = la*mt*la.T
+        la = np.dot(self._net.cycle_cocycle.I,rep)
+        ip = np.dot(np.dot(la, mt), la.T)
         ipsbu = self._inner_product_matrix
         nz = np.nonzero(np.triu(ipsbu))
         self.build_structure_from_net(np.zeros(self._net.ndim))

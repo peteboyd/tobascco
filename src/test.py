@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env sage-python
 import sys
 sys.path.append('/home/pboyd/codes_in_development/topcryst/src/build/lib.linux-x86_64-2.7')
 import _nloptimize as nl
@@ -86,6 +86,7 @@ class PCU_RUN(object):
     def optim_call(self):
         nzi = np.array([i[0] for i in self.nz])
         nzj = np.array([i[1] for i in self.nz])
+        print type(self.upper[0])
         x = nl.nloptimize(self.ndim,
                       self.diag_ind,
                       self.lower,

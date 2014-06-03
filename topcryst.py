@@ -13,7 +13,7 @@ from CSV import CSV
 from Net import SystreDB, Net
 from Builder import Build
 from SecondaryBuildingUnit import SBU
-#from CreateInput import SBUFileRead
+from CreateInput import SBUFileRead
 from random import randint
 import itertools
 import numpy as np
@@ -42,13 +42,13 @@ class JobHandler(object):
         #  creation due to the use of a custom python implemented for sage.
 
 
-        #if self.options.create_sbu_input_files:
-        #    info("Creating input files")
-        #    job = SBUFileRead(self.options)
-        #    job.read_sbu_files()
-        #    job.sort_sbus()
-        #    job.write_file()
-        #    Terminate()
+        if self.options.create_sbu_input_files:
+            info("Creating input files")
+            job = SBUFileRead(self.options)
+            job.read_sbu_files()
+            job.sort_sbus()
+            job.write_file()
+            Terminate()
 
         self._read_sbu_database_files()
         self._read_topology_database_files()
@@ -77,6 +77,7 @@ class JobHandler(object):
         self._pop_unwanted_sbus()
         self._pop_unwanted_topologies()
         self._build_structures()
+        #self._build_structures_from_top()
 
     def _check_barycentric_embedding(self, graph, voltage):
         net = Net(graph)
@@ -122,14 +123,86 @@ class JobHandler(object):
         #g.view_graph()
         g.view_placement(init=(0.5, 0.5, 0.5))
 
+    def _build_structures_from_top(self):
+        if not self._topologies:
+            warning("No topologies found!")
+            Terminate()
+
+        csvinfo = CSV(name='%s_info'%(self.options.jobname))
+        csvinfo.set_headings('topology', 'sbus', 'edge_count', 'time', 'space_group')
+        run = Generate(self.options, self.sbu_pool)
+        inittime = time()
+        for top, graph in self._topologies.items():
+            if self.options.show_barycentric_net_only:
+                info("Preparing barycentric embedding of %s"%(top))
+                self._check_barycentric_embedding(graph, self._topologies.voltages[top])
+            else:
+
+                build = Build(self.options)
+                build.net = (top, graph, self._topologies.voltages[top])
+                if self.options.sbu_combinations:
+                    combinations = run.combinations_from_options()
+                else:
+                    combinations = run.generate_sbu_combinations(incidence=build.net_degrees())
+
+                if not list(combinations):
+                    debug("Net %s does not support the same"%(top)+
+                            " connectivity offered by the SBUs")
+                for combo in combinations:
+                    build.sbus = list(set(combo))
+                    # check node incidence
+                    if build.met_met_bonds and run.linear_sbus_exist:
+                        # add linear organics
+                        debug("Metal-type nodes attached to metal-type nodes. "+
+                                "Attempting to insert linear organic SBUs between these nodes.")
+                        for comb in run.yield_linear_org_sbu(combo):
+                            build.sbus = list(set(comb))
+                            self.embed_sbu_combo(top, comb, build, csvinfo)
+                    elif build.met_met_bonds and not run.linear_sbus_exist:
+                        debug("Metal-type nodes are attached to metal-type nodes. "+
+                                "No linear SBUs exist in database, so the structure "+
+                                "will have metal - metal SBUs joined")
+                        self.embed_sbu_combo(top, combo, build, csvinfo)
+                    else:
+                        self.embed_sbu_combo(top, combo, build, csvinfo)
+
+
+        finaltime = time() - inittime
+        info("Topcryst completed after %f seconds"%finaltime)
+        Terminate()
+
+    def combo_str(self, combo):
+        str = "("
+        for j in set(combo):
+            str += "%s, "%j.name
+        return str[:-2]+")"
+
+    def embed_sbu_combo(self, top, combo, build, csvinfo):
+        count = build.net.original_graph.size()
+        csvinfo.add_data(topology=top, 
+                         sbus=self.combo_str(combo),
+                         edge_count=count)
+        info("Setting up %s"%(self.combo_str(combo)) +
+                " with net %s, with an edge count = %i "%(top, count))
+        t1 = time()
+        build.init_embed()
+        build.assign_vertices()
+        build.assign_edges()
+        build.obtain_embedding()
+        t2 = time()
+        if build.success:
+            sym = build.struct.space_group_name
+        else:
+            sym = "None"
+        csvinfo.add_data(time=t2-t1,
+                         space_group=sym)
+        
+        #build.custom_embedding(rep, mt)
+        if self.options.show_embedded_net:
+            build.show()
+
     def _build_structures(self):
         """Pass the sbu combinations to a MOF building algorithm."""
-        def combo_str(combo):
-            str = "("
-            for j in set(combo):
-                str += "%s, "%j.name
-            return str[:-2]+")"
-
         run = Generate(self.options, self.sbu_pool)
         # generate the combinations of SBUs to build
         if self.options.sbu_combinations:
@@ -149,7 +222,7 @@ class JobHandler(object):
             if not self._topologies:
                 warning("No topologies found! Exiting.")
                 Terminate()
-            debug("Trying "+combo_str(combo))
+            debug("Trying "+self.combo_str(combo))
             for top, graph in self._topologies.items():
                 build = Build(self.options)
                 build.sbus = list(set(combo))
@@ -159,31 +232,26 @@ class JobHandler(object):
                     self._check_barycentric_embedding(graph, self._topologies.voltages[top])
                 else:
                     if build.check_net:
-                        count = build.net.original_graph.size()
-                        csvinfo.add_data(topology=top, 
-                                         sbus=combo_str(combo),
-                                         edge_count=count)
-                        info("Setting up %s"%(combo_str(combo)) +
-                                " with net %s, with an edge count = %i "%(top, count))
-                        t1 = time()
-                        build.init_embed()
-                        build.assign_vertices()
-                        build.assign_edges()
-                        build.obtain_embedding()
-                        t2 = time()
-                        if build.success:
-                            sym = build.struct.space_group_name
+                        # check node incidence
+                        if build.met_met_bonds and run.linear_sbus_exist:
+                            # add linear organics
+                            debug("Metal-type nodes attached to metal-type nodes. "+
+                                    "Attempting to insert linear organic SBUs between these nodes.")
+                            for comb in run.yield_linear_org_sbu(combo):
+                                build = Build(self.options)
+                                build.sbus = list(set(comb))
+                                build.net = (top, graph, self._topologies.voltages[top])
+                                self.embed_sbu_combo(top, comb, build, csvinfo)
+                        elif build.met_met_bonds and not run.linear_sbus_exist:
+                            debug("Metal-type nodes are attached to metal-type nodes. "+
+                                   "No linear SBUs exist in database, so the structure "+
+                                    "will have metal - metal SBUs joined")
+                            self.embed_sbu_combo(top, combo, build, csvinfo)
+                        elif not build.met_met_bonds:
+                            self.embed_sbu_combo(top, combo, build, csvinfo)
                         else:
-                            sym = "None"
-                        csvinfo.add_data(time=t2-t1,
-                                         space_group=sym)
-                        
-                        #build.custom_embedding(rep, mt)
-                        if self.options.show_embedded_net:
-                            build.show()
-                    else:
-                        debug("Net %s does not support the same"%(top)+
-                                " connectivity offered by the SBUs")
+                            debug("Net %s does not support the same"%(top)+
+                                    " connectivity offered by the SBUs")
 
         finaltime = time() - inittime
         info("Topcryst completed after %f seconds"%finaltime)

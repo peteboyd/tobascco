@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import sys
 import os
+sys.path.append("/share/apps/openbabel/2.3.1-gg/lib/python2.7/site-packages")
 import openbabel as ob
 import pybel
 from logging import info, debug, warning, error, critical
@@ -85,6 +86,7 @@ class InputSBU(object):
                 X = "%12.4f %8.4f %8.4f"%(atom.coords)
                 if (N >= 89 and N <= 102):
                     special.append((connect_index, N%89+1))
+                net_vector, bond_vector = "", ""
                 for neighbour in ob.OBAtomAtomIter(atom.OBAtom):
                     x = neighbour.GetX() - atom.coords[0]
                     y = neighbour.GetY() - atom.coords[1]
@@ -92,9 +94,11 @@ class InputSBU(object):
                     if neighbour.GetAtomicNum() == 39:
                         net_atom = neighbour
                         net_vector = "%12.4f %8.4f %8.4f"%(x, y, z)
+                        remove.append(net_atom)
                     elif neighbour.GetAtomicNum() == 86:
                         bond_atom = neighbour
                         bond_vector = "%12.4f %8.4f %8.4f"%(x, y, z)
+                        remove.append(bond_atom)
                     else:
                         neighbour.SetFormalCharge(connect_index)
                         id = neighbour.GetIdx()
@@ -102,8 +106,6 @@ class InputSBU(object):
                 con_line += "".join([X, bond_vector, net_vector, "\n"])
                 self.update(connectivity=con_line)
                 remove.append(atom.OBAtom)
-                remove.append(net_atom)
-                remove.append(bond_atom)
         self._remove_atoms(*remove)
 
         # include special considerations

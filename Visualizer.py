@@ -13,6 +13,7 @@ class GraphPlot(object):
     def __init__(self, net, two_dimensional=False):
         self.fig, self.ax = plt.subplots()
         self.net = net
+        self.fontsize = 12
         self.two_dimensional = two_dimensional
         if two_dimensional:
             self.cell = np.identity(2)
@@ -29,8 +30,8 @@ class GraphPlot(object):
     def plot_2d_cell(self, origin=np.zeros(2), colour='b'):
         xyz_a = (self.cell[0] + origin)/ 2.
         xyz_b = (self.cell[1] + origin)/ 2.
-        self.fig.text(xyz_a[0], xyz_a[1], 'a')
-        self.fig.text(xyz_b[0], xyz_b[1], 'b')
+        self.fig.text(xyz_a[0], xyz_a[1], 'a', fontsize=self.fontsize)
+        self.fig.text(xyz_b[0], xyz_b[1], 'b', fontsize=self.fontsize)
         all_points = [np.sum(a, axis=0)+origin
                       for a in list(self.powerset(self.cell)) if a]
         all_points.append(origin)
@@ -44,9 +45,9 @@ class GraphPlot(object):
         xyz_a = (self.cell[0]+origin)/2.
         xyz_b = (self.cell[1]+origin)/2.
         xyz_c = (self.cell[2]+origin)/2.
-        self.ax.text(xyz_a[0], xyz_a[1], xyz_a[2], 'a')
-        self.ax.text(xyz_b[0], xyz_b[1], xyz_b[2], 'b')
-        self.ax.text(xyz_c[0], xyz_c[1], xyz_c[2], 'c')
+        self.ax.text(xyz_a[0], xyz_a[1], xyz_a[2], 'a', fontsize=self.fontsize)
+        self.ax.text(xyz_b[0], xyz_b[1], xyz_b[2], 'b', fontsize=self.fontsize)
+        self.ax.text(xyz_c[0], xyz_c[1], xyz_c[2], 'c', fontsize=self.fontsize)
 
         all_points = [np.sum(a, axis=0)+origin
                       for a in list(self.powerset(self.cell)) if a]
@@ -57,7 +58,12 @@ class GraphPlot(object):
                 self.ax.plot3D(*zip(s, e), color=colour)
                 
     def add_point(self, p=np.zeros(3), label=None, colour='r'):
+        if self.two_dimensional:
+            tp = p + np.array([0.005, 0.005])
+        else:
+            tp = p + np.array([0.005, 0.005, 0.005])
         pp = np.dot(p.copy(), self.cell)
+        tp = np.dot(tp, self.cell)
         try:
             self.ax.scatter(*pp, color=colour)
         except TypeError:
@@ -65,9 +71,9 @@ class GraphPlot(object):
             self.ax.scatter(pp, color=colour)
         if label:
             #point(tuple(pp), legend_label=label, rgbcolor=(255,0,0))
-            self.ax.text(*pp, s=label)
+            self.ax.text(*tp, s=label, fontsize=self.fontsize, color='r')
 
-    def add_edge(self, vector, origin=np.zeros(3), label=None, colour='y'):
+    def add_edge(self, vector, origin=np.zeros(3), label=None, colour='g'):
         """Accounts for periodic boundaries by splitting an edge where
         it intersects with the plane of the boundary conditions.
 
@@ -80,7 +86,7 @@ class GraphPlot(object):
             pp = (p2 + p1)*0.5
             #pp = pp - np.floor(p)
             #line([tuple(p1), tuple(p2)], rgbcolor=(255,255,0), legend_label=label)
-            self.ax.text(*pp, s=label)
+            self.ax.text(*pp, s=label, fontsize=self.fontsize)
         else:
             line([tuple(p1), tuple(p2)], rgbcolor=(255,255,0))
     
@@ -158,5 +164,6 @@ class GraphPlot(object):
         self.ax.set_xlim3d(0,mx)
         self.ax.set_ylim3d(0,mx)
         self.ax.set_zlim3d(0,mx)
+        plt.axis('off')
         plt.show()
         #plt.savefig('name.png')

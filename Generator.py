@@ -15,13 +15,13 @@ class Generate(object):
         self.options = options
         self.sbus = SBU_list(sbu_list)
         
-    def generate_sbu_combinations(self, N=None):
+    def generate_sbu_combinations(self, incidence=None, N=None):
         if N is None:
             N = self.options.metal_sbu_per_structure + self.options.organic_sbu_per_structure
         for i in itertools.combinations_with_replacement(self.sbus.list, N):
-            if self._valid_sbu_combination(i):
+            if self._valid_sbu_combination(incidence, i):
                 yield tuple(i)
-    
+
     def combinations_from_options(self):
         """Just return the tuples in turn."""
         combs = []
@@ -31,12 +31,37 @@ class Generate(object):
             combs.append(tuple(met + [self.sbus.get(i) for i in combo[1:]]))
         return combs
     
-    def _valid_sbu_combination(self, sbu_set):
+    def _valid_sbu_combination(self, incidence, sbu_set):
         """Currently only checks if there is the correct number of metal 
         SBUs in the combination."""
-        return len([i for i in sbu_set if i.is_metal]) == \
-                self.options.metal_sbu_per_structure
-        
+        if incidence is None:
+            return len([i for i in sbu_set if i.is_metal]) == \
+                        self.options.metal_sbu_per_structure
+        else:
+            if set(sorted([i.degree for i in sbu_set])) == set(sorted(incidence)):
+                return len([i for i in sbu_set if i.is_metal]) == \
+                                self.options.metal_sbu_per_structure
+            else:
+                return False
+
+    def yield_linear_org_sbu(self, combo):
+        for i in self.sbus.list:
+            if i.linear and not i.is_metal: 
+                ret = list(combo) + [i]
+                yield tuple(ret)
+   
+    @property
+    def linear_sbus_exist(self):
+        try:
+            return self._linear_exist
+        except AttributeError:
+            self._linear_exist = False
+            for i in self.sbus.list:
+                if i.linear:
+                    self._linear_exist = True
+                    break
+            return self._linear_exist
+
     def _valid_bond_pair(self, set):
         """Determine if the two SBUs can be bonded.  Currently set to
         flag true if the two sbus contain matching bond flags, otherwise

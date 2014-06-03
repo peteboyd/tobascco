@@ -32,8 +32,18 @@ class ConnectPoint(object):
         self.identifier = int(line[0])
         # obtain the coordinate information.
         self.origin[:3] = np.array([float(x) for x in line[1:4]])
-        self.z[:3] = np.array([float(x) for x in line[4:7]])
-        self.y[:3] = np.array([float(x) for x in line[7:10]])
+        try:
+            self.z[:3] = np.array([float(x) for x in line[4:7]])
+        except ValueError:
+            warning("Improper formatting of input SBU file! cannot find the" +
+                    "connecting vector for bond %i."%(self.identifier) + 
+                    "Catastrophic errors in the bonding will ensue!")
+        try:
+            self.y[:3] = np.array([float(x) for x in line[7:10]])
+        except ValueError:
+            #Y not needed at the moment.
+            pass
+
         if len(line) == 12:
             try:
                 self.symmetry = int(line[10])

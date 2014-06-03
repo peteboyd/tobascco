@@ -725,6 +725,23 @@ class Build(object):
     @property
     def net(self):
         return self._net
+    
+    @property
+    def met_met_bonds(self):
+        met_incidence = [sbu.degree for sbu in self._sbus if sbu.is_metal]
+        org_incidence = [sbu.degree for sbu in self._sbus if not sbu.is_metal]
+        
+        # if org and metal have same incidences, then just ignore this...
+        # NB may still add met-met bonds in the net!
+        if set(met_incidence).intersection(set(org_incidence)):
+            return False
+        for (v1, v2, e) in self._net.graph.edges():
+            nn1 = len(self._net.neighbours(v1))
+            nn2 = len(self._net.neighbours(v2))
+            if (nn1 in met_incidence):
+                if ((nn1 == nn2) or ((v1,v2,e) in self.net.graph.loop_edges())):
+                    return True
+        return False
 
     def init_embed(self):
         # keep track of the sbu vertices

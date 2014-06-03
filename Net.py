@@ -80,14 +80,14 @@ class SystreDB(dict):
             voltages.append((e1, e2, e3))
             try:
                 #n1 = chr(v1-1 + ord("A"))
-                n1 = str(v1-1)
+                n1 = str(v1)
             except ValueError:
-                n1 = str(v1-1)
+                n1 = str(v1)
             try:
                 #n2 = chr(v2-1 + ord("A"))
-                n2 = str(v2-1)
+                n2 = str(v2)
             except ValueError:
-                n2 = str(v2-1)
+                n2 = str(v2)
 
             sage_dict.setdefault(n1, {})
             sage_dict.setdefault(n2, {})
@@ -827,8 +827,8 @@ class Net(object):
             x[xinc] = self.metric_tensor[i,j]  / np.sqrt(self.metric_tensor[i,i]) \
                         /np.sqrt(self.metric_tensor[j,j])
             # set max and min angles to 120, 60 respectively.
-            ub[xinc] = 0.7
-            lb[xinc] = -0.7
+            ub[xinc] = np.pi 
+            lb[xinc] = -np.pi
             xinc += 1
 
         # init the cocycle representation to zeros
@@ -942,7 +942,7 @@ class Net(object):
     def report_errors_nlopt(self):
         la = np.dot(self.cycle_cocycle_I, self.periodic_rep)
         inner_p = np.dot(np.dot(la, self.metric_tensor),la.T)
-        sc_fact = np.diag(inner_p).max()
+        #sc_fact = np.diag(inner_p).max()
         #for (i, j) in zip(*np.triu_indices_from(inner_p)):
         #    val = inner_p[i,j]
         #    if i != j:
@@ -1006,6 +1006,7 @@ class Net(object):
     def barycentric_embedding(self):
         if self.cocycle is not None:
             self.cocycle_rep = np.zeros((self.order-1, self.ndim))
+            #self.cocycle_rep[0] = np.array([0.0, 0.0, -0.5]) # Used to show non-barycentric placement of pts net for Smit meeting.
             self.periodic_rep = np.concatenate((self.cycle_rep,
                                             self.cocycle_rep),
                                             axis = 0)

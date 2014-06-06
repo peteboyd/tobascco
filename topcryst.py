@@ -249,9 +249,9 @@ class JobHandler(object):
                             self.embed_sbu_combo(top, combo, build, csvinfo)
                         elif not build.met_met_bonds:
                             self.embed_sbu_combo(top, combo, build, csvinfo)
-                        else:
-                            debug("Net %s does not support the same"%(top)+
-                                    " connectivity offered by the SBUs")
+                    else:
+                        debug("Net %s does not support the same"%(top)+
+                                " connectivity offered by the SBUs")
 
         finaltime = time() - inittime
         info("Topcryst completed after %f seconds"%finaltime)

@@ -57,16 +57,19 @@ def rotation_from_vectors(v1, v2, point=None):
     
     Covar = np.dot((v2 - ub).T, (v1 - ua))
 
-    u, s, v = np.linalg.svd(Covar)
-    uv = np.dot(u,v)
-    d = np.identity(3) 
-    d[2,2] = np.linalg.det(uv) # ensures non-reflected solution
-    M = np.dot(np.dot(u,d), v)
-    R = np.identity(4)
-    R[:3,:3] = M
-    if point is not None:
-        R[:3,:3] = point - np.dot(M, point)
-    return R
+    try:
+        u, s, v = np.linalg.svd(Covar)
+        uv = np.dot(u,v)
+        d = np.identity(3) 
+        d[2,2] = np.linalg.det(uv) # ensures non-reflected solution
+        M = np.dot(np.dot(u,d), v)
+        R = np.identity(4)
+        R[:3,:3] = M
+        if point is not None:
+            R[:3,:3] = point - np.dot(M, point)
+        return R
+    except np.linalg.linalg.LinAlgError:
+        return np.identity(4)
 
 def rotation_matrix(axis, angle, point=None):
     """

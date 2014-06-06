@@ -711,7 +711,8 @@ class Build(object):
             lin = [i.linear for i in self._sbus]
             # added a 'set' here in case two different SBUs have the same
             # coordination number
-            self._sbu_degrees = sorted(set([j for i,j in zip(lin,deg) if not i]))
+            # added incidence != 2 for nonlinear sbus. 
+            self._sbu_degrees = sorted(set([j for i,j in zip(lin,deg) if not i and j!=2]))
             return self._sbu_degrees
 
     @property

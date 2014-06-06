@@ -43,7 +43,6 @@ class ConnectPoint(object):
         except ValueError:
             #Y not needed at the moment.
             pass
-
         if len(line) == 12:
             try:
                 self.symmetry = int(line[10])

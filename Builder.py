@@ -718,8 +718,11 @@ class Build(object):
     @property
     def linear_sbus(self):
         """Return true if one or more of the SBUs are linear"""
+        # Not sure why this is limited to only linear SBUs.
+        # should apply to any ditopic SBUs, hopefully the program will
+        # sort out the net shape during the optimization.
         for s in self._sbus:
-            if s.degree == 2 and s.linear:
+            if s.degree == 2:# and s.linear:
                 return True
         return False
 

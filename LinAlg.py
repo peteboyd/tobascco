@@ -54,7 +54,7 @@ def rotation_from_vectors(v1, v2, point=None):
     # v2 = transformed, v1 = neutral
     ua = np.array([np.mean(v1.T[0]), np.mean(v1.T[1]), np.mean(v1.T[2])])
     ub = np.array([np.mean(v2.T[0]), np.mean(v2.T[1]), np.mean(v2.T[2])])
-
+    
     Covar = np.dot((v2 - ub).T, (v1 - ua))
 
     u, s, v = np.linalg.svd(Covar)

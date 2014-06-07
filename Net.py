@@ -152,10 +152,7 @@ class Net(object):
             self.cocycle_rep = np.zeros((size, self.ndim))
 
     def add_name(self):
-        try:
-            name = chr(self.order + ord("A"))
-        except ValueError:
-            name = str(self.order)
+        name = str(self.order+1)
         return name
 
     def insert_and_join(self, vfrom, vto, edge_label=None):

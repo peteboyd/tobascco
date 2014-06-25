@@ -79,13 +79,13 @@ class SystreDB(dict):
             ename = 'e%i'%(id+1)
             voltages.append((e1, e2, e3))
             try:
-                #n1 = chr(v1-1 + ord("A"))
-                n1 = str(v1)
+                n1 = chr(v1-1 + ord("A"))
+                #n1 = str(v1)
             except ValueError:
                 n1 = str(v1)
             try:
-                #n2 = chr(v2-1 + ord("A"))
-                n2 = str(v2)
+                n2 = chr(v2-1 + ord("A"))
+                #n2 = str(v2)
             except ValueError:
                 n2 = str(v2)
 

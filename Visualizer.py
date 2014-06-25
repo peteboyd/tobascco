@@ -13,7 +13,7 @@ class GraphPlot(object):
     def __init__(self, net, two_dimensional=False):
         self.fig, self.ax = plt.subplots()
         self.net = net
-        self.fontsize = 12
+        self.fontsize = 20 
         self.two_dimensional = two_dimensional
         if two_dimensional:
             self.cell = np.identity(2)
@@ -42,12 +42,12 @@ class GraphPlot(object):
     def plot_3d_cell(self, origin=np.zeros(3), colour='b'):
 
         # add axes labels
-        xyz_a = (self.cell[0]+origin)/2.
-        xyz_b = (self.cell[1]+origin)/2.
-        xyz_c = (self.cell[2]+origin)/2.
-        self.ax.text(xyz_a[0], xyz_a[1], xyz_a[2], 'a', fontsize=self.fontsize)
-        self.ax.text(xyz_b[0], xyz_b[1], xyz_b[2], 'b', fontsize=self.fontsize)
-        self.ax.text(xyz_c[0], xyz_c[1], xyz_c[2], 'c', fontsize=self.fontsize)
+        xyz_a = (self.cell[0]+origin)/2. 
+        xyz_b = (self.cell[1]+origin)/2. 
+        xyz_c = (self.cell[2]+origin)/2. 
+        self.ax.text(xyz_a[0], xyz_a[1], xyz_a[2]-0.13, 'a', fontsize=self.fontsize, color=colour)
+        self.ax.text(xyz_b[0], xyz_b[1], xyz_b[2], 'b', fontsize=self.fontsize, color=colour)
+        self.ax.text(xyz_c[0], xyz_c[1]-0.1, xyz_c[2], 'c', fontsize=self.fontsize, color=colour)
 
         all_points = [np.sum(a, axis=0)+origin
                       for a in list(self.powerset(self.cell)) if a]

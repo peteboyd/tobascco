@@ -755,13 +755,17 @@ double sumabsdiff(int size, int* nzi, int* nzj, double** A, double** B){
 
 double sumsquarediff(int size, int* nzi, int* nzj, double** A, double** B){
     double sum=0;
+    double diff;
     int m, n;
     //std::cout<<"np.array([";
     for (int i=0; i<size; i++){
         m = nzi[i];
         n = nzj[i];
-        //std::cout<<pow(A[m][n] - B[m][n], 2)<<", ";        
-        sum += pow((A[m][n] - B[m][n]), 2);
+        //std::cout<<pow(A[m][n] - B[m][n], 2)<<", ";
+        diff = pow((A[m][n] - B[m][n]), 2);
+        //weight the distances more.
+        if( m == n ) diff = diff*2;
+        sum += diff;
         //std::cout<<A[m][n]<<std::endl;
     }
     //std::cout<<"0.])"<<std::endl;

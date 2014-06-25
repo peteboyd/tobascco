@@ -95,11 +95,7 @@ class JobHandler(object):
         #        print 'j', ', '.join(['e%i'%(k+1) for k in np.nonzero(np.array(net.kernel)[j])[0]])
         #print np.array(net.cycle)[0].nonzero(), np.array(net.cycle)[1].nonzero()
         net.barycentric_embedding()
-        #vs = net.graph.vertices()
-        ##print net.kernel
-        #vs.pop(vs.index('D'))
-        #print net.graph.to_undirected().automorphism_group(partition=[['D'], vs],orbits=True)
-        verts = net.graph.vertices()
+        #verts = net.graph.vertices()
         #for id in range(len(verts)):
         #    Pi = [verts[id], verts[:id] + verts[id+1:]]
         #    print net.graph.to_undirected().coarsest_equitable_refinement(Pi)
@@ -121,7 +117,7 @@ class JobHandler(object):
         #print G.gens()
         g = GraphPlot(net)
         #g.view_graph()
-        g.view_placement(init=(0.5, 0.5, 0.5))
+        g.view_placement(init=(0.625, 0.625, 0.625))
 
     def _build_structures_from_top(self):
         if not self._topologies:
@@ -233,7 +229,7 @@ class JobHandler(object):
                 else:
                     if build.check_net:
                         # check node incidence
-                        if build.met_met_bonds and run.linear_sbus_exist:
+                        if build.met_met_bonds and run.linear_sbus_exist and not run.linear_in_combo(combo):
                             # add linear organics
                             debug("Metal-type nodes attached to metal-type nodes. "+
                                     "Attempting to insert linear organic SBUs between these nodes.")

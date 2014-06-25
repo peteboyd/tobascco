@@ -44,6 +44,14 @@ class Generate(object):
             else:
                 return False
 
+    def linear_in_combo(self, combo):
+        for i in combo:
+            for j in self.sbus.list:
+                if j==i:
+                    if j.linear:
+                        return True
+        return False
+
     def yield_linear_org_sbu(self, combo):
         for i in self.sbus.list:
             if i.linear and not i.is_metal: 

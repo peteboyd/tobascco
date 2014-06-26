@@ -66,27 +66,6 @@ class Build(object):
                 weights.append(1500000.)
         return np.array(weights)
 
-    #def assign_vertices(self):
-    #    data = np.empty((len(self.sbu_vertices), len(self._sbus)))
-    #    params = Parameters()
-    #    dirty_fix = []
-    #    for id, vert in enumerate(self.sbu_vertices):
-    #        data[id][:] = self.obtain_sbu_fittings(vert)
-    #        pname = "%s_%i"%(vert, id)
-    #        dirty_fix.append(pname)
-    #        params.add(pname, min=0, max=len(self._sbus)-1)
-    #    expr = 'len(set([v.value for v in [%s]])) == %i'%(','.join(dirty_fix), data.shape[1])
-    #    expr = 'len(set([%s])) == %i'%(','.join(dirty_fix), data.shape[1])
-    #    params.add('constraint', expr=expr)
-    #    min = Minimizer(self.fit_function, params, fcn_args=(data))
-    #    min.lbfgsb(factr=100., epsilon=1.00, pgtol=1.00)
-    #    for p in params:
-    #        v = p.split("_")[0]
-    #        bu = deepcopy(self._sbus(int(v.value)))
-    #        self._vertex_sbu[v] = bu
-    #        bu.vertex_id = v
-    #        [cp.set_sbu_vertex(v) for cp in bu.connect_points]
-
     def assign_vertices(self):
         """Assign SBUs to particular vertices in the graph"""
         # TODO(pboyd): assign sbus intelligently, based on edge lengths

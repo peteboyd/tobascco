@@ -444,9 +444,7 @@ class Build(object):
         # this calls the optimization routine to match the tensor product matrix
         # of the SBUs and the net.
         optimized = True
-        #self._net.get_embedding(optim_code=self.options.optim_code)
-        #self._net.debug_embedding()
-        optimized = self._net.debug_2embedding()
+        optimized = self._net.net_embedding()
 
         init = np.array([0.5, 0.5, 0.5])
         if self.bad_embedding() or not optimized:

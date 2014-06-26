@@ -443,7 +443,7 @@ class Net(object):
         cocycle_rep = np.reshape(cocycle,(cocycle_size, ndim))
         return mt, cocycle_rep
 
-    def debug_2embedding(self):
+    def net_embedding(self):
         f = math.factorial
         mtsize = self.ndim + f(self.ndim) / f(2) / f(self.ndim - 2)
         size = mtsize + self.cocycle_rep.shape[0] * self.ndim
@@ -695,43 +695,6 @@ class Net(object):
 
         self._kernel = np.concatenate((np.array(kernel_vectors), self.cocycle))
         return self._kernel
-    #@property
-    #def kernel(self):
-    #    """In the case of a 3-periodic net, one may choose 3 cycles of 
-    #    the quotient with independent net voltages. The net voltage of
-    #    the remaining cycles in a cycle basis of the quotient graph 
-    #    may then be written as a combination of these voltages, thus
-    #    providing as many cycle vectors with zero net voltage.
-
-    #    """
-    #    try:
-    #        return self._kernel
-    #    except AttributeError:
-    #        c = self.iter_cycles(node=self._graph.vertices()[0],
-    #                             edge=None,
-    #                             cycle=[],
-    #                             used=[],
-    #                             nodes_visited=[],
-    #                             cycle_baggage=[],
-    #                             counter=0)
-    #        zero_voltages = []
-    #        max_count = self.shape - self.ndim - self.cocycle.shape[0]
-    #        count = 0
-    #        for cycle in c:
-    #            if count == max_count:
-    #                break
-    #            vect = np.zeros(self.shape)
-    #            vect[self.return_indices(cycle)] = self.return_coeff(cycle)
-    #            volt = self.get_voltage(vect)
-    #            if np.allclose(np.abs(volt), np.zeros(3)) and \
-    #                    self.check_linear_dependency(vect, np.array(zero_voltages)):
-    #                zero_voltages.append(vect)
-    #                count += 1
-    #        if not zero_voltages:
-    #            self._kernel = self.cocycle.copy()
-    #        else:
-    #            self._kernel = np.concatenate((np.matrix(zero_voltages), self.cocycle), axis=0)
-    #        return self._kernel
 
     def neighbours(self, vertex):
         return self.graph.outgoing_edges(vertex) + self.graph.incoming_edges(vertex)

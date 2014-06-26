@@ -589,112 +589,6 @@ class Net(object):
                 self.colattice_dotmatrix[j,i] = val
 
 
-    def init_min_function_nlopt(self, ndim, cocycle_size, cycle_rep, B_star, matching_ip_matrix):
-        f = math.factorial
-        angle_inds = f(ndim) / f(2) / f(ndim - 2)
-        nz = self.colattice_inds#np.nonzero(np.triu(matching_ip_matrix))
-        iu = np.triu_indices(ndim, k=1)
-        il = np.tril_indices(ndim, k=-1)
-        scale_ind = self.scale[0]
-        def compute_grad(orig, inc, grad, f):
-            for i in range(orig.shape[0]):
-                q = orig.copy()
-                q[i] += inc
-                mt = np.empty((ndim, ndim))
-                for i in range(ndim):
-                    mt[i,i] = q[i]
-                count=i+1
-                for (i,j) in zip(*np.triu_indices_from(mt, 1)):
-                    mt[i,j] = q[count] / np.sqrt(mt[i,i]) / np.sqrt(mt[j,j])
-
-                cocycle = q[ndim + angle_inds : ]
-                cocycle_rep = np.reshape(cocycle,(cocycle_size, ndim))
-                rep = np.concatenate((cycle_rep[:], cocycle_rep[:]))
-                la = np.dot(B_star, rep)
-                M = np.dot(np.dot(la,mt),la.T)
-                scale_fact = M[scale_ind]
-                for (i, j) in zip(*np.triu_indices_from(M)):
-                    val = M[i,j]
-                    if i != j:
-                        v = val/np.sqrt(M[i,i])/np.sqrt(M[j,j])
-                        M[i,j] = v
-                        M[j,i] = v
-                M[np.diag_indices_from(M)] /= scale_fact
-                sol = (M[nz] - matching_ip_matrix[nz])**2
-                ret_val = np.sum(sol)
-                grad[i] = ret_val - f
-
-        def min_function_nlopt(x, grad):
-            """TODO - fix this so it works.
-            the metric tensor needs to be squared in the diagonal
-            and the proper dot product needs to be represented in 
-            the off-diagonals.
-
-            the cocycle_rep needs to be properly concatenated with
-            the cycle_rep.
-            """
-            # decompress 'x' into useable forms
-            #mt, cocycle_rep = self.convert_params(x, ndim, angle_inds, cocycle_size, iu, il)
-            #cell_lengths = x[:ndim]
-            mt = np.empty((ndim, ndim))
-            for i in range(ndim):
-                mt[i,i] = x[i]
-            count=i+1
-            for (i,j) in zip(*np.triu_indices_from(mt, 1)):
-                mt[i,j] = x[count] * np.sqrt(mt[i,i]) * np.sqrt(mt[j,j])
-                count += 1
-            #angles = x[ndim: ndim + angle_inds]
-            cocycle = x[ndim + angle_inds : ]
-            # convention alpha --> b,c beta --> a,c gamma --> a,b
-            # in the metric tensor, these are related to the
-            # (1,2), (0,2), and (0,1) array elements, which
-            # are in the reversed order of how they would
-            # be iterated.
-            # assuming the parameters are defined in 'x' as 
-            # x[3] --> a.b  \
-            # x[4] --> a.c  |--> these are in reversed order. 
-            # x[5] --> b.c  /
-            #rev_angles = angles[::-1]
-            #mt[iu] = angles
-            #mt[il] = angles
-            # obtain diagonal and off-diagonal elements of the metric tensor
-            #mt[np.diag_indices_from(mt)] = cell_lengths
-            #for i in range(ndim):
-            #    mt[i,i] = cell_lengths[i] * cell_lengths[i]
-            #for (i,j),(k,l) in zip(zip(*iu), zip(*il)):
-            #    mt[i,j] = mt[i,j] * cell_lengths[i] * cell_lengths[j]
-            #    mt[k,l] = mt[k,l] * cell_lengths[k] * cell_lengths[l]
-            cocycle_rep = np.reshape(cocycle,(cocycle_size, ndim))
-            #obtain net embedding defined by these parameters.
-            rep = np.concatenate((cycle_rep[:], cocycle_rep[:]))
-            la = np.dot(B_star, rep)
-            M = np.dot(np.dot(la,mt),la.T)
-            scale_fact = M[scale_ind]#.max()
-            for (i, j) in zip(*np.triu_indices_from(M)):
-                val = M[i,j]
-                if i != j:
-                    v = val/np.sqrt(M[i,i])/np.sqrt(M[j,j])
-                    M[i,j] = v
-                    M[j,i] = v
-            M[np.diag_indices_from(M)] /= scale_fact
-            
-            #length_part = np.diag(M)
-            #nz_triu = np.nonzero(np.triu(matching_ip_matrix,k=1))
-            #angle_part = M[nz_triu]
-            sol = (M[nz] - matching_ip_matrix[nz])**2
-            ret_val = np.sum(sol)
-            #ret_val = np.random.random()*5000.
-            #print 'length diff %15.9f'%np.sum(np.abs(length_part - np.diag(matching_ip_matrix)))
-            #print 'angle diff  %15.9f'%np.sum(np.abs(angle_part - matching_ip_matrix[nz_triu]))
-            #print 'functn val  %15.9f'%ret_val
-            #print M[nz] - matching_ip_matrix[nz]
-            if grad.size > 0:
-                compute_grad(x, 1.e-5, grad, ret_val) 
-            print ret_val
-            return ret_val
-
-        return min_function_nlopt
-
     def convert_params(self, x, ndim, angle_inds, cocycle_size, iu, il):
         cell_lengths = x[:ndim]
         angles = x[ndim: ndim + angle_inds]
@@ -781,7 +675,6 @@ class Net(object):
         
         self.report_errors_nlopt()
         return True
-
     
     def report_errors_nlopt(self):
         la = np.dot(self.cycle_cocycle_I, self.periodic_rep)

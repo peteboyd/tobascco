@@ -6,12 +6,7 @@ from uuid import uuid4
 from logging import info, debug, warning, error
 import numpy as np
 from LinAlg import DEG2RAD
-#from scipy.optimize import fmin_l_bfgs_b, minimize, anneal, brute, basinhopping, fsolve, root 
-sys.path.append('/home/pboyd/lib/lmfit-0.7.4')
-from lmfit import minimize, Parameters, Minimizer, report_errors
-sys.path.append('/home/pboyd/lib/nlopt-2.4.1/lib/python2.7/site-packages/')
 sys.path.append('/home/pboyd/codes_in_development/topcryst/src/build/lib.linux-x86_64-2.7')
-import nlopt
 import _nloptimize as nl
 from config import Terminate
 
@@ -444,7 +439,6 @@ class Net(object):
 
     def to_ind(self, str_obj):
         return tuple([int(i) for i in str_obj.split('_')[1:]])
-
 
     def assign_ip_matrix(self, mat, inds):
         """Get the colattice dot matrix from Builder.py. This is an inner 

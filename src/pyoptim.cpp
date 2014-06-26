@@ -764,7 +764,8 @@ double sumsquarediff(int size, int* nzi, int* nzj, double** A, double** B){
         //std::cout<<pow(A[m][n] - B[m][n], 2)<<", ";
         diff = pow((A[m][n] - B[m][n]), 2);
         //weight the distances more.
-        if( m == n ) diff = diff*2;
+        //if( m != n ) diff = 8*diff;
+        //if( m == n ) diff = 19*diff;
         sum += diff;
         //std::cout<<A[m][n]<<std::endl;
     }

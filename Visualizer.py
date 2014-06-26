@@ -13,7 +13,7 @@ class GraphPlot(object):
     def __init__(self, net, two_dimensional=False):
         self.fig, self.ax = plt.subplots()
         self.net = net
-        self.fontsize = 20 
+        self.fontsize = 12 
         self.two_dimensional = two_dimensional
         if two_dimensional:
             self.cell = np.identity(2)

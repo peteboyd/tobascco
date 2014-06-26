@@ -79,13 +79,13 @@ class SystreDB(dict):
             ename = 'e%i'%(id+1)
             voltages.append((e1, e2, e3))
             try:
-                n1 = chr(v1-1 + ord("A"))
-                #n1 = str(v1)
+                #n1 = chr(v1-1 + ord("A"))
+                n1 = str(v1)
             except ValueError:
                 n1 = str(v1)
             try:
-                n2 = chr(v2-1 + ord("A"))
-                #n2 = str(v2)
+                #n2 = chr(v2-1 + ord("A"))
+                n2 = str(v2)
             except ValueError:
                 n2 = str(v2)
 
@@ -588,87 +588,6 @@ class Net(object):
                 self.colattice_dotmatrix[i,j] = val 
                 self.colattice_dotmatrix[j,i] = val
 
-    def get_embedding(self, optim_code, init_guess=None):
-        if init_guess is None:
-            init_guess = (np.zeros((self.order-1, self.ndim)))
-        # set up parameters class for the minimize function
-        params = self.init_params(init_guess)
-        self.vary_coc_mt(params)
-        #self.vary_cocycle_rep(params)
-        #minimize(self.min_function_lmfit, params, method=optim_code)
-        min = Minimizer(self.min_function_lmfit, params)
-        min.lbfgsb(factr=1000., epsilon=1e-5, pgtol=1e-4)
-        #min.fmin(ftol=1.e-5, xtol=1.e-5)
-        #min.anneal(schedule='cauchy')
-        #min.leastsq(xtol=1.e-7, ftol=1.e-7)
-        fit = self.min_function_lmfit(params)
-        self.report_errors(fit)
-        #print report_errors(params)
-        q = np.empty((self.shape, self.ndim))
-        mt = np.empty((self.ndim, self.ndim))
-        for p in params:
-            if p[0] == 'm':
-                i, j = self.to_ind(p)
-                mt[i,j] = params[p].value
-                #mt[j,i] = params[p].value
-                if i!=j:
-                    pii = 'm_%i_%i'%(i,i)
-                    pjj = 'm_%i_%i'%(j,j)
-                    vi = np.sqrt(params[pii].value)
-                    vj = np.sqrt(params[pjj].value)
-                    val = params[p].value * vi * vj
-                    mt[j,i] = val
-                    mt[i,j] = val
-
-            elif p[0] == 'c':
-                q[self.to_ind(p)] = params[p].value
-       
-        self.periodic_rep = q
-        self.metric_tensor = mt
-        la = self.lattice_arcs
-        cyc_shape = self.cycle_rep.shape[0]
-        mtdiag = np.diag(mt)
-        mtang = mt[np.triu_indices_from(mt, k=1)]
-        x = np.concatenate((mtdiag, mtang, self.periodic_rep[cyc_shape:].flatten()))
-        inner_p = np.dot(np.dot(self.lattice_arcs, self.metric_tensor), self.lattice_arcs.T)
-        # TESTING.....
-        #test_ip = nl.c_inner_prod(self.ndim, x, self.cycle_rep, self.cycle_cocycle_I, self.colattice_dotmatrix)
-        #scale_factor = inner_p.max()
-        #for (i, j) in zip(*np.triu_indices_from(inner_p)):
-        #    val = inner_p[i,j]
-        #    if i != j:
-        #        v = val/np.sqrt(inner_p[i,i])/np.sqrt(inner_p[j,j])
-        #        inner_p[i,j] = v
-        #        inner_p[j,i] = v
-        #inner_p[np.diag_indices_from(inner_p)] /= scale_factor
-        #import pickle
-
-        #f = open('tbo_data.pkl','wb')
-
-        #pickle.dump(self.periodic_rep, f)
-        #pickle.dump(self.metric_tensor, f)
-        #pickle.dump(self.cycle_cocycle_I, f)
-        #pickle.dump(inner_p, f)
-        #pickle.dump(self.ndim, f)
-        #pickle.dump(x, f)
-        #pickle.dump(self.cycle_rep, f)
-        #pickle.dump(self.colattice_dotmatrix, f)
-        #f.close()
-        #inner_p = np.dot(np.dot(self.lattice_arcs, self.metric_tensor), self.lattice_arcs.T)
-        # TESTING.....
-        #print test_ip
-        #sys.exit()
-        scind = self.scale[0]
-        sclen = self.scale[1]
-        self.scale_factor = sclen/inner_p[scind]
-        self.metric_tensor *= self.scale_factor
-        print "METRIC TENSOR"
-        print self.metric_tensor
-        print "REP"
-        print self.periodic_rep
-        #print inner_p 
-        #print self.sbu_tensor_matrix
-
 
     def init_min_function_nlopt(self, ndim, cocycle_size, cycle_rep, B_star, matching_ip_matrix):
         f = math.factorial
@@ -816,7 +735,7 @@ class Net(object):
         for i in self.metric_tensor[np.diag_indices_from(self.metric_tensor)]:
             #x[xinc] = np.sqrt(i)
             x[xinc] = i
-            ub[xinc] = i*1.1#max_cell 
+            ub[xinc] = i*1.5#max_cell 
             lb[xinc] = i*0.4# min_cell
             xinc += 1
 

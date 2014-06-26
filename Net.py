@@ -288,14 +288,8 @@ class Net(object):
             voltage = self.get_voltage(basis_vector)
             self.cycle.append(basis_vector)
             self.cycle_rep.append(voltage)
-            #cycle = [xx for xx in tree.edges_incident(path) if xx[0] in path and xx[1] in path] + [(v1, v2, e)]
-        #print len(cycle_completes)
-        #print self.graph.size() - (self.graph.order() - 1)
         self.cycle = np.array(self.cycle)
         self.cycle_rep = np.array(self.cycle_rep)
-        #self.graph.show(edge_labels=True)
-        #self.graph.show3d(iterations=500)
-        #raw_input("Press [Enter]\n")
 
     def iter_cycles(self, node=None, edge=None, cycle=[], used=[], nodes_visited=[], cycle_baggage=[], counter=0):
         """Recursive method to iterate over all cycles of a graph.
@@ -376,39 +370,6 @@ class Net(object):
             L.pop(-1)
         self.lattice_basis = np.array(lattice)
         #print self.lattice_basis
-
-    #def get_lattice_basis(self):
-    #    """Obtains a lattice basis by iterating over all the cycles and finding
-    #    ones with net voltages satisifying one of the n dimensional basis vectors.
-
-    #    """
-    #    basis_vectors = []
-    #    c = self.iter_cycles(node=self._graph.vertices()[0],
-    #                         edge=None,
-    #                         cycle=[],
-    #                         used=[],
-    #                         nodes_visited=[],
-    #                         cycle_baggage=[],
-    #                         counter=0)
-    #    self.lattice_basis = np.zeros((self.ndim, self.shape))
-    #    for cycle in c:
-    #        vect = np.zeros(self.shape)
-    #        try:
-    #            vect[self.return_indices(cycle)] = self.return_coeff(cycle)
-    #        except IndexError:
-    #            print vect
-    #        volt = self.get_voltage(vect)
-    #        for id, e in enumerate(np.identity(self.ndim)):
-    #            if np.allclose(np.abs(volt), e):
-    #                check = self.check_linear_dependency(vect, self.lattice_basis[basis_vectors])
-    #                if id not in basis_vectors and check:
-    #                    basis_vectors.append(id)
-    #                    self.lattice_basis[id] = volt[id]*vect
-    #                elif (np.count_nonzero(vect) < np.count_nonzero(self.lattice_basis[id])) and check:
-    #                    self.lattice_basis[id] = volt[id]*vect
-    #    if len(basis_vectors) != self.ndim:
-    #        print "ERROR: could not find all cycle vectors for the lattice basis!"
-    #        Terminate(errcode=1)
 
     def check_linear_dependency(self, vect, vset):
         if not np.any(vset):

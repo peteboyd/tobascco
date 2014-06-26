@@ -531,42 +531,6 @@ class Net(object):
         for p in params:
             params[p].vary = True
 
-    def min_function_lmfit(self, params):
-        rep = np.array(np.zeros((self.shape, self.ndim)))
-        mt = np.array(np.zeros((self.ndim,self.ndim)))
-        for p in params:
-            if p[0] == 'm':
-                i,j = self.to_ind(p)
-                mt[i,j] = params[p].value
-                #mt[j,i] = params[p].value
-                if i!=j:
-                    pii = 'm_%i_%i'%(i,i)
-                    pjj = 'm_%i_%i'%(j,j)
-                    vi = np.sqrt(params[pii].value)
-                    vj = np.sqrt(params[pjj].value)
-                    val = params[p].value * vi * vj
-                    mt[j,i] = val
-                    mt[i,j] = val
-
-            elif p[0] == 'c':
-                rep[self.to_ind(p)] = params[p].value
-        la = np.dot(self.cycle_cocycle_I,rep)
-        M = np.dot(np.dot(la,mt),la.T)
-        scale_factor = M.max()
-        for (i, j) in zip(*np.triu_indices_from(M)):
-            val = M[i,j]
-            if i != j:
-                v = val/np.sqrt(M[i,i])/np.sqrt(M[j,j])
-                M[i,j] = v
-                M[j,i] = v
-        M[np.diag_indices_from(M)] /= scale_factor
-        #nz = np.nonzero(np.triu(self.colattice_dotmatrix))
-        res = (M[self.colattice_inds] - self.colattice_dotmatrix[self.colattice_inds])
-        #print "np.array([" + ", ".join([str(i) for i in (res*res).flatten()]) + ", 0.])"
-        print (res*res).sum()
-        #sys.exit()
-        return res.flatten() 
-
     def assign_ip_matrix(self, mat, inds):
         """Get the colattice dot matrix from Builder.py. This is an inner 
         product matrix of all the SBUs assigned to particular nodes.

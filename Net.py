@@ -251,11 +251,6 @@ class Net(object):
     def debug_print(self, val, msg):
         print "%s[%d] %s"%("  "*val, val, msg)
 
-    def iter_tree(self, vertex, edge, edges, depth=False):
-        new = [e for e in edges if e[0] == vertex or e[1] == vertex and e != edge]
-        for edge in new:
-            iter_trie
-
     def simple_cycle_basis(self):
         """Cycle basis is constructed using a minimum spanning tree.
         This tree is traversed, and all the remaining edges are added

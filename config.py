@@ -115,7 +115,8 @@ class Options(object):
                     'show_barycentric_net_only',
                     'show_embedded_net',
                     'get_run_info',
-                    'find_symmetric_H']
+                    'find_symmetric_H',
+                    'store_net']
         floats = ['overlap_tolerance',
                   'sbu_bond_length',
                   'cell_vol_tolerance',

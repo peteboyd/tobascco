@@ -61,7 +61,7 @@ class GraphPlot(object):
         if self.two_dimensional:
             tp = p + np.array([0.005, 0.005])
         else:
-            tp = p + np.array([0.005, 0.005, 0.005])
+            tp = p + np.array([0.05, -0.05, 0.05])
         pp = np.dot(p.copy(), self.cell)
         tp = np.dot(tp, self.cell)
         try:
@@ -70,8 +70,17 @@ class GraphPlot(object):
             pp = pp.tolist()
             self.ax.scatter(pp, color=colour)
         if label:
-            #point(tuple(pp), legend_label=label, rgbcolor=(255,0,0))
-            self.ax.text(*tp, s=label, fontsize=self.fontsize, color='r')
+            if label == "1":
+                label = "A"
+            elif label == "4":
+                label = "C"
+            elif label == "9":
+                label = "B"
+            elif label == "14":
+                label = "D"
+            elif label == "19":
+                label = "E"
+            self.ax.text(*tp, s=label, fontsize=self.fontsize, color=colour)
 
     def add_edge(self, vector, origin=np.zeros(3), label=None, colour='g'):
         """Accounts for periodic boundaries by splitting an edge where
@@ -87,8 +96,6 @@ class GraphPlot(object):
             #pp = pp - np.floor(p)
             #line([tuple(p1), tuple(p2)], rgbcolor=(255,255,0), legend_label=label)
             self.ax.text(*pp, s=label, fontsize=self.fontsize)
-        else:
-            line([tuple(p1), tuple(p2)], rgbcolor=(255,255,0))
     
     def __mkcell(self):
         """Update the cell representation to match the parameters."""
@@ -144,22 +151,31 @@ class GraphPlot(object):
         info("Wait for Xwindow, then press [Enter]")
         raw_input("")
 
-    def view_placement(self, init=(0., 0., 0.)):
+    def view_placement(self, init=(0., 0., 0.), edge_labels=True, sbu_only=[]):
         init = np.array(init)
         # set the first node down at the init position
         V = self.net.graph.vertices()[0] 
         edges = self.net.graph.outgoing_edges(V) + self.net.graph.incoming_edges(V)
         unit_cell_vertices = self.net.vertex_positions(edges, [], pos={V:init})
         for key, value in unit_cell_vertices.items():
-            self.add_point(p=np.array(value), label=key)
+            if sbu_only and key in sbu_only:
+                self.add_point(p=np.array(value), label=key, colour='k')
+            else:
+                self.add_point(p=np.array(value), label=None, colour='#FF6600') #Blaze Orange
             for edge in self.net.graph.outgoing_edges(key):
                 ind = self.net.get_index(edge)
                 arc = np.array(self.net.lattice_arcs)[ind]
-                self.add_edge(arc, origin=np.array(value), label=edge[2])
+                el = None
+                if edge_labels:
+                    el = edge[2]
+                self.add_edge(arc, origin=np.array(value), label=el)
             for edge in self.net.graph.incoming_edges(key):
                 ind = self.net.get_index(edge)
                 arc = -np.array(self.net.lattice_arcs)[ind]
-                self.add_edge(arc, origin=np.array(value), label=edge[2])
+                el = None
+                if edge_labels:
+                    el = edge[2]
+                self.add_edge(arc, origin=np.array(value), label=el)
         mx = max(self.params[:3])
         self.ax.set_xlim3d(0,mx)
         self.ax.set_ylim3d(0,mx)

@@ -148,6 +148,7 @@ class Net(object):
 
     def add_name(self):
         name = str(self.order+1)
+        #name = chr(order + ord("A"))
         return name
 
     def insert_and_join(self, vfrom, vto, edge_label=None):
@@ -164,6 +165,7 @@ class Net(object):
                 else edge[1]
         V2 = edge[1] if edge in self.graph.incoming_edges(edge[1]) \
                 else edge[0]
+
         name = self.add_name()
         newedges.append(self.insert_and_join(V1, name, edge_label=edge[2]))
         vfrom = name
@@ -692,16 +694,29 @@ class Net(object):
                 if np.allclose(np.abs(volt), np.zeros(3)) and\
                         self.check_linear_dependency(vect, np.array(kernel_vectors)):
                     kernel_vectors.append(vect)
-
-        self._kernel = np.concatenate((np.array(kernel_vectors), self.cocycle))
+        try:
+            self._kernel = np.concatenate((np.array(kernel_vectors), self.cocycle))
+        except ValueError:
+            self._kernel = np.array(kernel_vectors)
         return self._kernel
 
     def neighbours(self, vertex):
         return self.graph.outgoing_edges(vertex) + self.graph.incoming_edges(vertex)
 
     @property
+    def minimal(self):
+        if len(self.cycle) > self.ndim:
+            return False
+        elif len(self.cycle) == self.ndim:
+            return True
+        else:
+            info("Net is not periodic in the number of desired dimensions." +
+                    " This feature has not been implemented yet")
+            return False
+
+    @property
     def eon_projection(self):
-        if self.cocycle is not None:
+        if not self.minimal:
             d = np.dot(self.kernel, self.kernel.T)
             d_inv = np.array(np.matrix(d).I)
             sub_mat = np.dot(np.dot(self.kernel.T, d_inv), 

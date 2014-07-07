@@ -6,7 +6,6 @@ from uuid import uuid4
 from logging import info, debug, warning, error
 import numpy as np
 from LinAlg import DEG2RAD
-sys.path.append('/home/pboyd/codes_in_development/topcryst/src/build/lib.linux-x86_64-2.7')
 import _nloptimize as nl
 from config import Terminate
 

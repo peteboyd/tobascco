@@ -93,7 +93,7 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     ub = get1darrayd(upper_bounds);
     x = get1darrayd(init_x);
     npy_intp* tt;
-    tt = PyArray_SHAPE(init_x);
+    tt = PyArray_DIMS(init_x);
     data.x_size = (int)tt[0];
     data._cycle_cocycle_I = get2darrayd(cycle_cocycle_I);
     data._cycle_rep = get2darrayd(cycle_rep);
@@ -104,13 +104,13 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     //PyObject_Print((PyObject*)zero_indj, stdout, 0);
     data.ndim = ndim;
     data.diag_ind = diag_ind;
-    tt = PyArray_SHAPE(zero_indi);
+    tt = PyArray_DIMS(zero_indi);
     data.nz_size = (int)tt[0];
-    tt = PyArray_SHAPE(cycle_rep);
+    tt = PyArray_DIMS(cycle_rep);
     data.cycle_size = (int)tt[0];
     data.rep_size = (int)tt[0] + data.x_size/data.ndim;
     data.rep = construct2darray(data.rep_size, data.ndim);
-    tt = PyArray_SHAPE(cycle_cocycle_I);
+    tt = PyArray_DIMS(cycle_cocycle_I);
     data.B_shape = (int) tt[0];
     // B_I * rep = edge_vectors
     // edge_vectors * metric_tensor = first_product
@@ -161,7 +161,7 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     }
     */
     /*
-    tt = PyArray_SHAPE(zero_indi);
+    tt = PyArray_DIMS(zero_indi);
     for (int i=0; i<(int)tt[0]; i++){
         std::cout<<_zi[i]<<", "<<_zj[i]<<std::endl;
     }
@@ -278,7 +278,7 @@ static PyObject * get_ip_matrix(PyObject *self, PyObject *args)
     double *x;
     x = get1darrayd(init_x);
     npy_intp* tt;
-    tt = PyArray_SHAPE(init_x);
+    tt = PyArray_DIMS(init_x);
     d.x_size = (int)tt[0];
     d.start = 0;
     d.diag_ind = 0;
@@ -287,11 +287,11 @@ static PyObject * get_ip_matrix(PyObject *self, PyObject *args)
     d._ip_mat = get2darrayd(inner_product_matrix);
     
     d.ndim = ndim;
-    tt = PyArray_SHAPE(cycle_rep);
+    tt = PyArray_DIMS(cycle_rep);
     d.cycle_size = (int)tt[0];
     d.rep_size = (int)tt[0] + d.x_size/d.ndim;
     d.rep = construct2darray(d.rep_size, d.ndim);
-    tt = PyArray_SHAPE(cycle_cocycle_I);
+    tt = PyArray_DIMS(cycle_cocycle_I);
     d.B_shape = (int) tt[0];
     d.edge_vectors = construct2darray(d.B_shape, d.ndim);
     d.edge_vectors_T = construct2darray(d.ndim, d.B_shape);
@@ -378,13 +378,13 @@ static PyObject * triple_matrix_product(PyObject *self, PyObject *args)
     d._cycle_rep = get2darrayd(mat2);
     d.inner_product = get2darrayd(mat3);
 
-    tt = PyArray_SHAPE(mat1);
+    tt = PyArray_DIMS(mat1);
     n1 = (int)tt[0];
     m1 = (int)tt[1];
-    tt = PyArray_SHAPE(mat2);
+    tt = PyArray_DIMS(mat2);
     n2 = (int)tt[0];
     m2 = (int)tt[1];
-    tt = PyArray_SHAPE(mat3);
+    tt = PyArray_DIMS(mat3);
     n3 = (int)tt[0];
     m3 = (int)tt[1];
     d.edge_vectors = construct2darray(n1, m2);
@@ -441,10 +441,10 @@ static PyObject * matrix_product(PyObject *self, PyObject *args)
 
     d._cycle_cocycle_I = get2darrayd(mat1);
     d._cycle_rep = get2darrayd(mat2);
-    tt = PyArray_SHAPE(mat1);
+    tt = PyArray_DIMS(mat1);
     n1 = (int)tt[0];
     m1 = (int)tt[1];
-    tt = PyArray_SHAPE(mat2);
+    tt = PyArray_DIMS(mat2);
     n2 = (int)tt[0];
     m2 = (int)tt[1];
     d.edge_vectors = construct2darray(n1, m2);
@@ -520,7 +520,7 @@ double ** construct2darray(int rows, int cols){
 double * get1darrayd(PyArrayObject* arr){
     PyObject* arr_item;
     void* ind;
-    npy_intp * sz = PyArray_SHAPE(arr);
+    npy_intp * sz = PyArray_DIMS(arr);
     double *carray;
     double dd;
     int size;
@@ -539,7 +539,7 @@ double * get1darrayd(PyArrayObject* arr){
 int * get1darrayi(PyArrayObject* arr){
     PyObject* arr_item;
     void* ind;
-    npy_intp * sz = PyArray_SHAPE(arr);
+    npy_intp * sz = PyArray_DIMS(arr);
     int *carray;
     int ii;
     int size;
@@ -558,7 +558,7 @@ int * get1darrayi(PyArrayObject* arr){
 double ** get2darrayd(PyArrayObject* arr){
     PyObject* arr_item;
     void* ind;
-    npy_intp * sz = PyArray_SHAPE(arr);
+    npy_intp * sz = PyArray_DIMS(arr);
     double ** carray;
     double dd;
     int size1, size2;

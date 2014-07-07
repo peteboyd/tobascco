@@ -3,6 +3,7 @@ import logging
 import sys
 from logging import info, debug, warning, error, critical
 import config
+import pickle
 from config import Terminate
 import glog
 from time import time
@@ -33,6 +34,7 @@ class JobHandler(object):
     def __init__(self, options):
         self.options = options
         self._topologies = SystreDB()
+        self._stored_nets = {}
         self.sbu_pool = []
 
     def direct_job(self):
@@ -188,6 +190,8 @@ class JobHandler(object):
         t2 = time()
         if build.success:
             sym = build.struct.space_group_name
+            if self.options.store_net:
+                self._stored_nets[build.name] = build.embedded_net
         else:
             sym = "None"
         csvinfo.add_data(time=t2-t1,
@@ -238,6 +242,9 @@ class JobHandler(object):
                                 build.sbus = list(set(comb))
                                 build.net = (top, graph, self._topologies.voltages[top])
                                 self.embed_sbu_combo(top, comb, build, csvinfo)
+                        elif build.met_met_bonds and run.linear_in_combo(combo):
+                            self.embed_sbu_combo(top, combo, build, csvinfo)
+
                         elif build.met_met_bonds and not run.linear_sbus_exist:
                             debug("Metal-type nodes are attached to metal-type nodes. "+
                                    "No linear SBUs exist in database, so the structure "+
@@ -254,6 +261,11 @@ class JobHandler(object):
         if self.options.get_run_info:
             info("Writing run information to %s"%csvinfo.filename)
             csvinfo.write()
+        if self.options.store_net and self._stored_nets:
+            info("Writing all nets to nets_%s.pkl"%self.options.jobname)
+            f = open("nets_%s.pkl"%self.options.jobname, 'wb')
+            p = pickle.dump(self._stored_nets, f)
+            f.close()
         Terminate()
 
     def _sbu_report(self):

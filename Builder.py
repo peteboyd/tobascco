@@ -19,6 +19,7 @@ np.set_printoptions(threshold=np.nan, precision=4, suppress=True, linewidth=185)
 class Build(object):
     """Build a MOF from SBUs and a Net."""
     def __init__(self, options):
+        self.name = ""
         self._net = None
         self.options = options
         self._sbus = []
@@ -28,6 +29,7 @@ class Build(object):
         self._sbu_degrees = None
         self._inner_product_matrix = None
         self.success = False
+        self.embedded_net = None
 
     def _obtain_cycle_bases(self):
         self._net.simple_cycle_basis()
@@ -70,6 +72,16 @@ class Build(object):
         """Assign SBUs to particular vertices in the graph"""
         # TODO(pboyd): assign sbus intelligently, based on edge lengths
         # and independent cycles in the net... ugh
+        # set up SBU possibilities on each node,
+        # score them based on their orientation
+        # score based on alternate organic/metal SBU
+        # If > 2 SBUs: automorphism of vertices?
+       
+        # get number of unique SBUs
+        # get number of nodes which support each SBU
+
+        # get geometric match for each node with each SBU
+        # metal - organic bond priority (only if metal SBU and organic SBU have same incidence)
         for vert in self.sbu_vertices:
             # is there a way to determine the symmetry operations applicable
             # to a vertex?
@@ -143,13 +155,30 @@ class Build(object):
         inds = np.triu_indices(ipv.shape[0], k=1) 
         max, min = np.absolute(ipv[inds]).max(), np.absolute(ipv[inds]).min()
         minmag = 15000.
-        #FIXME(pboyd): no consideration for multiple SBUs.
+        #There is likely many problems with this method. Need to ensure that there
+        # are enough nodes to assign the breadth of SBUs used to build the MOF.
+        sbus_assigned = [i.name for i in self._vertex_sbu.values()]
+        neighbours_assigned = {}
+        for nn in self.sbu_joins[v]:
+            try:
+                nnsbu = self._vertex_sbu[nn]
+                #neighbours_assigned[nn] = (nnsbu.name, nnsbu.is_metal)
+                neighbours_assigned[nn] = nnsbu.is_metal
+            except KeyError:
+                neighbours_assigned[nn] = None
+
+        not_added = [i.name for i in sbus if i.name not in sbus_assigned]
+
         for sbu in sbus:
             vects = np.array([self.vector_from_cp_SBU(cp, sbu) for cp in 
                               sbu.connect_points])
             ipc = self.scaled_ipmatrix(np.inner(vects, vects))
             imax, imin = np.absolute(ipc[inds]).max(), np.absolute(ipc[inds]).min()
             mm = np.sum(np.absolute([max-imax, min-imin]))
+            if any([sbu.is_metal == nn for nn in neighbours_assigned.values()]):
+                mm *= 2.
+            elif sbu.name in not_added:
+                mm *= 0.1
             if mm < minmag:
                 minmag = mm
                 assign = sbu
@@ -475,6 +504,7 @@ class Build(object):
         organics = "_".join(["o%i"%(sbu.identifier) for sbu in 
                                 self._sbus if not sbu.is_metal])
         name = "str_%s_%s_%s"%(metals, organics, self._net.name)
+        self.name = name
         #name += "_ftol_%11.5e"%self.options.ftol
         #name += "_xtol_%11.5e"%self.options.xtol
         #name += "_eps_%11.5e"%self.options.epsfcn
@@ -502,6 +532,8 @@ class Build(object):
             struct.write_cif()
             self.struct = struct
             self.success=True
+            if self.options.store_net:
+                self.embedded_net = self.store_placement(cell, init_placement) 
             info("Structure Generated!")
 
     def rotation_function(self, params, vect1, vect2):
@@ -693,7 +725,7 @@ class Build(object):
     def show(self):
         g = GraphPlot(self._net)
         #g.view_graph()
-        g.view_placement(init=(0.2, 0.2, 0.3))
+        g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False, sbu_only=self.sbu_vertices)
 
     def vector_from_cp_SBU(self, cp, sbu):
         #coords = cp.origin[:3]
@@ -763,9 +795,11 @@ class Build(object):
         for (v1, v2, e) in self._net.graph.edges():
             nn1 = len(self._net.neighbours(v1))
             nn2 = len(self._net.neighbours(v2))
-            if (nn1 in met_incidence):
+
+            if (nn1 in met_incidence) or (nn2 in met_incidence):
                 if ((nn1 == nn2) or ((v1,v2,e) in self.net.graph.loop_edges())):
                     return True
+
         return False
 
     def init_embed(self):
@@ -784,7 +818,7 @@ class Build(object):
         #            vertices, edges = self._net.add_edges_between((v1, v2, e), 5)
         #            self.sbu_vertices.append(vertices[2])
         #            edges_split += edges
-
+        self.sbu_joins = {}
         for (v1, v2, e) in self._net.graph.edges():
             if (v1, v2, e) not in edges_split:
                 nn1 = len(self._net.neighbours(v1))
@@ -792,23 +826,32 @@ class Build(object):
                 # LOADS of ands here.
                 if self.linear_sbus:
                     if ((v1, v2, e) in self._net.graph.loop_edges()) or \
-                        ((nn1==nn2) and (nn1 in met_incidence)):  
+                        ((nn1==nn2) and (nn1 in met_incidence)):
                         vertices, edges = self._net.add_edges_between((v1, v2, e), 5)
-                    # add the middle vertex to the SBU vertices..
-                    # this is probably not a universal thing.
+                        # add the middle vertex to the SBU vertices..
+                        # this is probably not a universal thing.
+                        self.sbu_joins.setdefault(vertices[2],[]).append(v1)
+                        self.sbu_joins.setdefault(v1,[]).append(vertices[2])
+                        self.sbu_joins.setdefault(vertices[2],[]).append(v2)
+                        self.sbu_joins.setdefault(v2,[]).append(vertices[2])
                         self.sbu_vertices.append(vertices[2])
+                        
                         edges_split += edges
                     else:
+                        self.sbu_joins.setdefault(v1,[]).append(v2)
+                        self.sbu_joins.setdefault(v2,[]).append(v1)
                         vertices, edges = self._net.add_edges_between((v1, v2, e), 2)
                         edges_split += edges
                 else:
+                    self.sbu_joins.setdefault(v1,[]).append(v2)
+                    self.sbu_joins.setdefault(v2,[]).append(v1)
                     vertices, edges = self._net.add_edges_between((v1, v2, e), 2)
                     edges_split += edges
 
         self._obtain_cycle_bases()
         # start off with the barycentric embedding
         self._net.barycentric_embedding()
-        #self.show()
+        self.show()
 
     @net.setter
     def net(self, (name, graph, volt)):
@@ -824,3 +867,29 @@ class Build(object):
     def sbus(self, sbus):
         self._sbus = sbus
 
+    def store_placement(self, cell, init=(0., 0., 0.)):
+        init = np.array(init)
+        data = {"cell":cell, "nodes":{}, "edges":{}}
+        # set the first node down at the init position
+        V = self._net.graph.vertices()[0]
+        edges = self._net.graph.outgoing_edges(V) + self._net.graph.incoming_edges(V)
+        unit_cell_vertices = self._net.vertex_positions(edges, [], pos={V:init})
+        for key, value in unit_cell_vertices.items():
+            if key in self._vertex_sbu.keys():
+                label = self._vertex_sbu[key].name
+            else:
+                label = key
+                for bu in self._vertex_sbu.values():
+                    for cp in bu.connect_points:
+                        if cp.vertex_assign == key:
+                            label = str(cp.identifier)
+            data["nodes"][label] = np.array(value)
+            for edge in self._net.graph.outgoing_edges(key):
+                ind = self._net.get_index(edge)
+                arc = np.array(self._net.lattice_arcs)[ind]
+                data["edges"][edge[2]]=(np.array(value), arc)
+            for edge in self._net.graph.incoming_edges(key):
+                ind = self._net.get_index(edge)
+                arc = -np.array(self._net.lattice_arcs)[ind]
+                data["edges"][edge[2]]=(np.array(value), arc)
+        return(data)

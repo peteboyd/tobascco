@@ -2,8 +2,11 @@
 import sys
 import os
 sys.path.append("/share/apps/openbabel/2.3.1-gg/lib/python2.7/site-packages")
-import openbabel as ob
-import pybel
+try:
+    import openbabel as ob
+    import pybel
+except ImportError:
+    pass
 from logging import info, debug, warning, error, critical
 import numpy
 from element_properties import ATOMIC_NUMBER 

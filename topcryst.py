@@ -119,7 +119,8 @@ class JobHandler(object):
         #print G.gens()
         g = GraphPlot(net)
         #g.view_graph()
-        g.view_placement(init=(0.625, 0.625, 0.625))
+        #g.view_placement(init=(0.625, 0.625, 0.625))
+        g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False, sbu_only=["1"])
 
     def _build_structures_from_top(self):
         if not self._topologies:

@@ -8,6 +8,7 @@ import numpy as np
 from LinAlg import DEG2RAD
 import _nloptimize as nl
 from config import Terminate
+sys.setrecursionlimit(100000)
 
 class SystreDB(dict):
     """A dictionary which reads a file of the same format read by Systre"""

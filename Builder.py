@@ -851,7 +851,7 @@ class Build(object):
         self._obtain_cycle_bases()
         # start off with the barycentric embedding
         self._net.barycentric_embedding()
-        self.show()
+        #self.show()
 
     @net.setter
     def net(self, (name, graph, volt)):

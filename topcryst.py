@@ -120,7 +120,9 @@ class JobHandler(object):
         g = GraphPlot(net)
         #g.view_graph()
         #g.view_placement(init=(0.625, 0.625, 0.625))
-        g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False, sbu_only=["1"])
+        #g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False, sbu_only=["1"]) # for bcu for paper
+        g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False) # for bcu for paper
+
 
     def _build_structures_from_top(self):
         if not self._topologies:

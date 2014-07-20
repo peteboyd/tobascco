@@ -70,16 +70,16 @@ class GraphPlot(object):
             pp = pp.tolist()
             self.ax.scatter(pp, color=colour)
         if label:
-            if label == "1":
-                label = "A"
-            elif label == "4":
-                label = "C"
-            elif label == "9":
-                label = "B"
-            elif label == "14":
-                label = "D"
-            elif label == "19":
-                label = "E"
+            #if label == "1":
+            #    label = "A"
+            #elif label == "4":
+            #    label = "C"
+            #elif label == "9":
+            #    label = "B"
+            #elif label == "14":
+            #    label = "D"
+            #elif label == "19":
+            #    label = "E"
             self.ax.text(*tp, s=label, fontsize=self.fontsize, color=colour)
 
     def add_edge(self, vector, origin=np.zeros(3), label=None, colour='g'):
@@ -158,9 +158,9 @@ class GraphPlot(object):
         edges = self.net.graph.outgoing_edges(V) + self.net.graph.incoming_edges(V)
         unit_cell_vertices = self.net.vertex_positions(edges, [], pos={V:init})
         for key, value in unit_cell_vertices.items():
-            if sbu_only and key in sbu_only:
+            if (sbu_only and key in sbu_only) or (not sbu_only):
                 self.add_point(p=np.array(value), label=key, colour='k')
-            else:
+            elif sbu_only and key not in sbu_only:
                 self.add_point(p=np.array(value), label=None, colour='#FF6600') #Blaze Orange
             for edge in self.net.graph.outgoing_edges(key):
                 ind = self.net.get_index(edge)

@@ -16,6 +16,7 @@ class Options(object):
 
         self._command_options()
         self.job = ConfigParser.SafeConfigParser()
+        self.csv = None
         self._set_paths()
         self._load_defaults()
         self._load_job()

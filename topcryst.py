@@ -131,6 +131,8 @@ class JobHandler(object):
 
         csvinfo = CSV(name='%s_info'%(self.options.jobname))
         csvinfo.set_headings('topology', 'sbus', 'edge_count', 'time', 'space_group')
+        csvinfo.set_headings('edge_length_err', 'edge_length_std', 'edge_angle_err', 'edge_angle_std')
+        self.options.csv = csvinfo
         run = Generate(self.options, self.sbu_pool)
         inittime = time()
         for top, graph in self._topologies.items():
@@ -158,14 +160,14 @@ class JobHandler(object):
                                 "Attempting to insert linear organic SBUs between these nodes.")
                         for comb in run.yield_linear_org_sbu(combo):
                             build.sbus = list(set(comb))
-                            self.embed_sbu_combo(top, comb, build, csvinfo)
+                            self.embed_sbu_combo(top, comb, build)
                     elif build.met_met_bonds and not run.linear_sbus_exist:
                         debug("Metal-type nodes are attached to metal-type nodes. "+
                                 "No linear SBUs exist in database, so the structure "+
                                 "will have metal - metal SBUs joined")
-                        self.embed_sbu_combo(top, combo, build, csvinfo)
+                        self.embed_sbu_combo(top, combo, build)
                     else:
-                        self.embed_sbu_combo(top, combo, build, csvinfo)
+                        self.embed_sbu_combo(top, combo, build)
 
 
         finaltime = time() - inittime
@@ -178,11 +180,11 @@ class JobHandler(object):
             str += "%s, "%j.name
         return str[:-2]+")"
 
-    def embed_sbu_combo(self, top, combo, build, csvinfo):
+    def embed_sbu_combo(self, top, combo, build):
         count = build.net.original_graph.size()
-        csvinfo.add_data(topology=top, 
-                         sbus=self.combo_str(combo),
-                         edge_count=count)
+        self.options.csv.add_data(topology=top, 
+                                  sbus=self.combo_str(combo),
+                                  edge_count=count)
         info("Setting up %s"%(self.combo_str(combo)) +
                 " with net %s, with an edge count = %i "%(top, count))
         t1 = time()
@@ -197,8 +199,8 @@ class JobHandler(object):
                 self._stored_nets[build.name] = build.embedded_net
         else:
             sym = "None"
-        csvinfo.add_data(time=t2-t1,
-                         space_group=sym)
+        self.options.csv.add_data(time=t2-t1,
+                                  space_group=sym)
         
         #build.custom_embedding(rep, mt)
         if self.options.show_embedded_net:
@@ -215,6 +217,8 @@ class JobHandler(object):
             combinations = run.generate_sbu_combinations()
         csvinfo = CSV(name='%s_info'%(self.options.jobname))
         csvinfo.set_headings('topology', 'sbus', 'edge_count', 'time', 'space_group')
+        csvinfo.set_headings('edge_length_err', 'edge_length_std', 'edge_angle_err', 'edge_angle_std')
+        self.options.csv = csvinfo
         # generate the MOFs.
         inittime = time()
         for combo in combinations:
@@ -244,17 +248,17 @@ class JobHandler(object):
                                 build = Build(self.options)
                                 build.sbus = list(set(comb))
                                 build.net = (top, graph, self._topologies.voltages[top])
-                                self.embed_sbu_combo(top, comb, build, csvinfo)
+                                self.embed_sbu_combo(top, comb, build)
                         elif build.met_met_bonds and run.linear_in_combo(combo):
-                            self.embed_sbu_combo(top, combo, build, csvinfo)
+                            self.embed_sbu_combo(top, combo, build)
 
                         elif build.met_met_bonds and not run.linear_sbus_exist:
                             debug("Metal-type nodes are attached to metal-type nodes. "+
                                    "No linear SBUs exist in database, so the structure "+
                                     "will have metal - metal SBUs joined")
-                            self.embed_sbu_combo(top, combo, build, csvinfo)
+                            self.embed_sbu_combo(top, combo, build)
                         elif not build.met_met_bonds:
-                            self.embed_sbu_combo(top, combo, build, csvinfo)
+                            self.embed_sbu_combo(top, combo, build)
                     else:
                         debug("Net %s does not support the same"%(top)+
                                 " connectivity offered by the SBUs")
@@ -262,8 +266,8 @@ class JobHandler(object):
         finaltime = time() - inittime
         info("Topcryst completed after %f seconds"%finaltime)
         if self.options.get_run_info:
-            info("Writing run information to %s"%csvinfo.filename)
-            csvinfo.write()
+            info("Writing run information to %s"%self.options.csv.filename)
+            self.options.csv.write()
         if self.options.store_net and self._stored_nets:
             info("Writing all nets to nets_%s.pkl"%self.options.jobname)
             f = open("nets_%s.pkl"%self.options.jobname, 'wb')

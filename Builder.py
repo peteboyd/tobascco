@@ -178,7 +178,8 @@ class Build(object):
             if any([sbu.is_metal == nn for nn in neighbours_assigned.values()]):
                 mm *= 2.
             elif sbu.name in not_added:
-                mm *= 0.1
+                mm = 0.
+
             if mm < minmag:
                 minmag = mm
                 assign = sbu
@@ -855,7 +856,7 @@ class Build(object):
 
     @net.setter
     def net(self, (name, graph, volt)):
-        self._net = Net(graph)
+        self._net = Net(graph, options=self.options)
         self._net.name = name
         self._net.voltage = volt
 

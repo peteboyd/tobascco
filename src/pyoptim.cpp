@@ -64,7 +64,14 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
 {
     int ndim;
     int diag_ind;
+    double minf; /* the minimum objective value, upon return */
     data_info data;
+    nlopt_result retval; /*Return value from nlopt: 1 = GENERAL SUCCESS
+                                                    2 = STOPVAL REACHED
+                                                    3 = FTOL REACHED
+                                                    4 = XTOL REACHED
+                                                    5 MAXEVAL REACHED
+                                                    6 = MAXTIME REACHED*/
     PyArrayObject* lower_bounds;
     PyArrayObject* upper_bounds;
     PyArrayObject* init_x;
@@ -178,17 +185,36 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     //construct the objective function
     //opt = nlopt_create(NLOPT_LD_TNEWTON, data.x_size); /* algorithm and dimensionality */
     //opt = nlopt_create(NLOPT_LN_COBYLA, data.x_size);
-    opt = nlopt_create(NLOPT_LD_LBFGS, data.x_size);
+
+    //GLOBAL OPTIMIZER**********************************
+    //opt = nlopt_create(NLOPT_GN_ESCH, data.x_size);
+    opt = nlopt_create(NLOPT_GN_DIRECT_L, data.x_size);
+    nlopt_set_min_objective(opt, objectivefunc, &data);
+    nlopt_set_lower_bounds(opt, lb);
+    nlopt_set_upper_bounds(opt, ub);
+    //nlopt_set_ftol_abs(opt, 0.01);
+    nlopt_set_ftol_rel(opt, 1e-10);
+
+    //nlopt_set_population(opt, 10);
+    ////MLSL specific*************************************
+    //local_opt = nlopt_create(NLOPT_LD_LBFGS, data.x_size);
+    //nlopt_set_ftol_rel(local_opt, 1e-5);
+    //nlopt_set_local_optimizer(opt, local_opt);
+    //nlopt_destroy(local_opt);
+
+    //retval = nlopt_optimize(opt, x, &minf);
+    //if (retval < 0) {
+    //        printf("nlopt failed!\n");
+    //        Py_INCREF(Py_None);
+    //        return(Py_None);
+    //}
+    //std::cout<<retval<<std::endl;
+    nlopt_destroy(opt); 
+
+    //END GLOBAL OPTIMIZER******************************
+
     //LOCAL OPTIMIZER***********************************
-    //MLSL specific
-    /* 
-    nlopt_set_population(opt, 100);
-    local_opt = nlopt_create(NLOPT_LD_SLSQP, data.x_size);
-    nlopt_set_ftol_abs(local_opt, 1e-5);
-    nlopt_set_local_optimizer(opt, local_opt);
-    nlopt_destroy(local_opt); 
-    */
-    //END LOCAL OPTIMIZER******************************* 
+    opt = nlopt_create(NLOPT_LD_LBFGS, data.x_size);
     //nlopt_set_initial_step1(opt, 0.1);
     nlopt_set_vector_storage(opt, 10000); /* for quasi-newton algorithms, how many gradients to store */
     /*
@@ -204,23 +230,16 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     nlopt_set_lower_bounds(opt, lb);
     nlopt_set_upper_bounds(opt, ub);
     
-    /* 
-    unsigned int n;
-    double * grad;
-    objectivefunc(n, x, grad, &data);
-    */
-    //nlopt_set_xtol_abs1(opt, 1e-10);
-    nlopt_set_xtol_rel(opt, 1e-7);
-    nlopt_set_ftol_rel(opt, 1e-6);
-    nlopt_set_stopval(opt, 1e-5);
-    double minf; /* the minimum objective value, upon return */
-    //nlopt_optimize(opt, x, &minf);
-    
-    if (nlopt_optimize(opt, x, &minf) < 0) {
+    //nlopt_set_ftol_rel(opt, 1e-10);
+    nlopt_set_xtol_rel(opt, 1e-5);
+    retval = nlopt_optimize(opt, x, &minf);
+    if (retval < 0) {
             printf("nlopt failed!\n");
             Py_INCREF(Py_None);
             return(Py_None);
     }
+    //END LOCAL OPTIMIZER******************************* 
+    //std::cout<<retval<<std::endl;
     /*
     else {
             printf("found minimum at f(%g,%g) = %0.10g\n", x[0], x[1], minf);
@@ -719,6 +738,9 @@ void setup_matrix(int scale_ind, int size, double** inner_prod){
     //double max = 0;
     for (int i=0; i<size; i++){
         for (int j=i+1; j<size; j++){
+            if (inner_prod[i][i] < 0.0)inner_prod[i][i] = 500.0;
+            if (inner_prod[j][j] < 0.0)inner_prod[j][j] = 500.0; //penalize for negative lengths.
+            //std::cout<<inner_prod[i][i]<<" "<<inner_prod[j][j]<<std::endl;
             ang = inner_prod[i][j] / sqrt(inner_prod[i][i]) / sqrt(inner_prod[j][j]);
             //std::cout<<i<<" "<<inner_prod[i][j]<<std::endl;
 
@@ -762,6 +784,7 @@ double sumsquarediff(int size, int* nzi, int* nzj, double** A, double** B){
         m = nzi[i];
         n = nzj[i];
         //std::cout<<pow(A[m][n] - B[m][n], 2)<<", ";
+        //std::cout<<A[m][n]<<" "<<m<<" "<<n<<std::endl;
         diff = pow((A[m][n] - B[m][n]), 2);
         //weight the distances more.
         //if( m != n ) diff = 8*diff;
@@ -771,7 +794,6 @@ double sumsquarediff(int size, int* nzi, int* nzj, double** A, double** B){
     }
     //std::cout<<"0.])"<<std::endl;
     //std::cout<<sum<<std::endl;
-    //exit(0);
     return sum;
 }
 

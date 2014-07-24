@@ -211,7 +211,7 @@ class SBU(object):
         """Return true if linear else false"""
         if len(self.connect_points) != 2:
             return False
-        if np.allclose(self.connect_points[0].z[:3],-self.connect_points[1].z[:3], atol=1e-3):
+        if np.allclose(self.connect_points[0].z[:3],-self.connect_points[1].z[:3], atol=1e-2):
             return True
         return False
 

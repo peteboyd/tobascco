@@ -92,7 +92,7 @@ class SystreDB(dict):
 
 class Net(object):
 
-    def __init__(self, graph=None, dim=3):
+    def __init__(self, graph=None, dim=3, options=None):
         self.name = None
         self.lattice_basis = None
         self.metric_tensor = None
@@ -113,6 +113,8 @@ class Net(object):
             self._graph = DiGraph(graph, multiedges=True, loops=True)
             # Keep an original for reference purposes.
             self.original_graph = DiGraph(graph, multiedges=True, loops=True)
+
+        self.options = options
 
     def get_cocycle_basis(self):
         """The orientation is important here!"""
@@ -460,22 +462,22 @@ class Net(object):
         for i in self.metric_tensor[np.diag_indices_from(self.metric_tensor)]:
             #x[xinc] = np.sqrt(i)
             x[xinc] = i
-            ub[xinc] = i*1.5#max_cell 
-            lb[xinc] = i*0.4# min_cell
+            ub[xinc] = i#max_cell 
+            lb[xinc] = i*0.1# min_cell
             xinc += 1
 
         for (i,j) in zip(*np.triu_indices(self.ndim, 1)):
             x[xinc] = self.metric_tensor[i,j]  / np.sqrt(self.metric_tensor[i,i]) \
                         /np.sqrt(self.metric_tensor[j,j])
             # set max and min angles to 120, 60 respectively.
-            ub[xinc] = np.pi 
-            lb[xinc] = -np.pi
+            ub[xinc] = 0.99 
+            lb[xinc] = -0.99
             xinc += 1
 
         # init the cocycle representation to zeros
         x[xinc:] = 0.
-        ub[xinc:] = 1. 
-        lb[xinc:] = -1.
+        ub[xinc:] = .4 
+        lb[xinc:] = -.4
         scale_ind = int(self.scale[0][0][0])
         x = nl.nloptimize(self.ndim,
                           scale_ind,
@@ -524,14 +526,15 @@ class Net(object):
         edge_lengths = []
         angles = []
         count = 0
+
         for (i, j) in zip(*nz):
             if i != j:
                 ang1 = np.arccos(inner_p[i,j]/np.sqrt(inner_p[i,i])/np.sqrt(inner_p[j,j]))
-                ang2 = np.arccos(cdmat[i,j]/np.sqrt(cdmat[i,i])/np.sqrt(cdmat[j,j]))
+                ang2 = np.arccos(cdmat[i,j])#/np.sqrt(cdmat[i,i])/np.sqrt(cdmat[j,j]))
                 ang = ang1 - ang2 
                 angles.append(ang)
             else:
-                len = np.sqrt(inner_p[i,j]) - np.sqrt(cdmat[i,j])
+                len = np.sqrt(inner_p[i,j]) - np.sqrt(cdmat[i,j]*self.scale_factor)
                 edge_lengths.append(len)
             count += 1
         edge_average, edge_std = np.mean(edge_lengths), np.std(edge_lengths)
@@ -544,6 +547,11 @@ class Net(object):
         angle_average, angle_std = np.mean(angles), np.std(angles)
         debug("Average error in edge angles: %12.5f +/- %9.5f degrees"%(
                         angle_average/DEG2RAD, angle_std/DEG2RAD))
+        if self.options is not None:
+            self.options.csv.add_data(edge_length_err = edge_average)
+            self.options.csv.add_data(edge_length_std = edge_std)
+            self.options.csv.add_data(edge_angle_err = angle_average/DEG2RAD)
+            self.options.csv.add_data(edge_angle_std = angle_std/DEG2RAD)
 
     def report_errors(self, fit):
         edge_lengths = []

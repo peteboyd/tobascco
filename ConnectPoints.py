@@ -57,7 +57,7 @@ class ConnectPoint(object):
     def _normalize(self):
         """Normalize the y and z vectors"""
         self.z[:3] = self.z[:3]/np.linalg.norm(self.z[:3])
-        self.y[:3] = self.y[:3]/np.linalg.norm(self.y[:3])
+        #self.y[:3] = self.y[:3]/np.linalg.norm(self.y[:3])
 
     def rotate(self, R):
         self.origin = np.dot(R, self.origin)

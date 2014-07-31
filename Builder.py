@@ -868,6 +868,43 @@ class Build(object):
     def sbus(self, sbus):
         self._sbus = sbus
 
+    def get_automorphisms(self):
+        """Compute the automorphisms associated with the graph.
+        Automorphisms are defined as a permutation, s, of the vertex set such that a 
+        pair of vertices, (u,v) form an edge if and only if the pair (s(u),s(v)) also
+        form an edge. I have to identify all the edge swappings according to the 
+        permutation groups presented by sage. I need to define all the edge permutations,
+        then I can identify the symmetry operations associated with these permutations."""
+
+        G = self.net.original_graph.to_undirected().automorphism_group()
+        count = 0
+        for i in G:
+            count += 1
+            print i
+            print i.dict()
+            # find equivalent edges after vertex automorphism
+
+            # construct linear representation
+
+            # determine symmetry element (rotation, reflection, screw, glide, inversion..)
+
+            # chose to discard or keep. Does it support the site symmetries of the SBUs?
+
+            if count==2:
+                break
+
+        # final set of accepted symmetry operations
+
+        # determine space group
+
+        # determine co-lattice vectors which keep symmetry elements intact
+
+        # determine lattice parameters.
+
+        #self.net.original_graph.order()
+        #self.net.original_graph.edges()
+
+
     def store_placement(self, cell, init=(0., 0., 0.)):
         init = np.array(init)
         data = {"cell":cell, "nodes":{}, "edges":{}}

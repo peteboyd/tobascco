@@ -234,6 +234,7 @@ class JobHandler(object):
                 build = Build(self.options)
                 build.sbus = list(set(combo))
                 build.net = (top, graph, self._topologies.voltages[top])
+                build.get_automorphisms()
                 if self.options.show_barycentric_net_only:
                     info("Preparing barycentric embedding of %s"%(top))
                     self._check_barycentric_embedding(graph, self._topologies.voltages[top])

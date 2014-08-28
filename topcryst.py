@@ -182,25 +182,28 @@ class JobHandler(object):
 
     def embed_sbu_combo(self, top, combo, build):
         count = build.net.original_graph.size()
-        self.options.csv.add_data(topology=top, 
-                                  sbus=self.combo_str(combo),
-                                  edge_count=count)
+        self.options.csv.add_data(**{"topology.1":top, 
+            "sbus.1":self.combo_str(combo),
+            "edge_count.1":count})
         info("Setting up %s"%(self.combo_str(combo)) +
                 " with net %s, with an edge count = %i "%(top, count))
         t1 = time()
         build.init_embed()
+        debug("Augmented graph consists of %i vertices and %i edges"%
+                (build.net.order, build.net.shape))
         build.assign_vertices()
         build.assign_edges()
         build.obtain_embedding()
         t2 = time()
         if build.success:
             sym = build.struct.space_group_name
+            self.options.csv.add_data(**{"net_charge.1":build.struct.charge})
             if self.options.store_net:
                 self._stored_nets[build.name] = build.embedded_net
         else:
             sym = "None"
-        self.options.csv.add_data(time=t2-t1,
-                                  space_group=sym)
+        self.options.csv.add_data(**{"time.1":t2-t1,
+                                    "space_group.1":sym})
         
         #build.custom_embedding(rep, mt)
         if self.options.show_embedded_net:
@@ -216,7 +219,7 @@ class JobHandler(object):
             # remove SBUs if not listed in options.organic_sbus or options.metal_sbus
             combinations = run.generate_sbu_combinations()
         csvinfo = CSV(name='%s_info'%(self.options.jobname))
-        csvinfo.set_headings('topology', 'sbus', 'edge_count', 'time', 'space_group')
+        csvinfo.set_headings('topology', 'sbus', 'edge_count', 'time', 'space_group', 'net_charge')
         csvinfo.set_headings('edge_length_err', 'edge_length_std', 'edge_angle_err', 'edge_angle_std')
         self.options.csv = csvinfo
         # generate the MOFs.
@@ -299,20 +302,20 @@ class JobHandler(object):
         # metal sbus first.
         for name, sbu in met_sbus.items():
             info("Computing data for %s"%name)
-            report.add_data(sbu_id = sbu.identifier)
+            report.add_data(**{"sbu_id.1": sbu.identifier})
             if self.options.calc_sbu_surface_area:
-                report.add_data(surface_area = sbu.surface_area)
+                report.add_data(**{"surface_area.1": sbu.surface_area})
             if self.options.calc_max_sbu_span:
-                report.add_data(sbu_span = sbu.max_span)
+                report.add_data(**{"sbu_span.1":sbu.max_span})
         
         # list organic SBUs second.
         for name, sbu in org_sbus.items():
             info("Computing data for %s"%name)
-            report.add_data(sbu_id = sbu.identifier)
+            report.add_data(**{"sbu_id.1": sbu.identifier})
             if self.options.calc_sbu_surface_area:
-                report.add_data(surface_area = sbu.surface_area)
+                report.add_data(**{"surface_area.1": sbu.surface_area})
             if self.options.calc_max_sbu_span:
-                report.add_data(sbu_span = sbu.max_span)
+                report.add_data(**{"sbu_span.1": sbu.max_span})
         report.write()
          
     def _read_topology_database_files(self):

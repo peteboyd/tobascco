@@ -531,27 +531,27 @@ class Net(object):
             if i != j:
                 ang1 = np.arccos(inner_p[i,j]/np.sqrt(inner_p[i,i])/np.sqrt(inner_p[j,j]))
                 ang2 = np.arccos(cdmat[i,j])#/np.sqrt(cdmat[i,i])/np.sqrt(cdmat[j,j]))
-                ang = ang1 - ang2 
+                ang = (ang1 - ang2)**2
                 angles.append(ang)
             else:
-                len = np.sqrt(inner_p[i,j]) - np.sqrt(cdmat[i,j]*self.scale_factor)
+                len = (np.sqrt(inner_p[i,j]) - np.sqrt(cdmat[i,j]*self.scale[1]))**2
                 edge_lengths.append(len)
             count += 1
-        edge_average, edge_std = np.mean(edge_lengths), np.std(edge_lengths)
+        edge_average, edge_std = np.sqrt(np.mean(edge_lengths)), np.sqrt(np.std(edge_lengths))
         debug("Average error in edge length: %12.5f +/- %9.5f Angstroms"%(
                                     edge_average, edge_std))
                                     #math.copysign(1, edge_average)*
                                     #np.sqrt(abs(edge_average)*self.scale[1]),
                                     #math.copysign(1, edge_std)*
                                     #np.sqrt(abs(edge_std))*self.scale[1])))
-        angle_average, angle_std = np.mean(angles), np.std(angles)
+        angle_average, angle_std = np.sqrt(np.mean(angles)), np.sqrt(np.std(angles))
         debug("Average error in edge angles: %12.5f +/- %9.5f degrees"%(
                         angle_average/DEG2RAD, angle_std/DEG2RAD))
         if self.options is not None:
-            self.options.csv.add_data(edge_length_err = edge_average)
-            self.options.csv.add_data(edge_length_std = edge_std)
-            self.options.csv.add_data(edge_angle_err = angle_average/DEG2RAD)
-            self.options.csv.add_data(edge_angle_std = angle_std/DEG2RAD)
+            self.options.csv.add_data(**{"edge_length_err.1":edge_average})
+            self.options.csv.add_data(**{"edge_length_std.1":edge_std})
+            self.options.csv.add_data(**{"edge_angle_err.1":angle_average/DEG2RAD})
+            self.options.csv.add_data(**{"edge_angle_std.1":angle_std/DEG2RAD})
 
     def report_errors(self, fit):
         edge_lengths = []

@@ -23,7 +23,7 @@ class Structure(object):
         self.bonds = {}
         self.fragments = [] 
         self.build_directives = None
-        self.charge = 0
+        self.charge = 0.
         self.sbu_count = 0
         self.atom_count = 0
         self.space_group_name = 'P1'
@@ -156,7 +156,7 @@ class Structure(object):
                                     self.options.version)))
         if self.charge:
             c.add_data("data", _chemical_properties_physical=
-                               "net charge is %i"%(self.charge))
+                               "net charge is %12.5f"%(self.charge))
 
         # sym block
         c.add_data("sym", _symmetry_space_group_name_H_M=

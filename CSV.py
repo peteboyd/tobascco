@@ -35,14 +35,17 @@ class CSV(object):
             if key in self._headings:
                 self._data.setdefault(key, []).append(val)
             else:
-                #pass
                 print "%s not in the headings! Ignoring data!"%(key)
         
     @property
     def item_count(self):
         lengths = []
+        keyss = []
         for key, val in self._data.items():
+            keyss.append(key)
             lengths.append(len(val))
+        #for i, j in zip(keyss, lengths):
+        #    print i,j
         assert all([x == lengths[0] for x in lengths])
         if lengths:
             return lengths[0]
@@ -50,6 +53,11 @@ class CSV(object):
         
     def set_headings(self, *args):
         head_dic = {}
+        for head in self._headings:
+            name = '.'.join(head.split('.')[:-1])
+            head_dic.setdefault(name, 0)
+            head_dic[name] += 1
+
         for arg in args:
             head_dic.setdefault(arg, 0)
             if arg in head_dic.keys():
@@ -61,7 +69,7 @@ class CSV(object):
         if filename is None:
             f = open(self.filename, 'w')
         else:
-            f = open(self.get_filename(filename), 'w')
+            f = open(self.get_filename(self.filename), 'w')
         # remove the tracking numbers for the final file writing.
         heads = ['.'.join(i.split('.')[:-1]) for i in self._headings]
         lines = "%s\n"%(','.join(heads))
@@ -105,6 +113,13 @@ class CSV(object):
         except KeyError:
             print self._data
             print "Error no such key, %s, found in data"%key
+            return None
+
+    def get_row(self, row):
+        """Returns row of data ordered by heading sequence"""
+        try:
+            return [self._data[k][row] for k in self._headings]
+        except KeyError:
             return None
 
     def mofname_dic(self):

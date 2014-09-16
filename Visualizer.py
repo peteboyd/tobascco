@@ -1,4 +1,6 @@
 #!/usr/bin/env sage-python
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from logging import info, debug, warning, error
@@ -13,7 +15,7 @@ class GraphPlot(object):
     def __init__(self, net, two_dimensional=False):
         self.fig, self.ax = plt.subplots()
         self.net = net
-        self.fontsize = 12 
+        self.fontsize = 20 
         self.two_dimensional = two_dimensional
         if two_dimensional:
             self.cell = np.identity(2)
@@ -182,4 +184,4 @@ class GraphPlot(object):
         self.ax.set_zlim3d(0,mx)
         plt.axis('off')
         plt.show()
-        #plt.savefig('name.png')
+        plt.savefig('name.png')

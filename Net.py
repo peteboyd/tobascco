@@ -582,8 +582,8 @@ class Net(object):
 
     def barycentric_embedding(self):
         if self.cocycle is not None:
-            #self.cocycle_rep = np.zeros((self.order-1, self.ndim))
-            self.cocycle_rep = (np.random.random((self.order-1, self.ndim)) - .5)/40. #used to make MOFs from unstable nets
+            self.cocycle_rep = np.zeros((self.order-1, self.ndim))
+            #self.cocycle_rep = (np.random.random((self.order-1, self.ndim)) - .5)/40. #used to make MOFs from unstable nets
             #self.cocycle_rep[0] = np.array([0.0, 0.0, -0.5]) # Used to show non-barycentric placement of pts net for Smit meeting.
             self.periodic_rep = np.concatenate((self.cycle_rep,
                                             self.cocycle_rep),

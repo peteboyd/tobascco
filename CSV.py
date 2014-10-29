@@ -111,7 +111,7 @@ class CSV(object):
         try:
             return self._data[key]
         except KeyError:
-            print self._data
+            #print self._data
             print "Error no such key, %s, found in data"%key
             return None
 
@@ -182,3 +182,6 @@ class CSV(object):
             for j in self._headings:
                 self._data[j].pop(index)
 
+    @property
+    def size(self):
+        return len(self._data[self._headings[0]])

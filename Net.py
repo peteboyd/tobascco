@@ -347,7 +347,15 @@ class Net(object):
 
     def get_lattice_basis(self):
         L = []
-        for i in self.cycle_rep:
+        inds = range(self.cycle_rep.shape[0])
+        np.random.shuffle(inds)
+        cycle_rep = self.cycle_rep.copy()
+        cycle = self.cycle.copy()
+        for j,i in enumerate(inds):
+            cycle_rep[j] = self.cycle_rep[i].copy()
+            cycle[j] = self.cycle[i].copy()
+
+        for i in cycle_rep:
             L.append(vector(QQ, i.tolist()))
         V = QQ**self.ndim
         lattice = []
@@ -363,14 +371,15 @@ class Net(object):
                 if not np.allclose(jj[-1], 0):
                     vv = jj[:-1]*-1.*jj[-1]
                     nz = np.nonzero(vv)
-                    tv = np.sum(np.array(self.cycle)[nz] * np.array(vv)[nz][:, None], axis=0)
+                    tv = np.sum(np.array(cycle)[nz] * np.array(vv)[nz][:, None], axis=0)
                     if len(nz) == 1:
                         vect = tv 
                         break
                     elif len(nz) < mincount and self.is_integral(tv):
                         vect = tv 
                         mincount = len(nz)
-            lattice.append(tv)
+            lattice.append(vect)
+            #lattice.append(tv)
             L.pop(-1)
         self.lattice_basis = np.array(lattice)
         #print self.lattice_basis
@@ -591,6 +600,10 @@ class Net(object):
         else:
             self.periodic_rep = self.cycle_rep
         self.get_metric_tensor()
+        # for toz
+        #m = self.metric_tensor[np.diag_indices_from(self.metric_tensor)].max()
+        #self.metric_tensor = m*np.array([[1.,0.745, 0.745],[0.745, 1., 0.745],[0.745, 0.745, 1.]])
+        # for toz
     
     def get_2d_params(self):
         self.metric_tensor = np.dot(np.dot(self.lattice_basis,self.projection),

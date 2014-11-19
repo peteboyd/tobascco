@@ -1,6 +1,6 @@
 #!/usr/bin/env sage-python
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from logging import info, debug, warning, error

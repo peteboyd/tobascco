@@ -82,24 +82,82 @@ class Build(object):
 
         # get geometric match for each node with each SBU
         # metal - organic bond priority (only if metal SBU and organic SBU have same incidence)
+        # assign any obvious ones: ie. if there is only one match between sbu and vertex valency
+        temp_vertices = self.sbu_vertices[:]
         for vert in self.sbu_vertices:
-            # is there a way to determine the symmetry operations applicable
-            # to a vertex?
-            # if so, we could compare with SBUs...
             vert_deg = self._net.graph.degree(vert)
             sbu_match = [i for i in self._sbus if i.degree == vert_deg]
-            # match tensor product matrices
-            if len(sbu_match) > 1:
-                self._vertex_sbu[vert] = self.select_sbu(vert, sbu_match) 
+            if len(sbu_match) == 1:
+                bu = deepcopy(sbu_match[0])
+                temp_vertices.pop(temp_vertices.index(vert))
+                self._vertex_sbu[vert] = bu 
+                bu.vertex_id = vert
+                [cp.set_sbu_vertex(bu.vertex_id) for cp in bu.connect_points]
+
+        # the remaining we will need to choose (automorphisms?)
+        orbits = self._net.graph.automorphism_group(orbits=True)[1]
+        init_verts = []
+        for vert in temp_vertices[:]:
+            neighbours = self._net.original_graph.neighbors(vert)
+            neighbour_sbus = [i for i in neighbours if i in self._vertex_sbu.keys()]
+            if neighbour_sbus:
+                init_verts.append(vert)
+                temp_vertices.pop(temp_vertices.index(vert))
+        # re-order so the vertices with neighbours already assigned will be assigned
+        # new SBUs first
+        temp_vertices = init_verts + temp_vertices
+        for vert in temp_vertices[:]:
+            neighbours = self._net.original_graph.neighbors(vert)
+            vert_deg = self._net.graph.degree(vert)
+            sbu_match = [i for i in self._sbus if i.degree == vert_deg]
+            neighbour_sbus = [i for i in neighbours if i in self._vertex_sbu.keys()]
+            temp_assign = []
+            for sbu in sbu_match:
+                # decide to assign if neighbours are of opposite 'type'
+                good_by_type = True
+                for neighbour in neighbour_sbus:
+                    if sbu.is_metal == self._vertex_sbu[neighbour].is_metal:
+                        good_by_type = False
+                if good_by_type:
+                    temp_assign.append(sbu)
+
+            if len(temp_assign) == 1:
+                bu = deepcopy(temp_assign[0])
+                temp_vertices.pop(temp_vertices.index(vert))
+                self._vertex_sbu[vert] = bu
+                bu.vertex_id = vert
+                [cp.set_sbu_vertex(bu.vertex_id) for cp in bu.connect_points]
+            elif len(temp_assign) > 1:
+                self._vertex_sbu[vert] = self.select_sbu(vert, temp_assign) 
+                temp_vertices.pop(temp_vertices.index(vert))
                 bu = self._vertex_sbu[vert]
-            elif len(sbu_match) == 0:
-                error("Didn't assign an SBU to vertex %s"%vert)
-                Terminate(errcode=1) 
+                bu.vertex_id = vert
+                [cp.set_sbu_vertex(bu.vertex_id) for cp in bu.connect_points]
             else:
-                self._vertex_sbu[vert] = deepcopy(sbu_match[0])
+                self._vertex_sbu[vert] = self.select_sbu(vert, sbu_match) 
+                temp_vertices.pop(temp_vertices.index(vert))
                 bu = self._vertex_sbu[vert]
-            bu.vertex_id = vert
-            [cp.set_sbu_vertex(bu.vertex_id) for cp in bu.connect_points]
+                bu.vertex_id = vert
+                [cp.set_sbu_vertex(bu.vertex_id) for cp in bu.connect_points]
+
+        #for vert in self.sbu_vertices:
+        #    # is there a way to determine the symmetry operations applicable
+        #    # to a vertex?
+        #    # if so, we could compare with SBUs...
+        #    vert_deg = self._net.graph.degree(vert)
+        #    sbu_match = [i for i in self._sbus if i.degree == vert_deg]
+        #    # match tensor product matrices
+        #    if len(sbu_match) > 1:
+        #        self._vertex_sbu[vert] = self.select_sbu(vert, sbu_match) 
+        #        bu = self._vertex_sbu[vert]
+        #    elif len(sbu_match) == 0:
+        #        error("Didn't assign an SBU to vertex %s"%vert)
+        #        Terminate(errcode=1) 
+        #    else:
+        #        self._vertex_sbu[vert] = deepcopy(sbu_match[0])
+        #        bu = self._vertex_sbu[vert]
+        #    bu.vertex_id = vert
+        #    [cp.set_sbu_vertex(bu.vertex_id) for cp in bu.connect_points]
 
         # check to ensure all sbus were assigned to vertices.
         collect = [(sbu.name, sbu.identifier) for vert, sbu in self._vertex_sbu.items()]

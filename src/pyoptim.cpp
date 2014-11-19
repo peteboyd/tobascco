@@ -794,7 +794,7 @@ double sumsquarediff(int size, int* nzi, int* nzj, double** A, double** B){
     }
     //std::cout<<"0.])"<<std::endl;
     //std::cout<<sum<<std::endl;
-    return sum;
+    return sqrt(sum);
 }
 
 int factorial(int x, int result = 1) {

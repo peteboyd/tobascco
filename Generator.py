@@ -25,10 +25,13 @@ class Generate(object):
     def combinations_from_options(self):
         """Just return the tuples in turn."""
         combs = []
+        Nmetals = self.options.metal_sbu_per_structure
         for combo in self.options.sbu_combinations:
-            # first one has to be a metal.
-            met = [self.sbus.get(combo[0], _METAL=True)]
-            combs.append(tuple(met + [self.sbus.get(i) for i in combo[1:]]))
+            # first sbus have to be metals.
+            met = []
+            for i in range(Nmetals):
+                met.append(self.sbus.get(combo[i], _METAL=True))
+            combs.append(tuple(met + [self.sbus.get(i) for i in combo[Nmetals:]]))
         return combs
     
     def _valid_sbu_combination(self, incidence, sbu_set):

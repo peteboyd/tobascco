@@ -7,15 +7,15 @@ import os
 #NB for shared libraries ensure that the lib dir is in LD_LIBRARY_PATH!
 # eg export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/pboyd/lib/nlopt-2.4.1/lib
 
-include_dirs = [os.getcwd(), '/home/pboyd/lib/nlopt-2.4.1/include']
+include_dirs = [os.getcwd(), os.environ['NL_INCDIR']]
 
 module = Extension('_nloptimize',
                    include_dirs = include_dirs +  get_numpy_include_dirs(),
                    sources = ['pyoptim.cpp'],
                    language = 'c++',
                    libraries = ['nlopt'],
-                   library_dirs = ['/home/pboyd/lib/nlopt-2.4.1/lib'],
-                   extra_link_args=["-O"])
+                   library_dirs = [os.environ['NL_LIBDIR']],
+                   extra_link_args=["-O", "-fPIC"])
 # NB: add "-g" to the extra_link_args list if debugging is required
 
 setup (name = 'nloptimize',

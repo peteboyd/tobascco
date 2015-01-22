@@ -262,7 +262,8 @@ class Net(object):
 
         """
         edges = self.graph.edges()
-        mspt = self.graph.to_undirected().min_spanning_tree()
+        st_vtx = np.random.choice(range(self.graph.order()))
+        mspt = self.graph.to_undirected().min_spanning_tree(starting_vertex=st_vtx)
         tree = Graph(mspt, multiedges=False, loops=False)
         #self.graph.show()
         cycle_completes = [i for i in edges if i not in mspt and (i[1], i[0], i[2]) not in mspt]
@@ -359,25 +360,31 @@ class Net(object):
             L.append(vector(QQ, i.tolist()))
         V = QQ**self.ndim
         lattice = []
-        for e in np.identity(self.ndim):
+        for e in np.identity(self.ndim, dtype=np.int):
             ev = vector(e)
             L.append(ev)
-            
+            found = []
+            for k,j in enumerate(cycle_rep):
+                if np.allclose(e,j):
+                    found.append(k)
+            if found:
+                vect = cycle[np.random.choice(found)]
             #vect = (V.linear_dependence(L, zeros='left')[-1][:-1])
             #nz = np.nonzero(vect)
-            mincount = self.shape
-            vect = None
-            for jj in V.linear_dependence(L, zeros='left'):
-                if not np.allclose(jj[-1], 0):
-                    vv = jj[:-1]*-1.*jj[-1]
-                    nz = np.nonzero(vv)
-                    tv = np.sum(np.array(cycle)[nz] * np.array(vv)[nz][:, None], axis=0)
-                    if len(nz) == 1:
-                        vect = tv 
-                        break
-                    elif len(nz) < mincount and self.is_integral(tv):
-                        vect = tv 
-                        mincount = len(nz)
+            else:
+                mincount = self.shape
+                vect = None
+                for jj in V.linear_dependence(L, zeros='left'):
+                    if not np.allclose(jj[-1], 0):
+                        vv = jj[:-1]*-1.*jj[-1]
+                        nz = np.nonzero(vv)
+                        tv = np.sum(np.array(cycle)[nz] * np.array(vv)[nz][:, None], axis=0)
+                        if len(nz) == 1:
+                            vect = tv 
+                            break
+                        elif len(nz) < mincount and self.is_integral(tv):
+                            vect = tv 
+                            mincount = len(nz)
             lattice.append(vect)
             #lattice.append(tv)
             L.pop(-1)

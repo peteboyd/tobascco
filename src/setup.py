@@ -15,7 +15,7 @@ module = Extension('_nloptimize',
                    language = 'c++',
                    libraries = ['nlopt'],
                    library_dirs = [os.environ['NL_LIBDIR']],
-                   extra_link_args=["-O", "-fPIC"])
+                   extra_link_args=["-O"])
 # NB: add "-g" to the extra_link_args list if debugging is required
 
 setup (name = 'nloptimize',

@@ -1,11 +1,12 @@
 import math
-import sys
+import os, sys
 from sage.all import *
 import itertools
 from uuid import uuid4
 from logging import info, debug, warning, error
 import numpy as np
 from LinAlg import DEG2RAD
+sys.path.append(os.path.join(os.path.dirname(__file__), 'src', 'build', 'lib.linux-x86_64-2.7')) 
 import _nloptimize as nl
 from config import Terminate
 sys.setrecursionlimit(100000)

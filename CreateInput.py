@@ -6,7 +6,7 @@ try:
     import openbabel as ob
     import pybel
 except ImportError:
-    pass
+    print ("Could not load the openbabel libraries!") 
 from logging import info, debug, warning, error, critical
 import numpy
 from element_properties import ATOMIC_NUMBER 

@@ -32,28 +32,36 @@ class SystreDB(dict):
             return
 
         f = open(file, 'r')
+        block = []
         while True:
             line = f.readline()
             if not line:
                 break
+
             l = line.strip().split()
-            if l and l[0] == 'key':
-                k = l[1]
-                e = list(self.Nd_chunks([int(i) for i in l[2:]], 3))
-                # generate random unique uuid name for the dictionary
-                # incase the 'name' column isn't found
-                name = self.read_chunk(f)
-                g, v = self.gen_sage_graph_format(e)
+            if l and l[0].lower() != 'end':
+                block.append(' '.join(l))
+            elif l and l[0].lower() == 'end':
+                name = self.get_name(block)
+                systre_key = self.get_key(block)
+                g, v = self.gen_sage_graph_format(systre_key)
                 self[name] = g
                 self.voltages[name] = np.array(v)
+                block = []
 
-    def read_chunk(self, fileobject):
+    def get_key(self, block):
+        for j in block:
+            l = j.split()
+            if l[0].lower() == 'key':
+                return list(self.Nd_chunks([int(i) for i in l[2:]], 3))
+        return None
+
+    def get_name(self, block):
         name = uuid4()
-        for j in range(6):
-            r = fileobject.readline()
-            xline = r.strip().split()
-            if xline[0] == 'id':
-                name = xline[1]
+        for j in block:
+            l = j.split()
+            if l[0].lower() == 'id':
+                name = l[1]
         return name
 
     def Nd_chunks(self, list, dim):

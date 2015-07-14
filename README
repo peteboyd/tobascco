@@ -1,0 +1,7 @@
+TOPCRYST
+
+**WARNING**
+to run the code, you have to compile the parts written in C++. This is located in the src directory of the main program.
+Simply run "python setup.py build" to compile the program
+
+-- Notes: the compilation of the C++ program currently works with python 2.7.3 but fails with other packages

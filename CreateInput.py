@@ -25,7 +25,8 @@ class InputSBU(object):
         self.data = {'name':'','index':'', 'metal':'', 'topology':'', 'parent':'',
                 'atomic_info':'', 'bond_table':'', 'connectivity':'',
                 'connect_flag':'', 'connect_sym':''}
-        self.name = clean(filename, ext) 
+        name = os.path.split(filename)[-1]
+        self.name = clean(name, ext) 
         self.update(name=self.name)
         self.mol = pybel.readfile(ext, filename).next()
         self._reset_formal_charges()
@@ -191,12 +192,22 @@ class SBUFileRead(object):
         self.sbus = []
 
     def read_sbu_files(self):
-        files = self.options.sbu_files if self.options.sbu_files else os.listdir('.')
-        files = [file for file in files if 
-                 '.'+self.options.file_extension == file[-4:]]
+        files = []
+        if self.options.sbu_files:
+            for sbuf in self.options.sbu_files:
+                if sbuf[-4:] == '.'+self.options.file_extension:
+                    file.append(sbuf)
+                else:
+                    if os.path.isdir(os.path.abspath(sbuf)):
+                        for j in os.listdir(os.path.abspath(sbuf)):
+                            if j[-4:] == '.'+self.options.file_extension:
+                                files.append(os.path.join(os.path.abspath(sbuf),j))
+
+        else:
+            files = os.listdir('.')
         for f in files:
-            info("Reading: %s"%(f))
-            s = InputSBU(os.path.basename(f), self.options.file_extension)
+            info("Reading: %s"%(os.path.basename(f)))
+            s = InputSBU(f, self.options.file_extension)
             s.get_index()
             s.get_metal()
             s.special()

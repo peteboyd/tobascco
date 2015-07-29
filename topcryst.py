@@ -354,7 +354,7 @@ class JobHandler(object):
                 sbu_append.children.append(sbu)
                 rem.append(id)
         for x in reversed(sorted(rem)):
-            self.sbu_pool.pop(x)
+            del self.sbu_pool[x]
     
     def _pop_unwanted_sbus(self):
         """Removes sbu indices not listed in the options."""
@@ -369,7 +369,7 @@ class JobHandler(object):
          sbu.is_metal]
         remove.sort()
         for p in reversed(remove):
-            self.sbu_pool.pop(p)
+            del self.sbu_pool[p]
                 
         # issue warning if some of the SBUs requested in the ini file are not in the
         # database

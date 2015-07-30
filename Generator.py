@@ -57,7 +57,7 @@ class Generate(object):
 
     def yield_linear_org_sbu(self, combo):
         for i in self.sbus.list:
-            if i.linear and not i.is_metal: 
+            if (i.linear or i.two_connected) and not i.is_metal: 
                 ret = list(combo) + [i]
                 yield tuple(ret)
    

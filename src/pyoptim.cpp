@@ -10,8 +10,6 @@
 void create_full_rep(int, int, double**, int, int, const double*, double**);
 static PyObject * nloptimize(PyObject *self, PyObject *args);
 static PyObject * get_ip_matrix(PyObject *self, PyObject *args);
-static PyObject * matrix_product(PyObject *self, PyObject *args);
-static PyObject * triple_matrix_product(PyObject *self, PyObject *args);
 void forward_difference_grad(double*, const double*, double, void*, double);
 void central_difference_grad(double*, const double* , void*, double);
 double objectivefunc(unsigned, const double*, double*, void*);
@@ -31,8 +29,6 @@ int factorial(int, int);
 static PyMethodDef functions[] = {
     {"nloptimize", nloptimize, METH_VARARGS, NULL},
     {"c_inner_prod", get_ip_matrix, METH_VARARGS, NULL},
-    {"c_matrix_prod", matrix_product, METH_VARARGS, NULL},
-    {"c_trip_prod", triple_matrix_product, METH_VARARGS, NULL},
     {NULL, NULL, 0, NULL} 
 };
 
@@ -98,7 +94,6 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
                           &frel)){
         return NULL;
     };
-    nlopt_opt opt, local_opt;
     double *x, *lb, *ub;
     lb = get1darrayd(lower_bounds);
     ub = get1darrayd(upper_bounds);
@@ -189,10 +184,12 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     //construct the objective function
     //opt = nlopt_create(NLOPT_LD_TNEWTON, data.x_size); /* algorithm and dimensionality */
     //opt = nlopt_create(NLOPT_LN_COBYLA, data.x_size);
+    opt = nlopt_create(NLOPT_LN_PRAXIS, data.x_size); /* 'tis well-behaved so far */
+    //opt = nlopt_create(NLOPT_LN_BOBYQA, data.x_size);
 
     //GLOBAL OPTIMIZER**********************************
     //opt = nlopt_create(NLOPT_GN_ESCH, data.x_size);
-    opt = nlopt_create(NLOPT_GN_DIRECT_L, data.x_size);
+    //opt = nlopt_create(NLOPT_GN_DIRECT_L, data.x_size);
     nlopt_set_min_objective(opt, objectivefunc, &data);
     nlopt_set_lower_bounds(opt, lb);
     nlopt_set_upper_bounds(opt, ub);
@@ -202,7 +199,7 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     //nlopt_set_population(opt, 10);
     ////MLSL specific*************************************
     //local_opt = nlopt_create(NLOPT_LD_LBFGS, data.x_size);
-    //nlopt_set_ftol_rel(local_opt, 1e-5);
+    nlopt_set_ftol_rel(opt, 1e-2);
     //nlopt_set_local_optimizer(opt, local_opt);
     //nlopt_destroy(local_opt);
 
@@ -213,14 +210,16 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     //        return(Py_None);
     //}
     //std::cout<<retval<<std::endl;
+    retval = nlopt_optimize(opt, x, &minf);
     nlopt_destroy(opt); 
 
     //END GLOBAL OPTIMIZER******************************
 
     //LOCAL OPTIMIZER***********************************
+    //std::cout<<"HAND OFF!"<<std::endl;
     opt = nlopt_create(NLOPT_LD_LBFGS, data.x_size);
     //nlopt_set_initial_step1(opt, 0.1);
-    nlopt_set_vector_storage(opt, 10000); /* for quasi-newton algorithms, how many gradients to store */
+    nlopt_set_vector_storage(opt, 100); /* for quasi-newton algorithms, how many gradients to store */
     /*
     for (int i=0; i<data.x_size; i++){
         std::cout<<ub[i]<<" ";
@@ -380,116 +379,6 @@ static PyObject * get_ip_matrix(PyObject *self, PyObject *args)
     return PyArray_Return(array_x); 
 }
 
-static PyObject * triple_matrix_product(PyObject *self, PyObject *args)
-{
-    int n1,m1,n2,m2,n3,m3;
-    data_info d;
-    npy_intp * tt;
-    PyArrayObject* array_x = NULL;
-    PyArrayObject* mat1;
-    PyArrayObject* mat2;
-    PyArrayObject* mat3;
-    //read in all the parameters
-    if (!PyArg_ParseTuple(args, "OOO",
-                          &mat1,
-                          &mat2,
-                          &mat3)){
-        return NULL;
-    };
-
-    d._cycle_cocycle_I = get2darrayd(mat1);
-    d._cycle_rep = get2darrayd(mat2);
-    d.inner_product = get2darrayd(mat3);
-
-    tt = PyArray_DIMS(mat1);
-    n1 = (int)tt[0];
-    m1 = (int)tt[1];
-    tt = PyArray_DIMS(mat2);
-    n2 = (int)tt[0];
-    m2 = (int)tt[1];
-    tt = PyArray_DIMS(mat3);
-    n3 = (int)tt[0];
-    m3 = (int)tt[1];
-    d.edge_vectors = construct2darray(n1, m2);
-    matrix_multiply(n1, m1, d._cycle_cocycle_I, n2, m2, d._cycle_rep, d.edge_vectors);
-    d.first_product = construct2darray(n1,m3);
-    matrix_multiply(n1, m2, d.edge_vectors, n3, m3, d.inner_product, d.first_product);
-    /*
-    for (int i=0; i<n1; i++){
-        for (int j=0; j<m3; j++){
-            std::cout<<d.first_product[i][j]<<" ";
-        }
-        std::cout<<std::endl;
-    }
-    */
-    npy_intp dims[2] = {(npy_intp)n1, (npy_intp)m3};
-    array_x = (PyArrayObject*) PyArray_SimpleNew(2, dims, NPY_DOUBLE);
-    void* xptr;
-    PyObject* val;
-    double max =0 ; 
-    for (int i=0; i<n1; i++){
-        for (int j=0; j<m3; j++){
-            xptr = PyArray_GETPTR2(array_x, i, j);
-            val = PyFloat_FromDouble(d.first_product[i][j]);
-            if (d.first_product[i][j] > max){
-                max = d.first_product[i][j];
-            }
-
-            PyArray_SETITEM(array_x, (char*) xptr, val);
-            Py_DECREF(val);
-        }
-    }
-    free_2d_array(d._cycle_cocycle_I, n1);
-    free_2d_array(d._cycle_rep, n2);
-    free_2d_array(d.inner_product, n3);
-    free_2d_array(d.edge_vectors, n1);
-    free_2d_array(d.first_product, n1);
-
-    return PyArray_Return(array_x); 
-}
-static PyObject * matrix_product(PyObject *self, PyObject *args)
-{
-    int n1,m1,n2,m2;
-    data_info d;
-    npy_intp * tt;
-    PyArrayObject* array_x = NULL;
-    PyArrayObject* mat1;
-    PyArrayObject* mat2;
-    //read in all the parameters
-    if (!PyArg_ParseTuple(args, "OO",
-                          &mat1,
-                          &mat2)){
-        return NULL;
-    };
-
-    d._cycle_cocycle_I = get2darrayd(mat1);
-    d._cycle_rep = get2darrayd(mat2);
-    tt = PyArray_DIMS(mat1);
-    n1 = (int)tt[0];
-    m1 = (int)tt[1];
-    tt = PyArray_DIMS(mat2);
-    n2 = (int)tt[0];
-    m2 = (int)tt[1];
-    d.edge_vectors = construct2darray(n1, m2);
-    matrix_multiply(n1, m1, d._cycle_cocycle_I, n2, m2, d._cycle_rep, d.edge_vectors);
-    
-    npy_intp dims[2] = {(npy_intp)n1, (npy_intp)m2};
-    array_x = (PyArrayObject*) PyArray_SimpleNew(2, dims, NPY_DOUBLE);
-    void* xptr;
-    PyObject* val; 
-    for (int i=0; i<n1; i++){
-        for (int j=0; j<m2; j++){
-            xptr = PyArray_GETPTR2(array_x, i, j);
-            val = PyFloat_FromDouble(d.edge_vectors[i][j]);
-            PyArray_SETITEM(array_x, (char*) xptr, val);
-            Py_DECREF(val);
-        }
-    }
-    
-    free_2d_array(d.edge_vectors, n1);
-    free_2d_array(d._cycle_cocycle_I, n1);
-    free_2d_array(d._cycle_rep, n2);
-    return PyArray_Return(array_x); 
 }
 
 double objectivefunc(unsigned n, const double *x, double *grad, void *dd)
@@ -516,9 +405,9 @@ double objectivefunc(unsigned n, const double *x, double *grad, void *dd)
     //ans = sumabsdiff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
     if (grad) {
         //;
-        //forward_difference_grad(grad, x, ans, dd, 1e-3);
+        forward_difference_grad(grad, x, ans, dd, 1e-5);
         //std::cout<<"HERE"<<std::endl;
-        central_difference_grad(grad, x, dd, 1e-12);
+        //central_difference_grad(grad, x, dd, 1e-12);
     }
     //std::cout<<ans<<std::endl;
     /*
@@ -652,8 +541,7 @@ void transpose_2darray(int rows, int cols, double** orig, double** transpose){
     }
 }
 void matrix_multiply(int row1, int col1, double **mat1, int row2, int col2, double **mat2, double **ans){
-    
-    double sum=0;
+   double sum=0; 
     if (col1 != row2){
         std::cout<<"Cannot multiply these matrices!!"<<std::endl;
     }
@@ -664,11 +552,12 @@ void matrix_multiply(int row1, int col1, double **mat1, int row2, int col2, doub
       {
         for (int k = 0 ; k < row2 ; k++ )
         {
-          sum = sum + mat1[c][k]*mat2[k][d];
+          sum += mat1[c][k]*mat2[k][d];
         }
- 
+        
         ans[c][d] = sum;
-        sum = 0;
+        sum=0; 
+ 
       }
     }
 }
@@ -803,4 +692,90 @@ double sumsquarediff(int size, int* nzi, int* nzj, double** A, double** B){
 
 int factorial(int x, int result = 1) {
       if (x == 1) return result; else return factorial(x - 1, x * result);
+}
+
+
+void compute_inner_product(void* data, double ** ans){
+    //Try to eliminate some inefficiencies in the code, no more explicit transposing
+    //Optimize matrix products to reduce the number of multiplications all in a singls
+    //function.
+    //
+    //This is a 5 matrix multiplication, with four products
+    data_info d = *((struct data_info *)data);
+    double** M1;
+    double** M2;
+    double** M3;
+    double sum;
+    
+    d.ndim;
+    d.B_shape;
+
+    //row1, col2, row2
+    //alpha(B) * Z
+    //d.rep * d.metric_tensor
+    //resulting B_shape * ndim array
+    sum=0;
+    for (int i = 0 ; i < d.B_shape ; j++ ){
+        for (int j = 0 ; j < d.ndim ; j++ ){
+            for (int k = 0 ; k < d.ndim ; k++ ){
+                sum += d.rep[i][k]*d.metric_tensor[k][j];
+            }
+        
+            M1[i][j] = sum;
+            sum=0; 
+ 
+        }
+    }
+    
+    // M1 * d.rep transpose
+    // resulting B_shape * B_shape array
+    sum=0;
+    for (int i = 0 ; i < d.B_shape ; j++ ){
+        for (int j = 0 ; j < d.B_shape ; j++ ){
+            for (int k = 0 ; k < d.ndim ; k++ ){
+                //sum += M1[i][k]*d.rep[k][j];
+                sum += M1[i][k]*d.rep[j][k]; //rep is transposed.. I hope this is right!
+            }
+        
+            M2[i][j] = sum;
+            sum=0; 
+ 
+        }
+    }
+   
+
+    // M2 * d._cycle_cocycle_I transpose
+    // resulting B_shape * B_shape array
+    sum=0;
+    for (int i = 0 ; i < d.B_shape ; j++ ){
+        for (int j = 0 ; j < d.B_shape ; j++ ){
+            for (int k = 0 ; k < d.B_shape ; k++ ){
+                //sum += M2[i][k]*d._cycle_cocycle_I[k][j];
+                sum += M2[i][k]*d._cycle_cocycle_I[j][k];//rep is transposed.. I hope this is right!
+            }
+        
+            M3[i][j] = sum;
+            sum=0; 
+ 
+        }
+    }
+    
+    // d._cycle_cocycle_I * M3
+    // resulting IP matrix
+    sum=0;
+    for (int i = 0 ; i < d.B_shape ; j++ ){
+        for (int j = 0 ; j < d.B_shape ; j++ ){
+            for (int k = 0 ; k < d.B_shape ; k++ ){
+                sum += d._cycle_cocycle_I[i][k]*M3[k][j];
+            }
+        
+            ans[i][j] = sum;
+            sum=0; 
+ 
+        }
+    }
+    free_2d_array(M1,d.B_shape);
+    free_2d_array(M2,d.B_shape);
+    free_2d_array(M3,d.B_shape);
+    
 }

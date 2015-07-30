@@ -9,7 +9,6 @@
 
 void create_full_rep(int, int, double**, int, int, const double*, double**);
 static PyObject * nloptimize(PyObject *self, PyObject *args);
-static PyObject * get_ip_matrix(PyObject *self, PyObject *args);
 void forward_difference_grad(double*, const double*, double, void*, double);
 void central_difference_grad(double*, const double* , void*, double);
 double objectivefunc(unsigned, const double*, double*, void*);
@@ -28,7 +27,6 @@ int factorial(int, int);
 
 static PyMethodDef functions[] = {
     {"nloptimize", nloptimize, METH_VARARGS, NULL},
-    {"c_inner_prod", get_ip_matrix, METH_VARARGS, NULL},
     {NULL, NULL, 0, NULL} 
 };
 
@@ -278,108 +276,6 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     return PyArray_Return(array_x); 
 }
 
-static PyObject * get_ip_matrix(PyObject *self, PyObject *args)
-{
-    int ndim;
-    data_info d;
-    PyArrayObject* init_x;
-    PyArrayObject* array_x = NULL;
-    PyArrayObject* inner_product_matrix;
-    PyArrayObject* cycle_rep;
-    PyArrayObject* cycle_cocycle_I;
-    //read in all the parameters
-    if (!PyArg_ParseTuple(args, "iOOOO",
-                          &ndim,
-                          &init_x,
-                          &cycle_rep,
-                          &cycle_cocycle_I,
-                          &inner_product_matrix)){
-        return NULL;
-    };
-
-    double *x;
-    x = get1darrayd(init_x);
-    npy_intp* tt;
-    tt = PyArray_DIMS(init_x);
-    d.x_size = (int)tt[0];
-    d.start = 0;
-    d.diag_ind = 0;
-    d._cycle_cocycle_I = get2darrayd(cycle_cocycle_I);
-    d._cycle_rep = get2darrayd(cycle_rep);
-    d._ip_mat = get2darrayd(inner_product_matrix);
-    
-    d.ndim = ndim;
-    tt = PyArray_DIMS(cycle_rep);
-    d.cycle_size = (int)tt[0];
-    d.rep_size = (int)tt[0] + d.x_size/d.ndim;
-    d.rep = construct2darray(d.rep_size, d.ndim);
-    tt = PyArray_DIMS(cycle_cocycle_I);
-    d.B_shape = (int) tt[0];
-    d.edge_vectors = construct2darray(d.B_shape, d.ndim);
-    d.edge_vectors_T = construct2darray(d.ndim, d.B_shape);
-    d.first_product = construct2darray(d.B_shape, d.ndim);
-    d.inner_product = construct2darray(d.B_shape, d.B_shape);
-    d.metric_tensor = construct2darray(d.ndim, d.ndim);
-
-    create_full_rep(d.cycle_size, d.ndim, d._cycle_rep, d.start, d.x_size/d.ndim, x, d.rep);
-    int xinc =6;
-    for (int i=d.cycle_size; i<d.B_shape; i++){
-        for (int j=0; j<d.ndim; j++){
-            d.rep[i][j] = x[xinc];
-            xinc ++;
-        }
-    }
-    create_metric_tensor(d.ndim, x, d.metric_tensor);
-    matrix_multiply(d.B_shape, d.B_shape, d._cycle_cocycle_I, d.B_shape, d.ndim, d.rep, d.edge_vectors);
-    matrix_multiply(d.B_shape, d.ndim, d.edge_vectors, d.ndim, d.ndim, d.metric_tensor, d.first_product);
-    transpose_2darray(d.B_shape, d.ndim, d.edge_vectors, d.edge_vectors_T);
-    /*
-    for (int i=0; i<d.ndim; i++){
-        for (int j=0; j<d.ndim; j++){
-            std::cout<<d.metric_tensor[i][j]<<" ";
-        }
-        std::cout<<std::endl;
-    }
-    */ 
-    matrix_multiply(d.B_shape, d.ndim, d.first_product, d.ndim, d.B_shape, d.edge_vectors_T, d.inner_product);
-    /* 
-    for (int i=0; i<d.B_shape; i++){
-        for (int j=0; j<d.B_shape; j++){
-            std::cout<<d.inner_product[i][j]<<" ";
-        }
-        std::cout<<std::endl;
-        //std::cout<<d.inner_product[i][i]<<" ";
-    }
-    */
-    setup_matrix(4, d.B_shape, d.inner_product);
-    
-    npy_intp dims[2] = {(npy_intp)d.B_shape, (npy_intp)d.B_shape};
-    array_x = (PyArrayObject*) PyArray_SimpleNew(2, dims, NPY_DOUBLE);
-    void* xptr;
-    PyObject* val; 
-    for (int i=0; i<d.B_shape; i++){
-        for (int j=0; j<d.B_shape; j++){
-            xptr = PyArray_GETPTR2(array_x, i, j);
-            val = PyFloat_FromDouble(d.inner_product[i][j]);
-            PyArray_SETITEM(array_x, (char*) xptr, val);
-            Py_DECREF(val);
-        }
-    }
-    
-    free(x);
-    free_2d_array(d.edge_vectors, d.B_shape);
-    free_2d_array(d.edge_vectors_T, d.ndim);
-    free_2d_array(d.first_product, d.B_shape);
-    free_2d_array(d.inner_product, d.B_shape);
-    free_2d_array(d.metric_tensor, d.ndim);
-    free_2d_array(d.rep, d.rep_size);
-    free_2d_array(d._cycle_cocycle_I, d.B_shape);
-    free_2d_array(d._cycle_rep, d.cycle_size);
-    free_2d_array(d._ip_mat, d.B_shape);
-    return PyArray_Return(array_x); 
-}
-
-}
 
 double objectivefunc(unsigned n, const double *x, double *grad, void *dd)
 {

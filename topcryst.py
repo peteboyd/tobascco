@@ -157,7 +157,7 @@ class JobHandler(object):
                     if build.met_met_bonds and run.linear_sbus_exist:
                         # add linear organics
                         debug("Metal-type nodes attached to metal-type nodes. "+
-                                "Attempting to insert linear organic SBUs between these nodes.")
+                                "Attempting to insert 2-c organic SBUs between these nodes.")
                         for comb in run.yield_linear_org_sbu(combo):
                             build.sbus = list(set(comb))
                             self.embed_sbu_combo(top, comb, build)

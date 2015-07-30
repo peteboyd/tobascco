@@ -514,7 +514,9 @@ class Net(object):
                           self.cycle_cocycle_I,
                           self.colattice_dotmatrix,
                           np.array(self.colattice_inds[0]), 
-                          np.array(self.colattice_inds[1]))
+                          np.array(self.colattice_inds[1]),
+                          self.options.opt_parameter_tol,
+                          self.options.opt_function_tol,)
 
         if x is None:
             return False

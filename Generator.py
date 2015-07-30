@@ -68,7 +68,8 @@ class Generate(object):
         except AttributeError:
             self._linear_exist = False
             for i in self.sbus.list:
-                if i.linear:
+                # not necessarily linear, but 2-c SBUs are OK for this function
+                if i.linear or i.two_connected:
                     self._linear_exist = True
                     break
             return self._linear_exist

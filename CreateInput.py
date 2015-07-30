@@ -196,7 +196,7 @@ class SBUFileRead(object):
         if self.options.sbu_files:
             for sbuf in self.options.sbu_files:
                 if sbuf[-4:] == '.'+self.options.file_extension:
-                    file.append(sbuf)
+                    files.append(sbuf)
                 else:
                     if os.path.isdir(os.path.abspath(sbuf)):
                         for j in os.listdir(os.path.abspath(sbuf)):

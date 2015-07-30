@@ -121,7 +121,9 @@ class Options(object):
         floats = ['overlap_tolerance',
                   'sbu_bond_length',
                   'cell_vol_tolerance',
-                  'symmetry_precision']
+                  'symmetry_precision',
+                  'opt_parameter_tol',
+                  'opt_function_tol']
         integers = ['organic_sbu_per_structure',
                     'metal_sbu_per_structure',
                     'max_structures',

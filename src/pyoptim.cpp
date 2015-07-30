@@ -65,6 +65,8 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     int ndim;
     int diag_ind;
     double minf; /* the minimum objective value, upon return */
+    double xrel; /* the relative tolerance for the input variables */
+    double frel; /* the relative tolerance for the function change */
     data_info data;
     nlopt_result retval; /*Return value from nlopt: 1 = GENERAL SUCCESS
                                                     2 = STOPVAL REACHED
@@ -81,7 +83,7 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     PyArrayObject* cycle_cocycle_I;
     PyArrayObject* zero_indi, *zero_indj;
     //read in all the parameters
-    if (!PyArg_ParseTuple(args, "iiOOOOOOOO",
+    if (!PyArg_ParseTuple(args, "iiOOOOOOOOdd",
                           &ndim,
                           &diag_ind,
                           &lower_bounds,
@@ -91,7 +93,9 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
                           &cycle_cocycle_I,
                           &inner_product_matrix,
                           &zero_indi,
-                          &zero_indj)){
+                          &zero_indj,
+                          &xrel,
+                          &frel)){
         return NULL;
     };
     nlopt_opt opt, local_opt;
@@ -193,7 +197,7 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     nlopt_set_lower_bounds(opt, lb);
     nlopt_set_upper_bounds(opt, ub);
     //nlopt_set_ftol_abs(opt, 0.01);
-    nlopt_set_ftol_rel(opt, 1e-10);
+    nlopt_set_ftol_rel(opt, frel);
 
     //nlopt_set_population(opt, 10);
     ////MLSL specific*************************************
@@ -231,7 +235,7 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     nlopt_set_upper_bounds(opt, ub);
     
     //nlopt_set_ftol_rel(opt, 1e-10);
-    nlopt_set_xtol_rel(opt, 1e-5);
+    nlopt_set_xtol_rel(opt, xrel);
     retval = nlopt_optimize(opt, x, &minf);
     if (retval < 0) {
             printf("nlopt failed!\n");

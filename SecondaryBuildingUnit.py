@@ -216,6 +216,11 @@ class SBU(object):
         return False
 
     @property
+    def two_connected(self):
+        """Return true if only two connection sites"""
+        return (len(self.connect_points)==2)
+
+    @property
     def degree(self):
         return len(self.connect_points)
 

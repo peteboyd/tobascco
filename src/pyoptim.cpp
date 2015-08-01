@@ -194,17 +194,17 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     //construct the objective function
     //opt = nlopt_create(NLOPT_LD_TNEWTON, data.x_size); /* algorithm and dimensionality */
     //opt = nlopt_create(NLOPT_LN_COBYLA, data.x_size);
-    opt = nlopt_create(NLOPT_LN_PRAXIS, data.x_size); /* 'tis well-behaved so far */
+    //opt = nlopt_create(NLOPT_LN_PRAXIS, data.x_size); /* 'tis well-behaved so far */
     //opt = nlopt_create(NLOPT_LN_BOBYQA, data.x_size);
 
     //GLOBAL OPTIMIZER**********************************
     //opt = nlopt_create(NLOPT_GN_ESCH, data.x_size);
     //opt = nlopt_create(NLOPT_GN_DIRECT_L, data.x_size);
-    nlopt_set_min_objective(opt, objectivefunc, &data);
-    nlopt_set_lower_bounds(opt, lb);
-    nlopt_set_upper_bounds(opt, ub);
+    //nlopt_set_min_objective(opt, objectivefunc, &data);
+    //nlopt_set_lower_bounds(opt, lb);
+    //nlopt_set_upper_bounds(opt, ub);
     //nlopt_set_ftol_abs(opt, 0.01);
-    nlopt_set_ftol_rel(opt, 0.03);
+    //nlopt_set_ftol_rel(opt, 0.03);
 
     //nlopt_set_population(opt, 10);
     ////MLSL specific*************************************
@@ -220,8 +220,8 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     //        return(Py_None);
     //}
     //std::cout<<retval<<std::endl;
-    retval = nlopt_optimize(opt, x, &minf);
-    nlopt_destroy(opt); 
+    //retval = nlopt_optimize(opt, x, &minf);
+    //nlopt_destroy(opt); 
 
     //END GLOBAL OPTIMIZER******************************
 
@@ -229,7 +229,7 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     //std::cout<<"HAND OFF!"<<std::endl;
     opt = nlopt_create(NLOPT_LD_LBFGS, data.x_size);
     //nlopt_set_initial_step1(opt, 0.1);
-    nlopt_set_vector_storage(opt, 100); /* for quasi-newton algorithms, how many gradients to store */
+    nlopt_set_vector_storage(opt, 10000); /* for quasi-newton algorithms, how many gradients to store */
     /*
     for (int i=0; i<data.x_size; i++){
         std::cout<<ub[i]<<" ";
@@ -300,11 +300,11 @@ double objectivefunc(unsigned n, const double *x, double *grad, void *dd)
     data_info d = *((struct data_info *)dd); 
     create_full_rep(d.cycle_size, d.ndim, d._cycle_rep, d.start, d.x_size/d.ndim, x, d.rep);
     create_metric_tensor(d.ndim, x, d.metric_tensor);
-    //compute_inner_product(d);
-    matrix_multiply(d.B_shape, d.B_shape, d._cycle_cocycle_I, d.B_shape, d.ndim, d.rep, d.edge_vectors);
-    transpose_2darray(d.B_shape, d.ndim, d.edge_vectors, d.edge_vectors_T);
-    matrix_multiply(d.B_shape, d.ndim, d.edge_vectors, d.ndim, d.ndim, d.metric_tensor, d.first_product);
-    matrix_multiply(d.B_shape, d.ndim, d.first_product, d.ndim, d.B_shape, d.edge_vectors_T, d.inner_product);
+    compute_inner_product(d);
+    //matrix_multiply(d.B_shape, d.B_shape, d._cycle_cocycle_I, d.B_shape, d.ndim, d.rep, d.edge_vectors);
+    //transpose_2darray(d.B_shape, d.ndim, d.edge_vectors, d.edge_vectors_T);
+    //matrix_multiply(d.B_shape, d.ndim, d.edge_vectors, d.ndim, d.ndim, d.metric_tensor, d.first_product);
+    //matrix_multiply(d.B_shape, d.ndim, d.first_product, d.ndim, d.B_shape, d.edge_vectors_T, d.inner_product);
     setup_matrix(d.diag_ind, d.B_shape, d.inner_product);
     /*
     for (int i=0; i<d.B_shape; i++){
@@ -319,9 +319,9 @@ double objectivefunc(unsigned n, const double *x, double *grad, void *dd)
     //ans = sumabsdiff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
     if (grad) {
         //;
-        forward_difference_grad(grad, x, ans, dd, 1e-5);
+        //forward_difference_grad(grad, x, ans, dd, 1e-5);
         //std::cout<<"HERE"<<std::endl;
-        //central_difference_grad(grad, x, dd, 1e-12);
+        central_difference_grad(grad, x, dd, 1e-6);
     }
     //std::cout<<ans<<std::endl;
     /*
@@ -486,11 +486,11 @@ void forward_difference_grad(double* grad, const double* x, double fval, void* d
         d.farray[i] += xinc;
         create_full_rep(d.cycle_size, d.ndim, d._cycle_rep, d.start, d.x_size/d.ndim, d.farray, d.rep);
         create_metric_tensor(d.ndim, d.farray, d.metric_tensor);
-        matrix_multiply(d.B_shape, d.B_shape, d._cycle_cocycle_I, d.B_shape, d.ndim, d.rep, d.edge_vectors);
-        transpose_2darray(d.B_shape, d.ndim, d.edge_vectors, d.edge_vectors_T);
-        matrix_multiply(d.B_shape, d.ndim, d.edge_vectors, d.ndim, d.ndim, d.metric_tensor, d.first_product);
-        matrix_multiply(d.B_shape, d.ndim, d.first_product, d.ndim, d.B_shape, d.edge_vectors_T, d.inner_product);
-        //compute_inner_product(d);
+        //matrix_multiply(d.B_shape, d.B_shape, d._cycle_cocycle_I, d.B_shape, d.ndim, d.rep, d.edge_vectors);
+        //transpose_2darray(d.B_shape, d.ndim, d.edge_vectors, d.edge_vectors_T);
+        //matrix_multiply(d.B_shape, d.ndim, d.edge_vectors, d.ndim, d.ndim, d.metric_tensor, d.first_product);
+        //matrix_multiply(d.B_shape, d.ndim, d.first_product, d.ndim, d.B_shape, d.edge_vectors_T, d.inner_product);
+        compute_inner_product(d);
         setup_matrix(d.diag_ind, d.B_shape, d.inner_product);
         ans = sumsquarediff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
         //ans = sumabsdiff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
@@ -508,12 +508,12 @@ void central_difference_grad(double* grad, const double* x, void* data, double x
         d.barray[i] -= xinc;
         //forward grad
         create_full_rep(d.cycle_size, d.ndim, d._cycle_rep, d.start, d.x_size/d.ndim, d.farray, d.rep);
-        create_metric_tensor(d.ndim, d.farray, d.metric_tensor);
-        matrix_multiply(d.B_shape, d.B_shape, d._cycle_cocycle_I, d.B_shape, d.ndim, d.rep, d.edge_vectors);
-        transpose_2darray(d.B_shape, d.ndim, d.edge_vectors, d.edge_vectors_T);
-        matrix_multiply(d.B_shape, d.ndim, d.edge_vectors, d.ndim, d.ndim, d.metric_tensor, d.first_product);
-        matrix_multiply(d.B_shape, d.ndim, d.first_product, d.ndim, d.B_shape, d.edge_vectors_T, d.inner_product);
-        //compute_inner_product(d);
+        //create_metric_tensor(d.ndim, d.farray, d.metric_tensor);
+        //matrix_multiply(d.B_shape, d.B_shape, d._cycle_cocycle_I, d.B_shape, d.ndim, d.rep, d.edge_vectors);
+        //transpose_2darray(d.B_shape, d.ndim, d.edge_vectors, d.edge_vectors_T);
+        //matrix_multiply(d.B_shape, d.ndim, d.edge_vectors, d.ndim, d.ndim, d.metric_tensor, d.first_product);
+        //matrix_multiply(d.B_shape, d.ndim, d.first_product, d.ndim, d.B_shape, d.edge_vectors_T, d.inner_product);
+        compute_inner_product(d);
         setup_matrix(d.diag_ind, d.B_shape, d.inner_product);
         forward = sumsquarediff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
         //forward = sumabsdiff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
@@ -614,14 +614,14 @@ void compute_inner_product(data_info d){
     double sum;
 
     //row1, col2, row2
-    //alpha(B) * Z
+    //B*-1 * alpha(B) 
     //d.rep * d.metric_tensor
     //resulting B_shape * ndim array
     sum=0;
     for (int i = 0 ; i < d.B_shape ; i++ ){
         for (int j = 0 ; j < d.ndim ; j++ ){
-            for (int k = 0 ; k < d.ndim ; k++ ){
-                sum += d.rep[i][k]*d.metric_tensor[k][j];
+            for (int k = 0 ; k < d.B_shape ; k++ ){
+                sum += d._cycle_cocycle_I[i][k]*d.rep[k][j];
             }
         
             d.M1[i][j] = sum;
@@ -634,10 +634,10 @@ void compute_inner_product(data_info d){
     // resulting B_shape * B_shape array
     sum=0;
     for (int i = 0 ; i < d.B_shape ; i++ ){
-        for (int j = 0 ; j < d.B_shape ; j++ ){
+        for (int j = 0 ; j < d.ndim; j++ ){
             for (int k = 0 ; k < d.ndim ; k++ ){
                 //sum += M1[i][k]*d.rep[k][j];
-                sum += d.M1[i][k]*d.rep[j][k]; //rep is transposed.. I hope this is right!
+                sum += d.M1[i][k]*d.metric_tensor[k][j];
             }
         
             d.M2[i][j] = sum;
@@ -651,13 +651,14 @@ void compute_inner_product(data_info d){
     // resulting B_shape * B_shape array
     sum=0;
     for (int i = 0 ; i < d.B_shape ; i++ ){
-        for (int j = 0 ; j < d.B_shape ; j++ ){
-            for (int k = 0 ; k < d.B_shape ; k++ ){
+        for (int j = i ; j < d.B_shape ; j++ ){
+            for (int k = 0 ; k < d.ndim ; k++ ){
                 //sum += M2[i][k]*d._cycle_cocycle_I[k][j];
-                sum += d.M2[i][k]*d._cycle_cocycle_I[j][k];//rep is transposed.. I hope this is right!
+                sum += d.M2[i][k]*d.M1[j][k];//rep is transposed.. I hope this is right!
             }
         
-            d.M3[i][j] = sum;
+            d.inner_product[i][j] = sum;
+            d.inner_product[j][i] = sum;
             sum=0; 
  
         }
@@ -665,6 +666,7 @@ void compute_inner_product(data_info d){
     
     // d._cycle_cocycle_I * M3
     // resulting IP matrix
+    /*
     sum=0;
     for (int i = 0 ; i < d.B_shape ; i++ ){
         for (int j = 0 ; j < d.B_shape ; j++ ){
@@ -677,5 +679,5 @@ void compute_inner_product(data_info d){
  
         }
     }
-    
+    */
 }

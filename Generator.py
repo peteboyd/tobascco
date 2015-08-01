@@ -51,7 +51,7 @@ class Generate(object):
         for i in combo:
             for j in self.sbus.list:
                 if j==i:
-                    if j.linear:
+                    if j.linear or j.two_connected:
                         return True
         return False
 

@@ -225,6 +225,7 @@ class JobHandler(object):
         # generate the MOFs.
         inittime = time()
         for combo in combinations:
+        
             node_degree = [i.degree for i in set(combo)]
             node_lin = [i.linear for i in set(combo)]
             degree = sorted([j for i, j in zip(node_lin, node_degree) if not i])

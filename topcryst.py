@@ -20,6 +20,16 @@ import itertools
 import numpy as np
 import os
 
+# Turn on keyword expansion to get revision numbers in version strings
+# in .hg/hgrc put
+# [extensions]
+# keyword =
+#
+# [keyword]
+# faps.py =
+#
+# [keywordmaps]
+# Revision = {rev}
 try:
     __version_info__ = (0, 0, 0, int("$Revision$".strip("$Revision: ")))
 except ValueError:

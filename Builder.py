@@ -584,16 +584,16 @@ class Build(object):
             # compute dihedral angle, if one exists...
             struct.add_sbu(self._vertex_sbu[v])
         struct.connect_sbus(self._vertex_sbu)
-        if struct.compute_overlap():
+        #if struct.compute_overlap():
             #struct.write_cif()
-            warning("Overlap found in final structure, not creating MOF.")
-        else:
-            struct.write_cif()
-            self.struct = struct
-            self.success=True
-            if self.options.store_net:
-                self.embedded_net = self.store_placement(cell, init_placement) 
-            info("Structure Generated!")
+        #    warning("Overlap found in final structure, not creating MOF.")
+        #else:
+        struct.write_cif()
+        self.struct = struct
+        self.success=True
+        if self.options.store_net:
+            self.embedded_net = self.store_placement(cell, init_placement) 
+        info("Structure Generated!")
 
     def rotation_function(self, params, vect1, vect2):
         #axis = np.array((params['a1'].value, params['a2'].value, params['a3'].value))

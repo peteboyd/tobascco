@@ -15,7 +15,7 @@ double objectivefunc(unsigned, const double*, double*, void*);
 double sumsquarediff(int, int*, int*, double**, double**);
 double sumabsdiff(int, int*, int*, double**, double**);
 void matrix_multiply(int, int, double **, int, int, double **, double**);
-void create_metric_tensor(int, const double*, double**);
+void create_metric_tensor(int, const double*, double*, double**);
 void transpose_2darray(int, int, double**, double**);
 void setup_matrix(int, int, double**);
 double * get1darrayd(PyArrayObject*);
@@ -48,11 +48,13 @@ struct data_info{
     double ** M1;
     double ** M2;
     double ** M3;
+    double * Z;
     double * farray;
     double * barray;
 };
 
 void compute_inner_product(data_info);
+void compute_inner_product_fast(const double*, data_info);
 
 PyMODINIT_FUNC init_nloptimize(void)
 {
@@ -135,6 +137,7 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     data.first_product = construct2darray(data.B_shape, data.ndim);
     data.inner_product = construct2darray(data.B_shape, data.B_shape);
     data.metric_tensor = construct2darray(data.ndim, data.ndim);
+    data.Z = (double*)malloc(sizeof(double) * 6);
     data.M1 = construct2darray(data.B_shape, data.ndim);
     data.M2 = construct2darray(data.B_shape, data.B_shape);
     data.M3 = construct2darray(data.B_shape, data.B_shape);
@@ -290,6 +293,7 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     free_2d_array(data.M3, data.B_shape);
     free(data.farray);
     free(data.barray);
+    free(data.Z);
     return PyArray_Return(array_x); 
 }
 
@@ -299,8 +303,9 @@ double objectivefunc(unsigned n, const double *x, double *grad, void *dd)
     double ans;
     data_info d = *((struct data_info *)dd); 
     create_full_rep(d.cycle_size, d.ndim, d._cycle_rep, d.start, d.x_size/d.ndim, x, d.rep);
-    create_metric_tensor(d.ndim, x, d.metric_tensor);
-    compute_inner_product(d);
+    create_metric_tensor(d.ndim, x, d.Z, d.metric_tensor);
+    //compute_inner_product(d);
+    compute_inner_product_fast(x, d);
     //matrix_multiply(d.B_shape, d.B_shape, d._cycle_cocycle_I, d.B_shape, d.ndim, d.rep, d.edge_vectors);
     //transpose_2darray(d.B_shape, d.ndim, d.edge_vectors, d.edge_vectors_T);
     //matrix_multiply(d.B_shape, d.ndim, d.edge_vectors, d.ndim, d.ndim, d.metric_tensor, d.first_product);
@@ -323,7 +328,7 @@ double objectivefunc(unsigned n, const double *x, double *grad, void *dd)
         //std::cout<<"HERE"<<std::endl;
         central_difference_grad(grad, x, dd, 1e-6);
     }
-    //std::cout<<ans<<std::endl;
+    std::cout<<ans<<std::endl;
     /*
     for (int i =0; i<d.nz_size; i++){
         std::cout<<d._zi[i]<<' '<<d._zj[i]<<std::endl;
@@ -430,12 +435,23 @@ void create_full_rep(int row1, int col1, double **cycle, int start, int row2, co
     }
 }
 
-void create_metric_tensor(int ndim, const double *x, double **metric_tensor){
+void create_metric_tensor(int ndim, const double *x, double *Z, double **metric_tensor){
+    /* 
     for (int i=0; i<ndim; i++){
         metric_tensor[i][i] = x[i];
     }
+    */
     double ijval;
     int counter=0;
+    //only for ndim = 3!!
+    Z[0] = x[0];
+    Z[1] = x[1];
+    Z[2] = x[2];
+    Z[3] = x[3]/sqrt(x[1])/sqrt(x[2]);
+    Z[4] = x[4]/sqrt(x[0])/sqrt(x[2]);
+    Z[5] = x[5]/sqrt(x[0])/sqrt(x[1]);
+    
+    /*
     for (int i=0; i<ndim; i++){
         for (int j=i+1; j<ndim; j++){
             ijval = x[ndim+counter]* sqrt(metric_tensor[i][i]) * sqrt(metric_tensor[j][j]);
@@ -445,6 +461,8 @@ void create_metric_tensor(int ndim, const double *x, double **metric_tensor){
         }
 
     }
+    */
+    
 }
 
 void transpose_2darray(int rows, int cols, double** orig, double** transpose){
@@ -485,12 +503,13 @@ void forward_difference_grad(double* grad, const double* x, double fval, void* d
         memcpy((void*)d.farray, (void*)x, d.x_size*sizeof(double));
         d.farray[i] += xinc;
         create_full_rep(d.cycle_size, d.ndim, d._cycle_rep, d.start, d.x_size/d.ndim, d.farray, d.rep);
-        create_metric_tensor(d.ndim, d.farray, d.metric_tensor);
+        create_metric_tensor(d.ndim, d.farray, d.Z, d.metric_tensor);
         //matrix_multiply(d.B_shape, d.B_shape, d._cycle_cocycle_I, d.B_shape, d.ndim, d.rep, d.edge_vectors);
         //transpose_2darray(d.B_shape, d.ndim, d.edge_vectors, d.edge_vectors_T);
         //matrix_multiply(d.B_shape, d.ndim, d.edge_vectors, d.ndim, d.ndim, d.metric_tensor, d.first_product);
         //matrix_multiply(d.B_shape, d.ndim, d.first_product, d.ndim, d.B_shape, d.edge_vectors_T, d.inner_product);
-        compute_inner_product(d);
+        //compute_inner_product(d);
+        compute_inner_product_fast(d.farray, d);
         setup_matrix(d.diag_ind, d.B_shape, d.inner_product);
         ans = sumsquarediff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
         //ans = sumabsdiff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
@@ -508,24 +527,26 @@ void central_difference_grad(double* grad, const double* x, void* data, double x
         d.barray[i] -= xinc;
         //forward grad
         create_full_rep(d.cycle_size, d.ndim, d._cycle_rep, d.start, d.x_size/d.ndim, d.farray, d.rep);
-        //create_metric_tensor(d.ndim, d.farray, d.metric_tensor);
+        create_metric_tensor(d.ndim, d.farray, d.Z, d.metric_tensor);
         //matrix_multiply(d.B_shape, d.B_shape, d._cycle_cocycle_I, d.B_shape, d.ndim, d.rep, d.edge_vectors);
         //transpose_2darray(d.B_shape, d.ndim, d.edge_vectors, d.edge_vectors_T);
         //matrix_multiply(d.B_shape, d.ndim, d.edge_vectors, d.ndim, d.ndim, d.metric_tensor, d.first_product);
         //matrix_multiply(d.B_shape, d.ndim, d.first_product, d.ndim, d.B_shape, d.edge_vectors_T, d.inner_product);
-        compute_inner_product(d);
+        //compute_inner_product(d);
+        compute_inner_product_fast(d.farray, d);
         setup_matrix(d.diag_ind, d.B_shape, d.inner_product);
         forward = sumsquarediff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
         //forward = sumabsdiff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
 
         //backward grad
         create_full_rep(d.cycle_size, d.ndim, d._cycle_rep, d.start, d.x_size/d.ndim, d.barray, d.rep);
-        create_metric_tensor(d.ndim, d.barray, d.metric_tensor);
+        create_metric_tensor(d.ndim, d.barray, d.Z, d.metric_tensor);
         //matrix_multiply(d.B_shape, d.B_shape, d._cycle_cocycle_I, d.B_shape, d.ndim, d.rep, d.edge_vectors);
         //transpose_2darray(d.B_shape, d.ndim, d.edge_vectors, d.edge_vectors_T);
         //matrix_multiply(d.B_shape, d.ndim, d.edge_vectors, d.ndim, d.ndim, d.metric_tensor, d.first_product);
         //matrix_multiply(d.B_shape, d.ndim, d.first_product, d.ndim, d.B_shape, d.edge_vectors_T, d.inner_product);
-        compute_inner_product(d);
+        //compute_inner_product(d);
+        compute_inner_product_fast(d.barray,d);
         setup_matrix(d.diag_ind, d.B_shape, d.inner_product);
         back = sumsquarediff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
         //back = sumabsdiff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
@@ -680,4 +701,55 @@ void compute_inner_product(data_info d){
         }
     }
     */
+}
+void compute_inner_product_fast(const double *x, data_info d){
+    //Try to eliminate some inefficiencies in the code, no more explicit transposing
+    //Optimize matrix products to reduce the number of multiplications all in a singls
+    //function.
+    //
+    //This is a 5 matrix multiplication, with four products
+    //data_info d = *((struct data_info *)data);
+    double sum,subsum;
+    int i, j;
+    //row1, col2, row2
+    //B*-1 * alpha(B) 
+    //d.rep * d.metric_tensor
+    //resulting B_shape * ndim array
+    sum=0;
+    for (int i = 0 ; i < d.B_shape ; i++ ){
+        for (int j = 0 ; j < d.ndim ; j++ ){
+            for (int k = 0 ; k < d.B_shape ; k++ ){
+                sum += d._cycle_cocycle_I[i][k]*d.rep[k][j];
+            }
+        
+            d.M1[i][j] = sum;
+            sum=0; 
+ 
+        }
+    }
+    
+    // M1 * d.rep transpose
+    // resulting B_shape * B_shape array
+    sum=0;
+    subsum=0;
+        
+    for (int r = 0 ; r < d.nz_size ; r++ ){
+        i = d._zi[r];
+        j = d._zj[r];
+        for (int k = 0 ; k < d.ndim ; k++ ){
+            sum += d.Z[k] * (d.M1[i][k]*d.M1[j][k]);
+            for (int n = 0; n < d.ndim; n++){
+                if (n != k)subsum += d.M1[i][n]*d.M1[j][n];
+            }
+            // VALID ONLY FOR d.ndim == 3!!!!!!!!!
+            sum += d.Z[k+3]*subsum;
+            subsum = 0;
+            //sum += M1[i][k]*d.rep[k][j];
+        }
+        //std::cout<<i<<' '<<j<<' '<<sum<<std::endl;    
+        d.inner_product[i][j] = sum;
+        d.inner_product[j][i] = sum;
+        sum=0;
+    }
+   
 }

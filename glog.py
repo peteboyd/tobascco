@@ -1,4 +1,12 @@
 #!/usr/bin/env python
+try:
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    MPIsize = comm.size 
+    MPIrank = comm.rank 
+except ImportError:
+    MPIsize = 0
+    MPIrank = 0
 import logging
 from logging import info, debug, warning, error, critical
 import config
@@ -26,12 +34,16 @@ class Log():
         else:
             stdout_level = logging.INFO
             file_level = logging.INFO
-    
+   
+        MPIstr = ""
+        if MPIsize > 0:
+            MPIstr = ".rank%i"%MPIrank
         logging.basicConfig(level=file_level,
                             format='[%(asctime)s] %(levelname)s %(message)s',
                             datefmt='%Y%m%d %H:%m:%S',
                             filename=os.path.join(self.options.job_dir,
-                                                  self.options.jobname+".log"),
+                                                  self.options.jobname+
+                                                  MPIstr + ".log"),
                             filemode='a')
         logging.addLevelName(10, '--')
         logging.addLevelName(20, '>>')

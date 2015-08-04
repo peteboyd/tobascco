@@ -19,7 +19,6 @@ from random import randint
 import itertools
 import numpy as np
 import os
-
 # Turn on keyword expansion to get revision numbers in version strings
 # in .hg/hgrc put
 # [extensions]
@@ -31,7 +30,7 @@ import os
 # [keywordmaps]
 # Revision = {rev}
 try:
-    __version_info__ = (0, 0, 0, int("$Revision$".strip("$Revision: ")))
+    __version_info__ = (0, 0, 1, int("$Revision$".strip("$Revision: ")))
 except ValueError:
     __version_info__ = (0, 0, 0, 0)
 __version__ = "%i.%i.%i.%i"%__version_info__
@@ -47,12 +46,38 @@ class JobHandler(object):
         self._stored_nets = {}
         self.sbu_pool = []
 
+    def _mpi_split(self):
+        """Embarrasingly Parallel split of the SBUs or topologies (whichever is larger)"""
+        def chunks(l, n):
+            c = []
+            for i in xrange(0, len(l), n):
+                c.append(l[i:i+n])
+            return c
+
+        choice = [len(self.options.topologies), len(self.options.organic_sbus), len(self.options.metal_sbus)]
+        id = choice.index(max(choice)) # just returns the first entry, if more than one has the same value..
+
+        if id == 0:
+            mpichunk = chunks(self.options.topologies, choice[id]/MPIsize)[MPIrank]
+            debug("Building with %i topologies on rank %i"%(len(mpichunk), MPIrank))
+            self.options.topologies = mpichunk
+
+        elif id == 1:
+            mpichunk = chunks(self.options.organic_sbus, choice[id]/MPIsize)[MPIrank]
+            debug("Building with %i organic SBUs on rank %i"%(len(mpichunk), MPIrank))
+            self.options.organic_sbus = mpichunk
+        
+        elif id == 2:
+            mpichunk = chunks(self.options.metal_sbus, choice[id]/MPIsize)[MPIrank]
+            debug("Building with %i metal SBUs on rank %i"%(len(mpichunk), MPIrank))
+            self.options.metal_sbus = mpichunk
+
+
     def direct_job(self):
         """Reads the options and decides what to do next."""
         
         # TODO(pboyd): problem reading in openbabel libraries for the inputfile
         #  creation due to the use of a custom python implemented for sage.
-
 
         if self.options.create_sbu_input_files:
             info("Creating input files")
@@ -78,7 +103,9 @@ class JobHandler(object):
         if not self.options.metal_sbus:
             self.options.metal_sbus = [sbu.identifier for sbu in self.sbu_pool 
                                        if sbu.is_metal]
-        
+       
+        if MPIsize > 0: 
+            self._mpi_split()
         if self.options.calc_sbu_surface_area or self.options.calc_max_sbu_span:
             info("SBU report requested..")
             self._pop_unwanted_sbus()
@@ -404,6 +431,17 @@ def main():
     options = config.Options()
     options.version = __version__
     log = glog.Log(options)
+    global MPIsize 
+    global MPIrank 
+    try:
+        from mpi4py import MPI
+        comm = MPI.COMM_WORLD
+        MPIsize = comm.size
+        MPIrank = comm.rank
+    except ImportError:
+        warning("No MPI routines found! Defaulting to serial")
+        MPIsize = 0
+        MPIrank = 0
     jerb = JobHandler(options)
     jerb.direct_job()
     

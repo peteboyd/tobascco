@@ -49,12 +49,14 @@ struct data_info{
     double ** M2;
     double ** M3;
     double * Z;
+    double * diag;
+    double * diag2;
     double * farray;
     double * barray;
 };
 
 void compute_inner_product(data_info);
-void compute_inner_product_fast(const double*, data_info);
+double compute_inner_product_fast(const double*, data_info);
 
 PyMODINIT_FUNC init_nloptimize(void)
 {
@@ -143,6 +145,8 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     data.M3 = construct2darray(data.B_shape, data.B_shape);
     data.farray = (double*)malloc(sizeof(double) * data.x_size);
     data.barray = (double*)malloc(sizeof(double) * data.x_size);
+    data.diag = (double*)malloc(sizeof(double) * data.B_shape);
+    data.diag2 = (double*)malloc(sizeof(double) * data.B_shape);
     int res=1;
     data.angle_inds = factorial(ndim, res) / factorial(2, res) / factorial(ndim-2, res); 
     data.start = data.angle_inds + data.ndim;
@@ -293,6 +297,8 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     free_2d_array(data.M3, data.B_shape);
     free(data.farray);
     free(data.barray);
+    free(data.diag);
+    free(data.diag2);
     free(data.Z);
     return PyArray_Return(array_x); 
 }
@@ -305,12 +311,12 @@ double objectivefunc(unsigned n, const double *x, double *grad, void *dd)
     create_full_rep(d.cycle_size, d.ndim, d._cycle_rep, d.start, d.x_size/d.ndim, x, d.rep);
     create_metric_tensor(d.ndim, x, d.Z, d.metric_tensor);
     //compute_inner_product(d);
-    compute_inner_product_fast(x, d);
     //matrix_multiply(d.B_shape, d.B_shape, d._cycle_cocycle_I, d.B_shape, d.ndim, d.rep, d.edge_vectors);
     //transpose_2darray(d.B_shape, d.ndim, d.edge_vectors, d.edge_vectors_T);
     //matrix_multiply(d.B_shape, d.ndim, d.edge_vectors, d.ndim, d.ndim, d.metric_tensor, d.first_product);
     //matrix_multiply(d.B_shape, d.ndim, d.first_product, d.ndim, d.B_shape, d.edge_vectors_T, d.inner_product);
-    setup_matrix(d.diag_ind, d.B_shape, d.inner_product);
+    //setup_matrix(d.diag_ind, d.B_shape, d.inner_product);
+    ans = compute_inner_product_fast(x, d);
     /*
     for (int i=0; i<d.B_shape; i++){
         for (int j=0; j<d.B_shape; j++){
@@ -320,15 +326,15 @@ double objectivefunc(unsigned n, const double *x, double *grad, void *dd)
     }
     exit(0);
     */
-    ans = sumsquarediff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
+    //ans = sumsquarediff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
     //ans = sumabsdiff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
     if (grad) {
         //;
         //forward_difference_grad(grad, x, ans, dd, 1e-5);
         //std::cout<<"HERE"<<std::endl;
-        central_difference_grad(grad, x, dd, 1e-6);
+        central_difference_grad(grad, x, dd, 1e-4);
     }
-    std::cout<<ans<<std::endl;
+    //std::cout<<ans<<std::endl;
     /*
     for (int i =0; i<d.nz_size; i++){
         std::cout<<d._zi[i]<<' '<<d._zj[i]<<std::endl;
@@ -436,6 +442,7 @@ void create_full_rep(int row1, int col1, double **cycle, int start, int row2, co
 }
 
 void create_metric_tensor(int ndim, const double *x, double *Z, double **metric_tensor){
+  
     /* 
     for (int i=0; i<ndim; i++){
         metric_tensor[i][i] = x[i];
@@ -447,9 +454,9 @@ void create_metric_tensor(int ndim, const double *x, double *Z, double **metric_
     Z[0] = x[0];
     Z[1] = x[1];
     Z[2] = x[2];
-    Z[3] = x[3]/sqrt(x[1])/sqrt(x[2]);
-    Z[4] = x[4]/sqrt(x[0])/sqrt(x[2]);
-    Z[5] = x[5]/sqrt(x[0])/sqrt(x[1]);
+    Z[3] = x[3]*sqrt(x[0])*sqrt(x[1]);
+    Z[4] = x[4]*sqrt(x[0])*sqrt(x[2]);
+    Z[5] = x[5]*sqrt(x[1])*sqrt(x[2]);
     
     /*
     for (int i=0; i<ndim; i++){
@@ -509,9 +516,9 @@ void forward_difference_grad(double* grad, const double* x, double fval, void* d
         //matrix_multiply(d.B_shape, d.ndim, d.edge_vectors, d.ndim, d.ndim, d.metric_tensor, d.first_product);
         //matrix_multiply(d.B_shape, d.ndim, d.first_product, d.ndim, d.B_shape, d.edge_vectors_T, d.inner_product);
         //compute_inner_product(d);
-        compute_inner_product_fast(d.farray, d);
-        setup_matrix(d.diag_ind, d.B_shape, d.inner_product);
-        ans = sumsquarediff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
+        ans = compute_inner_product_fast(d.farray, d);
+        //setup_matrix(d.diag_ind, d.B_shape, d.inner_product);
+        //ans = sumsquarediff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
         //ans = sumabsdiff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
         grad[i] = (ans - fval)/xinc;
     }
@@ -533,9 +540,9 @@ void central_difference_grad(double* grad, const double* x, void* data, double x
         //matrix_multiply(d.B_shape, d.ndim, d.edge_vectors, d.ndim, d.ndim, d.metric_tensor, d.first_product);
         //matrix_multiply(d.B_shape, d.ndim, d.first_product, d.ndim, d.B_shape, d.edge_vectors_T, d.inner_product);
         //compute_inner_product(d);
-        compute_inner_product_fast(d.farray, d);
-        setup_matrix(d.diag_ind, d.B_shape, d.inner_product);
-        forward = sumsquarediff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
+        //setup_matrix(d.diag_ind, d.B_shape, d.inner_product);
+        forward = compute_inner_product_fast(d.farray, d);
+        //forward = sumsquarediff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
         //forward = sumabsdiff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
 
         //backward grad
@@ -546,42 +553,13 @@ void central_difference_grad(double* grad, const double* x, void* data, double x
         //matrix_multiply(d.B_shape, d.ndim, d.edge_vectors, d.ndim, d.ndim, d.metric_tensor, d.first_product);
         //matrix_multiply(d.B_shape, d.ndim, d.first_product, d.ndim, d.B_shape, d.edge_vectors_T, d.inner_product);
         //compute_inner_product(d);
-        compute_inner_product_fast(d.barray,d);
-        setup_matrix(d.diag_ind, d.B_shape, d.inner_product);
-        back = sumsquarediff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
+        //setup_matrix(d.diag_ind, d.B_shape, d.inner_product);
+        back = compute_inner_product_fast(d.barray,d);
+        //back = sumsquarediff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
         //back = sumabsdiff(d.nz_size, d._zi, d._zj, d.inner_product, d._ip_mat);
 
         grad[i] = (forward - back)/(2.*xinc);
     }
-}
-
-void setup_matrix(int scale_ind, int size, double** inner_prod){
-    double ang;
-    double max = inner_prod[scale_ind][scale_ind];
-    //double max = 0;
-    for (int i=0; i<size; i++){
-        for (int j=i+1; j<size; j++){
-            if (inner_prod[i][i] < 0.0)inner_prod[i][i] = 500.0;
-            if (inner_prod[j][j] < 0.0)inner_prod[j][j] = 500.0; //penalize for negative lengths.
-            //std::cout<<inner_prod[i][i]<<" "<<inner_prod[j][j]<<std::endl;
-            ang = inner_prod[i][j] / sqrt(inner_prod[i][i]) / sqrt(inner_prod[j][j]);
-            //std::cout<<i<<" "<<inner_prod[i][j]<<std::endl;
-
-            inner_prod[i][j] = ang;
-            inner_prod[j][i] = ang;
-        }
-    }
-    /*
-    for (int i=0; i<size; i++){
-        if (max < inner_prod[i][i]){
-            max = inner_prod[i][i];
-        }
-    }
-    */
-    for (int i=0; i<size; i++){
-        inner_prod[i][i] = inner_prod[i][i] / max;
-    }
-   
 }
 
 double sumabsdiff(int size, int* nzi, int* nzj, double** A, double** B){
@@ -602,21 +580,12 @@ double sumsquarediff(int size, int* nzi, int* nzj, double** A, double** B){
     double sum=0;
     double diff;
     int m, n;
-    //std::cout<<"np.array([";
     for (int i=0; i<size; i++){
         m = nzi[i];
         n = nzj[i];
-        //std::cout<<pow(A[m][n] - B[m][n], 2)<<", ";
-        //std::cout<<A[m][n]<<" "<<m<<" "<<n<<std::endl;
         diff = pow((A[m][n] - B[m][n]), 2);
-        //weight the distances more.
-        //if( m != n ) diff = 8*diff;
-        //if( m == n ) diff = 19*diff;
         sum += diff;
-        //std::cout<<A[m][n]<<std::endl;
     }
-    //std::cout<<"0.])"<<std::endl;
-    //std::cout<<sum<<std::endl;
     return sum;
 }
 
@@ -702,20 +671,21 @@ void compute_inner_product(data_info d){
     }
     */
 }
-void compute_inner_product_fast(const double *x, data_info d){
+double compute_inner_product_fast(const double *x, data_info d){
     //Try to eliminate some inefficiencies in the code, no more explicit transposing
     //Optimize matrix products to reduce the number of multiplications all in a singls
     //function.
     //
     //This is a 5 matrix multiplication, with four products
     //data_info d = *((struct data_info *)data);
-    double sum,subsum;
-    int i, j;
+    double max,sum,squarediff;
+    int i, j, t, s;
     //row1, col2, row2
     //B*-1 * alpha(B) 
-    //d.rep * d.metric_tensor
     //resulting B_shape * ndim array
     sum=0;
+    squarediff=0;
+
     for (int i = 0 ; i < d.B_shape ; i++ ){
         for (int j = 0 ; j < d.ndim ; j++ ){
             for (int k = 0 ; k < d.B_shape ; k++ ){
@@ -728,28 +698,72 @@ void compute_inner_product_fast(const double *x, data_info d){
         }
     }
     
-    // M1 * d.rep transpose
-    // resulting B_shape * B_shape array
+
     sum=0;
-    subsum=0;
-        
+    //need the diagonal values first
+    for (int r = 0; r < d.B_shape; r++){
+        for (int k = 0; k < d.ndim; k++){
+            // VALID ONLY FOR d.ndim == 3!!!!!!!!!
+            t = (k*2)%d.ndim;
+            s = (k*2+1)%d.ndim;
+            sum += d.Z[k] * d.M1[r][k] * d.M1[r][k];
+            sum += d.Z[k+3] * 2 * d.M1[r][t]*d.M1[r][s];
+        }
+        if(sum<0)sum=500;
+        d.diag2[r] = sum;
+        d.diag[r] = sqrt(sum);
+
+        sum=0;
+    }
+    max=d.diag2[d.diag_ind];
+
     for (int r = 0 ; r < d.nz_size ; r++ ){
         i = d._zi[r];
         j = d._zj[r];
-        for (int k = 0 ; k < d.ndim ; k++ ){
-            sum += d.Z[k] * (d.M1[i][k]*d.M1[j][k]);
-            for (int n = 0; n < d.ndim; n++){
-                if (n != k)subsum += d.M1[i][n]*d.M1[j][n];
-            }
-            // VALID ONLY FOR d.ndim == 3!!!!!!!!!
-            sum += d.Z[k+3]*subsum;
-            subsum = 0;
-            //sum += M1[i][k]*d.rep[k][j];
+        if(i==j){
+            squarediff += pow((d.diag2[i]/max - d._ip_mat[i][j]), 2);
         }
-        //std::cout<<i<<' '<<j<<' '<<sum<<std::endl;    
-        d.inner_product[i][j] = sum;
-        d.inner_product[j][i] = sum;
-        sum=0;
+        else{
+            for (int k = 0 ; k < d.ndim ; k++ ){
+                sum += d.Z[k] * (d.M1[i][k]*d.M1[j][k]);
+            
+                // VALID ONLY FOR d.ndim == 3!!!!!!!!!
+                t = (k*2)%d.ndim;
+                s = (k*2+1)%d.ndim;
+
+                sum += d.Z[k+3]*(d.M1[i][t]*d.M1[j][s] + d.M1[i][s]*d.M1[j][t]);
+            }
+
+            squarediff += pow((sum/d.diag[i]/d.diag[j] - d._ip_mat[i][j]), 2);
+            sum=0;
+        }
+    }
+    return squarediff;
+}
+
+void setup_matrix(int scale_ind, int size, double** inner_prod){
+    double ang;
+    double max = inner_prod[scale_ind][scale_ind];
+    //double max = 0;
+    for (int i=0; i<size; i++){
+        for (int j=i+1; j<size; j++){
+            if (inner_prod[i][i] < 0.0)inner_prod[i][i] = 500.0;
+            if (inner_prod[j][j] < 0.0)inner_prod[j][j] = 500.0; //penalize for negative lengths.
+            ang = inner_prod[i][j] / sqrt(inner_prod[i][i]) / sqrt(inner_prod[j][j]);
+            inner_prod[i][j] = ang;
+            inner_prod[j][i] = ang;
+        }
+    }
+    /*
+    for (int i=0; i<size; i++){
+        if (max < inner_prod[i][i]){
+            max = inner_prod[i][i];
+        }
+    }
+    */
+    for (int i=0; i<size; i++){
+        inner_prod[i][i] = inner_prod[i][i] / max;
     }
    
 }
+

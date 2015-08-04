@@ -447,7 +447,7 @@ class Net(object):
                 self.colattice_dotmatrix[j,i] = val
 
 
-    def convert_params(self, x, ndim, angle_inds, cocycle_size, iu, il):
+    def convert_params(self, x, ndim, angle_inds, cocycle_size):
         cell_lengths = x[:ndim]
         angles = x[ndim: ndim + angle_inds]
         cocycle = x[ndim + angle_inds : ]
@@ -455,7 +455,9 @@ class Net(object):
         for i in range(ndim):
             mt[i,i] = x[i]
         count=i+1
-        for (i,j) in zip(*np.triu_indices_from(mt, 1)):
+        #g = [i[::-1] for i in np.triu_indices(ndim, 1)]
+        g = np.triu_indices(ndim, 1)
+        for (i,j) in zip(*g):
             val = x[count] * np.sqrt(mt[i,i]) * np.sqrt(mt[j,j])
             mt[i,j] = val
             mt[j,i] = val
@@ -480,18 +482,22 @@ class Net(object):
         ub = np.empty(size)
         lb = np.empty(size)
         max_cell = self.metric_tensor[np.diag_indices_from(self.metric_tensor)].max()*1.1
-        max_cell = np.inf
+        #max_cell = np.inf
         min_cell = min(self.metric_tensor[np.diag_indices_from(self.metric_tensor)].min(), 0.1*max_cell)
-        min_cell = 0.01 
+        #min_cell = 0.01 
         xinc = 0
         for i in self.metric_tensor[np.diag_indices_from(self.metric_tensor)]:
             #x[xinc] = np.sqrt(i)
             x[xinc] = i
             ub[xinc] = i#max_cell 
             lb[xinc] = i*0.1# min_cell
+            #ub[xinc] = max_cell 
+            #lb[xinc] = min_cell
             xinc += 1
 
-        for (i,j) in zip(*np.triu_indices(self.ndim, 1)):
+        #g = [i[::-1] for i in np.triu_indices(self.ndim, 1)]
+        g = np.triu_indices(self.ndim, 1)
+        for (i,j) in zip(*g):
             x[xinc] = self.metric_tensor[i,j]  / np.sqrt(self.metric_tensor[i,i]) \
                         /np.sqrt(self.metric_tensor[j,j])
             # set max and min angles to 120, 60 respectively.
@@ -505,6 +511,7 @@ class Net(object):
         ub[xinc:] = .4 
         lb[xinc:] = -.4
         scale_ind = int(self.scale[0][0][0])
+       
         x = nl.nloptimize(self.ndim,
                           scale_ind,
                           lb,
@@ -512,6 +519,7 @@ class Net(object):
                           x,
                           self.cycle_rep,
                           self.cycle_cocycle_I,
+                          #self.sbu_tensor_matrix, # these are absolute tensor matrix values, to obtain normalized values and angles.. use below
                           self.colattice_dotmatrix,
                           np.array(self.colattice_inds[0]), 
                           np.array(self.colattice_inds[1]),
@@ -521,12 +529,10 @@ class Net(object):
         if x is None:
             return False
         angle_inds = f(self.ndim) / f(2) / f(self.ndim - 2)
-        iu = np.triu_indices(self.ndim, k=1)
-        il = np.tril_indices(self.ndim, k=-1)
         self.metric_tensor, self.cocycle_rep = self.convert_params(x, self.ndim,
                                                                    angle_inds,
-                                                                   self.order-1,
-                                                                   iu,il)
+                                                                   self.order-1
+                                                                   )
         self.periodic_rep = np.concatenate((self.cycle_rep, self.cocycle_rep))
         inner_p = np.dot(np.dot(self.lattice_arcs, self.metric_tensor), self.lattice_arcs.T)
         scind = self.scale[0]

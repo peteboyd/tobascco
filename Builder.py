@@ -515,7 +515,7 @@ class Build(object):
 
         init = np.array([0.5, 0.5, 0.5])
         if self.bad_embedding() or not optimized:
-            debug("net %s didn't embed properly with the "%(self._net.name) +
+            warning("net %s didn't embed properly with the "%(self._net.name) +
             "geometries dictated by the SBUs")
         else:
             self.build_structure_from_net(init)
@@ -540,6 +540,7 @@ class Build(object):
         for (i,j) in zip(*np.triu_indices_from(mt)):
             if i==j:
                 if mt[i,j] <= 0.:
+                    warning("The cell lengths reported were less than zero!")
                     return True
                 lengths.append(np.sqrt(mt[i,j]))
             else:
@@ -547,11 +548,12 @@ class Build(object):
                 try:
                     angles.append(math.acos(dp_mag))
                 except ValueError:
+                    warning("The cell angles reported were less than zero!")
                     return True
 
         vol = np.sqrt(np.linalg.det(mt))
         if vol < self.options.cell_vol_tolerance*reduce(lambda x, y: x*y, lengths):
-            debug("The unit cell obtained was below the specified volume tolerance")
+            warning("The unit cell obtained was below the specified volume tolerance")
             return True
         # v x w = ||v|| ||w|| sin(t)
         return False

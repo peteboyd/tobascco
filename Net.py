@@ -1,6 +1,10 @@
 import math
 import os, sys
-from sage.all import *
+#from sage.all import *
+import sympy as sy
+from sympy.utilities.lambdify import lambdify
+import networkx as nx
+import scipy
 import itertools
 from uuid import uuid4
 from logging import info, debug, warning, error
@@ -45,7 +49,8 @@ class SystreDB(dict):
             elif l and l[0].lower() == 'end':
                 name = self.get_name(block)
                 systre_key = self.get_key(block)
-                g, v = self.gen_sage_graph_format(systre_key)
+                #g, v = self.gen_sage_graph_format(systre_key) # SAGE compliant
+                g, v = self.gen_networkx_graph_format(systre_key) # networkx compliant
                 self[name] = g
                 self.voltages[name] = np.array(v)
                 block = []
@@ -69,6 +74,21 @@ class SystreDB(dict):
         n = 2+dim
         for i in xrange(0, len(list), n):
             yield tuple(list[i:i+n])
+
+    def gen_networkx_graph_format(self, edges):
+        """Take the edges from a systre db file and convert 
+        to a networkx graph readable format.
+        
+        Assumes that the direction of the edge goes from
+        [node1] ---> [node2]
+        """
+        x_dat = []
+        voltages = []
+        for id, (v1, v2, e1, e2, e3) in enumerate(edges):
+            ename = 'e%i'%(id+1)
+            voltages.append((e1, e2, e3))
+            x_dat.append((str(v1),str(v2), dict(label=ename))) # networkx compliant
+        return (x_dat, voltages)
 
     def gen_sage_graph_format(self, edges):
         """Take the edges from a systre db file and convert 
@@ -95,8 +115,8 @@ class SystreDB(dict):
 
             sage_dict.setdefault(n1, {})
             sage_dict.setdefault(n2, {})
-            sage_dict[n1].setdefault(n2, [])
-            sage_dict[n1][n2].append(ename)
+            sage_dict[n1].setdefault(n2, []) # SAGE compliant
+            sage_dict[n1][n2].append(ename) # SAGE compliant
         return (sage_dict, voltages)
 
 class Net(object):
@@ -119,9 +139,11 @@ class Net(object):
         # n-dimensional representation, default is 3
         self.ndim = dim
         if graph is not None:
-            self._graph = DiGraph(graph, multiedges=True, loops=True)
+            # self._graph = DiGraph(graph, multiedges=True, loops=True) # SAGE compliant
+            self._graph = nx.MultiDiGraph(graph) # networkx compliant
             # Keep an original for reference purposes.
-            self.original_graph = DiGraph(graph, multiedges=True, loops=True)
+            #self.original_graph = DiGraph(graph, multiedges=True, loops=True) # SAGE compliant
+            self.original_graph = nx.MultiDiGraph(graph) # networkx compliant
 
         self.options = options
 
@@ -130,16 +152,14 @@ class Net(object):
         size = self._graph.order() - 1
         length = self._graph.size()
         count = 0
-        for vert in self._graph.vertices():
+        for vert in self.vertices(): # networkx compliant
             if count == size:
                 break
             vect = np.zeros(length)
-            out_edges = self._graph.outgoing_edges(vert)
-            inds = self.return_indices(out_edges)
+            inds = self.return_indices(self.out_edges(vert))
             if inds:
                 vect[inds] = 1.
-            in_edges = self._graph.incoming_edges(vert)
-            inds = self.return_indices(in_edges)
+            inds = self.return_indices(self.in_edges(vert))
             if inds:
                 vect[inds] = -1.
             if self.cycle_cocycle_check(vect):# or len(self.neighbours(vert)) == 2:
@@ -165,17 +185,15 @@ class Net(object):
     def insert_and_join(self, vfrom, vto, edge_label=None):
         if edge_label is None:
             edge_label = "e%i"%(self.shape)
-        self.graph.add_vertex(vto)
+        self.add_vertex(vto)
         edge = (vfrom, vto, edge_label)
-        self.graph.add_edge(vfrom, vto, edge_label)
+        self.add_edge(vfrom, vto, edge_label)
         return edge
 
     def add_edges_between(self, edge, N):
         newedges = []
-        V1 = edge[0] if edge in self.graph.outgoing_edges(edge[0]) \
-                else edge[1]
-        V2 = edge[1] if edge in self.graph.incoming_edges(edge[1]) \
-                else edge[0]
+        V1 = edge[0] if edge in self.out_edges(edge[0]) else edge[1]
+        V2 = edge[1] if edge in self.in_edges(edge[1]) else edge[0] 
 
         name = self.add_name()
         newedges.append(self.insert_and_join(V1, name, edge_label=edge[2]))
@@ -192,8 +210,9 @@ class Net(object):
         newnodes.append(V2)
         lastedge = (vfrom, V2, "e%i"%(self.shape))
         newedges.append(lastedge)
-        self.graph.add_edge(vfrom, V2, "e%i"%(self.shape))
-        self.graph.delete_edge(edge)
+        
+        self.add_edge(vfrom, V2, "e%i"%(self.shape))
+        self.delete_edge(edge)
         self.voltage = np.concatenate((self.voltage,np.zeros(d).reshape(1,d)))
         return newnodes, newedges
 
@@ -218,7 +237,7 @@ class Net(object):
         
         """
 
-        c = self.iter_cycles(node=self._graph.vertices()[0],
+        c = self.iter_cycles(node = self.vertices(0), 
                              edge=None,
                              cycle=[],
                              used=[],
@@ -270,32 +289,39 @@ class Net(object):
         to obtain the basis.
 
         """
-        edges = self.graph.edges()
+        edges = self.all_edges()
         st_vtx = np.random.choice(range(self.graph.order()))
-        mspt = self.graph.to_undirected().min_spanning_tree(starting_vertex=st_vtx)
-        tree = Graph(mspt, multiedges=False, loops=False)
+        #mspt = self.graph.to_undirected().min_spanning_tree(starting_vertex=st_vtx) # SAGE compliant
+        #tree = Graph(mspt, multiedges=False, loops=False) # SAGE compliant
+        #cycle_completes = [i for i in edges if i not in mspt and (i[1], i[0], i[2]) not in mspt] # SAGE compliant
+        tree = nx.minimum_spanning_tree(self.graph.to_undirected()) # networkx compliant
+        mspt_edges = [(i,j,k['label']) for (i,j,k) in tree.edges(data=True)] # networkx compliant
+        cycle_completes = [i for i in edges if i not in mspt_edges and (i[1], i[0], i[2]) not in mspt_edges] # networkx compliant
         #self.graph.show()
-        cycle_completes = [i for i in edges if i not in mspt and (i[1], i[0], i[2]) not in mspt]
         self.cycle = []
         self.cycle_rep = []
         for (v1, v2, e) in cycle_completes:
-            path = tree.shortest_path(v1, v2)
+            #path = tree.shortest_path(v1, v2) # SAGE compliant
+            path = nx.shortest_path(tree, source=v1, target=v2) # networkx compliant
             basis_vector = np.zeros(self.shape)
             cycle, coefficients = [], []
             for pv1, pv2 in itertools.izip(path[:-1], path[1:]):
-                edge = [i for i in tree.edges_incident([pv1, pv2]) if pv1 in i[:2] and pv2 in i[:2]][0]
+                #edge = [i for i in tree.edges_incident([pv1, pv2]) if pv1 in i[:2] and pv2 in i[:2]][0] # SAGE compliant
+                edge = [(i[0], i[1], i[2]['label']) for i in 
+                        tree.edges(nbunch=[pv1, pv2], data=True) 
+                        if pv1 in i[:2] and pv2 in i[:2]][0] # networkx compliant
                 if edge not in edges:
                     edge = (edge[1], edge[0], edge[2])
                     if edge not in edges:
                         error("Encountered an edge (%s, %s, %s) not in "%(edge) +
                         " the graph while finding the basis of the cycle space!")
                         Terminate(errcode=1)
-                coeff = 1. if edge in self.graph.outgoing_edges(pv1) else -1.
+                coeff = 1. if edge in self.out_edges(pv1) else -1.
                 coefficients.append(coeff)
                 cycle.append(edge)
             # opposite because we are closing the loop. i.e. going from v2 back to v1
             edge = (v1, v2, e) if (v1, v2, e) in edges else (v2, v1, e)
-            coeff = 1. if edge in self.graph.incoming_edges(v1) else -1.
+            coeff = 1. if edge in self.in_edges(v1) else -1.
             coefficients.append(coeff)
             cycle.append(edge)
             basis_vector[self.return_indices(cycle)] = coefficients
@@ -313,7 +339,7 @@ class Net(object):
 
         """
         if node is None:
-            node = self.graph.vertices()[0]
+            node = self.vertices(0)
         if node in nodes_visited:
             i = nodes_visited.index(node)
             nodes_visited.append(node)
@@ -333,10 +359,8 @@ class Net(object):
                 cycle.append(edge)
                 used.append(edge[:3])
             e = [(x, y, z, 1) for x, y, z in
-                    self.graph.outgoing_edges(node)
-                    if (x,y,z) not in used]
-            e += [(x, y, z, -1) for x, y, z in
-                    self.graph.incoming_edges(node)
+                    self.out_edges(node) if (x,y,z) not in used]
+            e += [(x, y, z, -1) for x, y, z in self.in_edges(node)
                     if (x,y,z) not in used]
             for j in e:
                 newnode = j[0] if j[0]!=node else j[1]
@@ -355,50 +379,64 @@ class Net(object):
                 cycle.pop(-1)
                 used.pop(-1)
 
+    def get_lattice_basis_nosage(self):
+        """Determine the basis for the lattice without depending on sage..
+        Search all the cycle voltages to find the lattice rep 1 0 0, 0 1 0, and 0 0 1
+        """
+        pass
+
+    def linear_independent_vectors(self, R, dim):
+        R = np.matrix(R)
+        r = np.linalg.matrix_rank(R) 
+        index = np.zeros( r ) #this will save the positions of the li columns in the matrix
+        counter = 0
+        index[0] = 0 #without loss of generality we pick the first column as linearly independent
+        j = 0 #therefore the second index is simply 0
+        for i in range(R.shape[1]): #loop over the columns
+            if i != j: #if the two columns are not the same
+                inner_product = np.dot( R[:,i].T, R[:,j] ) #compute the scalar product
+                norm_i = np.linalg.norm(R[:,i]) #compute norms
+                norm_j = np.linalg.norm(R[:,j])
+        
+                #inner product and the product of the norms are equal only if the two vectors are parallel
+                #therefore we are looking for the ones which exhibit a difference which is bigger than a threshold
+                if np.abs(inner_product - norm_j * norm_i) > 1e-4:
+                    counter += 1 #counter is incremented
+                    index[counter] = i #index is saved
+                    j = i #j is refreshed
+                #do not forget to refresh j: otherwise you would compute only the vectors li with the first column!!
+        
+        R_independent = np.zeros((r, dim))
+        
+        i = 0
+        #now save everything in a new matrix
+        while( i < r ):
+            R_independent[i,:] = R[index[i],:] 
+            i += 1
+        return R_independent
+
     def get_lattice_basis(self):
         L = []
         inds = range(self.cycle_rep.shape[0])
         np.random.shuffle(inds)
         cycle_rep = self.cycle_rep.copy()
         cycle = self.cycle.copy()
-        for j,i in enumerate(inds):
-            cycle_rep[j] = self.cycle_rep[i].copy()
-            cycle[j] = self.cycle[i].copy()
-
-        for i in cycle_rep:
-            L.append(vector(QQ, i.tolist()))
-        V = QQ**self.ndim
+        j = np.vstack((np.identity(3), cycle_rep))
+        #j = cycle_rep
+        # determine the null space of the cycle_rep w.r.t. the lattice unit vectors.
+        j = sy.Matrix(j.T)
+        q = np.array([np.array(k).flatten() for k in j.nullspace()], dtype=np.float)
         lattice = []
-        for e in np.identity(self.ndim, dtype=np.int):
-            ev = vector(e)
-            L.append(ev)
-            found = []
-            for k,j in enumerate(cycle_rep):
-                if np.allclose(e,j):
-                    found.append(k)
-            if found:
-                vect = cycle[np.random.choice(found)]
-            #vect = (V.linear_dependence(L, zeros='left')[-1][:-1])
-            #nz = np.nonzero(vect)
-            else:
-                mincount = self.shape
-                vect = None
-                for jj in V.linear_dependence(L, zeros='left'):
-                    if not np.allclose(jj[-1], 0):
-                        vv = jj[:-1]*-1.*jj[-1]
-                        nz = np.nonzero(vv)
-                        tv = np.sum(np.array(cycle)[nz] * np.array(vv)[nz][:, None], axis=0)
-                        if len(nz) == 1:
-                            vect = tv 
-                            break
-                        elif len(nz) < mincount and self.is_integral(tv):
-                            vect = tv 
-                            mincount = len(nz)
-            lattice.append(vect)
-            #lattice.append(tv)
-            L.pop(-1)
+        already_e = np.reshape(np.zeros(3), (1,3))
+        for trace in q:
+            for e in np.identity(self.ndim):
+                if not any([all(e == i) for i in already_e]) and all(e==trace[:3]):
+                    nz = np.nonzero(trace[3:])
+                    tv = np.sum(cycle[nz] * trace[3:][nz][:,None], axis=0)
+                    if self.is_integral(tv):
+                        already_e = np.vstack((already_e,e))
+                        lattice.append(tv)
         self.lattice_basis = np.array(lattice)
-        #print self.lattice_basis
 
     def check_linear_dependency(self, vect, vset):
         if not np.any(vset):
@@ -668,7 +706,8 @@ class Net(object):
             elif e[0] not in pos.keys() or e[1] not in pos.keys():
                 from_v = e[0] if e[0] in pos.keys() else e[1]
                 to_v = e[1] if e[1] not in pos.keys() else e[0]
-                coeff = 1. if e in self.graph.outgoing_edges(from_v) else -1.
+                
+                coeff = 1. if e in self.out_edges(from_v) else -1.
                 index = self.get_index(e)
                 to_pos = coeff*np.array(lattice_arcs)[index] + pos[from_v]
                 newedges = []
@@ -676,7 +715,7 @@ class Net(object):
                 to_pos = np.array([i%1 for i in to_pos])
                 pos.update({to_v:to_pos})
                 used.append(e)
-                ee = self.graph.outgoing_edges(to_v) + self.graph.incoming_edges(to_v)
+                ee = self.neighbours(to_v) 
                 newedges = [i for i in ee if i not in used and i not in edges]
                 edges = newedges + edges[1:]
             else:
@@ -721,7 +760,7 @@ class Net(object):
         # the vectors already in the kernel. NB: this is fucking slow.
         if len(kernel_vectors) != max_count:
             warning("The number of vectors in the kernel does not match the size of the graph!")
-            c = self.iter_cycles(node=self._graph.vertices()[0],
+            c = self.iter_cycles(node=self.vertices(0),
                                  edge=None,
                                  cycle=[],
                                  used=[],
@@ -746,9 +785,56 @@ class Net(object):
         except ValueError:
             self._kernel = np.array(kernel_vectors)
         return self._kernel
+   
+    def vertices(self, vertex=None):
+        if vertex is not None:
+            #return self._graph.vertices()[vertex] # SAGE compliant
+            return self._graph.nodes()[vertex] # networkx compliant
+        #return self._graph.vertices()  # SAGE compliant
+        return self._graph.nodes() # networkx compliant
+
+    def out_edges(self, vertex):
+        #out =  self.graph.outgoing_edges(vertex) # SAGE compliant
+        out =  [(i,j,k['label']) for (i,j,k) in self.graph.out_edges(vertex, data=True)] # networkx compliant
+        if out is None:
+            return []
+        return out
+
+    def in_edges(self, vertex):
+        #ine = self.graph.incoming_edges(vertex) # SAGE compliant
+        ine = [(i,j,k['label']) for (i,j,k) in self.graph.in_edges(vertex, data=True)] # networkx compliant
+        if ine is None:
+            return []
+        return ine
+
+    def all_edges(self):
+        #return self.graph.edges() # SAGE compliant
+        return [(i,j,k['label']) for (i,j,k) in self.graph.edges(data=True)]
 
     def neighbours(self, vertex):
-        return self.graph.outgoing_edges(vertex) + self.graph.incoming_edges(vertex)
+        return self.out_edges(vertex) + self.in_edges(vertex)
+
+    def loop_edges(self):
+        #return self.graph.loop_edges() # SAGE compliant
+        return [(i,j,k['label']) for (i,j,k) in self.graph.selfloop_edges(data=True)]
+
+    def add_vertex(self, v):
+        #self.graph.add_vertex(v) # SAGE compliant
+        self.graph.add_node(v) # networkx compliant
+    
+    def add_edge(self, v1, v2, name):
+        #self.graph.add_edge(v1, v2, name) # SAGE compliant
+        self.graph.add_edge(v1, v2, label=name) # networkx compliant
+
+    def delete_edge(self, e):
+        #self.graph.delete_edge(e) # SAGE compliant
+        for (v1,v2,k,d) in self._graph.edges(data=True, keys=True):
+            if (v1, v2, d['label']) == e:
+                self._graph.remove_edge(v1, v2, k)
+                return
+
+        error("could not find the edge (%s, %s, %s) in the graph"%(tuple(e)))
+        sys.exit()
 
     @property
     def minimal(self):
@@ -797,7 +883,8 @@ class Net(object):
     
     @graph.setter
     def graph(self, g):
-        self._graph = DiGraph(g, multiedges=True, loops=True)
+        #self._graph = DiGraph(g, multiedges=True, loops=True) # SAGE compliant
+        self._graph = nx.MultiDiGraph(g)
 
     @property
     def cycle_cocycle_I(self):

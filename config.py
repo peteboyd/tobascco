@@ -60,7 +60,6 @@ class Options(object):
             sys.exit(1)
         else:
             self.input_file = os.path.abspath(local_args[0])
-
         
     def _load_defaults(self):
         default_path = os.path.join(self.script_dir, 'defaults.ini')        

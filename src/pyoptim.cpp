@@ -138,11 +138,12 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
    
     //LOCAL OPTIMIZER***********************************
     opt = nlopt_create(NLOPT_LD_LBFGS, data.x_size);
-    nlopt_set_vector_storage(opt, 10000); /* for quasi-newton algorithms, how many gradients to store */
+    nlopt_set_vector_storage(opt, 10000); // for quasi-newton algorithms, how many gradients to store 
     nlopt_set_min_objective(opt, objectivefunc, &data);
     nlopt_set_lower_bounds(opt, lb);
     nlopt_set_upper_bounds(opt, ub);
-    nlopt_set_xtol_rel(opt, xrel);
+    nlopt_set_xtol_rel(opt, xrel);  // set absolute tolerance on the change in the input parameters
+    nlopt_set_ftol_abs(opt, frel);  // set absolute tolerance on the change in the objective funtion
     retval = nlopt_optimize(opt, x, &minf);
     if (retval < 0) {
             printf("nlopt failed!\n");
@@ -195,7 +196,7 @@ double objectivefunc(unsigned n, const double *x, double *grad, void *dd)
         //forward_difference_grad(grad, x, ans, dd, 1e-5);
         central_difference_grad(grad, x, dd, 1e-4);
     }
-    //std::cout<<ans<<std::endl;
+    std::cout<<ans<<std::endl;
     return ans; 
 }
 double ** construct2darray(int rows, int cols){

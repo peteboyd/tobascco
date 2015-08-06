@@ -379,11 +379,6 @@ class Net(object):
                 cycle.pop(-1)
                 used.pop(-1)
 
-    def get_lattice_basis_nosage(self):
-        """Determine the basis for the lattice without depending on sage..
-        Search all the cycle voltages to find the lattice rep 1 0 0, 0 1 0, and 0 0 1
-        """
-        pass
 
     def linear_independent_vectors(self, R, dim):
         R = np.matrix(R)
@@ -421,21 +416,26 @@ class Net(object):
         np.random.shuffle(inds)
         cycle_rep = self.cycle_rep.copy()
         cycle = self.cycle.copy()
-        j = np.vstack((np.identity(3), cycle_rep))
         #j = cycle_rep
         # determine the null space of the cycle_rep w.r.t. the lattice unit vectors.
-        j = sy.Matrix(j.T)
-        q = np.array([np.array(k).flatten() for k in j.nullspace()], dtype=np.float)
         lattice = []
-        already_e = np.reshape(np.zeros(3), (1,3))
-        for trace in q:
-            for e in np.identity(self.ndim):
-                if not any([all(e == i) for i in already_e]) and all(e==trace[:3]):
-                    nz = np.nonzero(trace[3:])
-                    tv = np.sum(cycle[nz] * trace[3:][nz][:,None], axis=0)
+        for e in np.identity(self.ndim):
+            kk = np.vstack((e, cycle_rep))
+            j = sy.Matrix(kk.T)
+            null = np.array([np.array(k).flatten() for k in j.nullspace()], dtype=np.float)
+            found_vector = False
+            for nulv in null:
+                if abs(nulv[0]) == 1.:
+                    v = -nulv[1:]*nulv[0]
+                    nz = np.nonzero(v)
+                    tv = np.sum(cycle[nz] * v[nz][:,None], axis=0)
                     if self.is_integral(tv):
-                        already_e = np.vstack((already_e,e))
+                        found_vector = True
                         lattice.append(tv)
+                        break
+            if not found_vector:
+                error("Could not obtain the lattice basis from the cycle vectors!")
+                Terminate(1)
         self.lattice_basis = np.array(lattice)
 
     def check_linear_dependency(self, vect, vset):
@@ -727,7 +727,7 @@ class Net(object):
         return np.where([np.all(i==volt) for i in self.cycle_rep])
     
     def is_integral(self, vect):
-        return np.all(np.equal(np.mod(vect,1),0))
+        return np.all(np.equal(np.mod(vect,1),0)) and not np.all(np.equal(0,vect))
         #return np.all(np.logical_or(np.abs(vect) == 0., np.abs(vect) == 1.))
 
     @property
@@ -742,17 +742,13 @@ class Net(object):
             self._kernel = self.cocycle.copy()
             return self._kernel    
         self._kernel = None
-        # obtain a basis of the cycle voltages
-        L = []
-        for i in self.cycle_rep:
-            L.append(vector(QQ, i.tolist()))
-        V = QQ**self.ndim
-        for v in V.linear_dependence(L, zeros='left'):
-            nz = np.nonzero(v)
-            # obtain the linear combination of cycle vectors
-            cv_comb =  self.cycle[nz] * np.array(v)[nz][:, None]
-            if self.is_integral(np.sum(cv_comb, axis=0)):
-                kernel_vectors.append(np.sum(cv_comb, axis=0))
+        j = sy.Matrix(self.cycle_rep.T)
+        null = np.array([np.array(k).flatten() for k in j.nullspace()], dtype=np.float)
+        for null_vector in null:
+            nz = np.nonzero(null_vector)
+            cv_comb = np.sum(self.cycle[nz] * null_vector[nz][:,None], axis=0)
+            if self.is_integral(cv_comb):
+                kernel_vectors.append(cv_comb)
             if len(kernel_vectors) >= max_count:
                 break
         # if not enough kernel vectors were found from the cycle basis, 

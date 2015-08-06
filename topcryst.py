@@ -1,4 +1,4 @@
-#!/usr/bin/env sage-python 
+#!/usr/bin/env python 
 import logging
 import sys
 from logging import info, debug, warning, error, critical
@@ -9,7 +9,7 @@ import glog
 from time import time
 import ConfigParser
 from Generator import Generate
-from Visualizer import GraphPlot 
+#from Visualizer import GraphPlot 
 from CSV import CSV
 from Net import SystreDB, Net
 from Builder import Build
@@ -154,11 +154,11 @@ class JobHandler(object):
 
         #print G.order()
         #print G.gens()
-        g = GraphPlot(net)
+        #g = GraphPlot(net)
         #g.view_graph()
         #g.view_placement(init=(0.625, 0.625, 0.625))
         #g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False, sbu_only=["1"]) # for bcu for paper
-        g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False) # for bcu for paper
+        #g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False) # for bcu for paper
 
 
     def _build_structures_from_top(self):
@@ -262,7 +262,6 @@ class JobHandler(object):
         # generate the MOFs.
         inittime = time()
         for combo in combinations:
-        
             node_degree = [i.degree for i in set(combo)]
             node_lin = [i.linear for i in set(combo)]
             degree = sorted([j for i, j in zip(node_lin, node_degree) if not i])
@@ -358,7 +357,10 @@ class JobHandler(object):
          
     def _read_topology_database_files(self):
         for file in self.options.topology_files:
-            db = SystreDB(filename=file)
+            paths = path_splitter(file)
+            paths = [os.getenv(i[1:]) if i.startswith("$") else i for i in paths]
+            db = SystreDB(filename=os.path.join(*paths))
+            #db = SystreDB(filename=file)
             for top in db.keys():
                 if top in self._topologies.keys():
                     warning("Duplicate topologies found! The topology %s"%(top)+
@@ -370,14 +372,18 @@ class JobHandler(object):
         """Read in the files containing SBUs. Currently supports only the special
         Config .ini file types, but should be easily expandable to different input
         files."""
-        
         for file in self.options.sbu_files:
             debug("reading %s"%(file))
-            self._from_config(file)
+            paths = path_splitter(file)
+            paths = [os.getenv(i[1:]) if i.startswith("$") else i for i in paths]
+            self._from_config(os.path.join(*paths))
+            #self._from_config(file)
                 
     def _from_config(self, filename):
         sbu_config = ConfigParser.SafeConfigParser()
         sbu_config.read(filename)
+        basedir = os.path.split(filename)[0]
+        info("basedir = %s"%basedir)
         info("Found %i SBUs"%(len(sbu_config.sections())))
         for raw_sbu in sbu_config.sections():
             debug("Reading %s"%(raw_sbu))
@@ -427,21 +433,37 @@ class JobHandler(object):
                        "database of topology files. Try including a file "+
                        "containing this topology to the input file.")
 
+def path_splitter(path):
+    folders = []
+    while 1:
+        path, folder = os.path.split(path)
+
+        if folder != "":
+            folders.append(folder)
+        else:
+            if path != "":
+                folders.append(path)
+            break
+    folders.reverse()
+    return folders
+
 def main():
     options = config.Options()
     options.version = __version__
     log = glog.Log(options)
     global MPIsize 
     global MPIrank 
-    try:
-        from mpi4py import MPI
-        comm = MPI.COMM_WORLD
-        MPIsize = comm.size
-        MPIrank = comm.rank
-    except ImportError:
-        warning("No MPI routines found! Defaulting to serial")
-        MPIsize = 0
-        MPIrank = 0
+    #try:
+    #    from mpi4py import MPI
+    #    comm = MPI.COMM_WORLD
+    #    MPIsize = comm.size
+    #    MPIrank = comm.rank
+    #except ImportError:
+    #    warning("No MPI routines found! Defaulting to serial")
+    #    MPIsize = 0
+    #    MPIrank = 0
+    MPIsize=0
+    MPIrank=0
     jerb = JobHandler(options)
     jerb.direct_job()
     

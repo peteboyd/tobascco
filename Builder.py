@@ -1,9 +1,10 @@
 from SecondaryBuildingUnit import SBU
 from config import Terminate
 from Net import Net
+from networkx import degree_histogram
 import sys
 import itertools
-from Visualizer import GraphPlot
+#from Visualizer import GraphPlot
 from LinAlg import rotation_from_vectors, rotation_matrix, rotation_from_omega, calc_angle, calc_axis, DEG2RAD
 from LinAlg import central_moment, raw_moment, get_CI, elipsoid_vol, normalized_vectors 
 from Structure import Structure, Cell
@@ -46,7 +47,7 @@ class Build(object):
    
     def obtain_sbu_fittings(self, vertex):
         g = self._net.graph
-        edges = g.outgoing_edges(vertex) + g.incoming_edges(vertex)
+        edges = self._net.neighbours(vertex) 
         indices = self._net.return_indices(edges)
         lattice_arcs = self._net.lattice_arcs[indices]
         ipv = np.dot(np.dot(lattice_arcs, self._net.metric_tensor), lattice_arcs.T)
@@ -54,7 +55,8 @@ class Build(object):
         inds = np.triu_indices(ipv.shape[0], k=1) 
         # just take the max and min angles... 
         max, min = np.absolute(ipv[inds]).max(), np.absolute(ipv[inds]).min()
-        incidence = len(g.neighbors_out(vertex) + g.neighbors_in(vertex))
+        #incidence = len(g.neighbors_out(vertex) + g.neighbors_in(vertex)) # SAGE compliant
+        incidence = len(g.neighbors(vertex)) # networkx compliant
         weights = []
         for sbu in self._sbus:
             vects = np.array([self.vector_from_cp_SBU(cp, sbu) for cp in 
@@ -95,7 +97,7 @@ class Build(object):
                 [cp.set_sbu_vertex(bu.vertex_id) for cp in bu.connect_points]
 
         # the remaining we will need to choose (automorphisms?)
-        orbits = self._net.graph.automorphism_group(orbits=True)[1]
+        #orbits = self._net.graph.automorphism_group(orbits=True)[1]
         init_verts = []
         for vert in temp_vertices[:]:
             neighbours = self._net.original_graph.neighbors(vert)
@@ -190,7 +192,7 @@ class Build(object):
         max, min = np.absolute(ipv[inds]).max(), np.absolute(ipv[inds]).min()
         cmatch = []
         for v in self.sbu_vertices:
-            ee = g.outgoing_edges(v) + g.incoming_edges(v)
+            ee = self._net.neighbours(v) 
             l_arcs = self._net.lattice_arcs[self._net.return_indices(ee)]
             lai = np.dot(np.dot(l_arcs, self._net.metric_tensor), l_arcs.T)
             ipc = self.scaled_ipmatrix(lai)
@@ -204,7 +206,7 @@ class Build(object):
         will use until it breaks something.
 
         """
-        edges = self._net.graph.outgoing_edges(v) + self._net.graph.incoming_edges(v)
+        edges = self._net.neighbours(v) 
         indices = self._net.return_indices(edges)
         lattice_arcs = self._net.lattice_arcs[indices]
         ipv = np.dot(np.dot(lattice_arcs, self._net.metric_tensor), lattice_arcs.T)
@@ -274,8 +276,7 @@ class Build(object):
         with the non-placed lattice arcs."""
         sbu = self._vertex_sbu[vertex]
         local_arcs = sbu.connect_points
-        edges = self._net.graph.outgoing_edges(vertex) + \
-                    self._net.graph.incoming_edges(vertex)
+        edges = self._net.neighbours(vertex) 
         indices = self._net.return_indices(edges)
         lattice_arcs = self._net.lattice_arcs
         e_assign = {}
@@ -304,7 +305,7 @@ class Build(object):
             #        la[i,j] = v
             #        la[j,i] = v
             # using tensor product of the incidences
-            coeff = np.array([-1. if j in self._net.graph.incoming_edges(vertex)
+            coeff = np.array([-1. if j in self._net.in_edges(vertex)
                                else 1. for j in e])
             #td = np.tensordot(coeff, coeff, axes=0)
             #diff = np.multiply(li, td) - la
@@ -470,19 +471,19 @@ class Build(object):
             cps = sbu.connect_points
             vectors = [self.vector_from_cp_SBU(cp, sbu) for cp in cps]
             for i, ed in enumerate(sbu_edges):
-                if ed in g.incoming_edges(v):
+                if ed in self._net.in_edges(v):
                     vectors[i]*=-1.
 
             allvects = {e:vec for e, vec in zip(sbu_edges, vectors)}
             for cp in cps:
                 cpv = cp.vertex_assign
-                cpe = g.outgoing_edges(cpv) + g.incoming_edges(cpv)
+                cpe = self._net.neighbours(cpv) 
                 assert len(cpe) == 2
                 edge = cpe[0] if cpe[0] not in sbu_edges else cpe[1]
                 # temporarily set to the vertex of the other connect point
                 cp.bonded_cp_vertex = edge[0] if edge[0] != cpv else edge[1]
                 vectr = self.obtain_edge_vector_from_cp(cp)
-                vectr = -1.*vectr if edge in g.incoming_edges(cpv) else vectr
+                vectr = -1.*vectr if edge in self._net.in_edges(cpv) else vectr
                 allvects.update({edge:vectr})
 
             for (e1, e2) in itertools.combinations_with_replacement(allvects.keys(), 2):
@@ -495,7 +496,8 @@ class Build(object):
         self._inner_product_matrix = np.asmatrix(self._inner_product_matrix)
         
     def net_degrees(self):
-        n = self._net.original_graph.degree_histogram()
+        #n = self._net.original_graph.to_undirected().degree_histogram() # SAGE compatible
+        n = degree_histogram(self._net.original_graph) # networkx compatible
         return sorted([i for i, j in enumerate(n) if j])
 
     def obtain_embedding(self):
@@ -575,8 +577,8 @@ class Build(object):
                            params=self._net.get_3d_params())
 
         cell = struct.cell.lattice
-        V = self.net.graph.vertices()[0] 
-        edges = self.net.graph.outgoing_edges(V) + self.net.graph.incoming_edges(V)
+        V = self.net.vertices(0)
+        edges = self.net.neighbours(V) 
         sbu_pos = self._net.vertex_positions(edges, [], pos={V:init_placement})
         for v in self.sbu_vertices:
             self.sbu_orient(v, cell)
@@ -707,11 +709,11 @@ class Build(object):
         DOI: 10.1016/0021-9290(93)90098-Y"""
         g = self._net.graph
         sbu = self._vertex_sbu[v]
-        edges = g.outgoing_edges(v) + g.incoming_edges(v)
+        edges = self._net.neighbours(v) 
         debug("Orienting SBU: %i, %s on vertex %s"%(sbu.identifier, sbu.name, v))
         # re-index the edges to match the order of the connect points in the sbu list
         indexed_edges = sbu.edge_assignments
-        coefficients = np.array([1. if e in g.outgoing_edges(v) else -1. for e in indexed_edges])
+        coefficients = np.array([1. if e in self._net.out_edges(v) else -1. for e in indexed_edges])
         if len(indexed_edges) != sbu.degree:
             error("There was an error assigning edges "+
                         "to the sbu %s"%(sbu.name))
@@ -784,9 +786,10 @@ class Build(object):
         sbu.translate(trans)
 
     def show(self):
-        g = GraphPlot(self._net)
+        pass
+        #g = GraphPlot(self._net)
         #g.view_graph()
-        g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False, sbu_only=self.sbu_vertices)
+        #g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False, sbu_only=self.sbu_vertices)
 
     def vector_from_cp_SBU(self, cp, sbu):
         #coords = cp.origin[:3]
@@ -853,12 +856,13 @@ class Build(object):
         # NB may still add met-met bonds in the net!
         if set(met_incidence).intersection(set(org_incidence)):
             return False
-        for (v1, v2, e) in self._net.graph.edges():
+        #for (v1, v2, e) in self._net.graph.edges(): # SAGE compliant
+        for (v1, v2, e) in self._net.neighbours(None):
             nn1 = len(self._net.neighbours(v1))
             nn2 = len(self._net.neighbours(v2))
 
             if (nn1 in met_incidence) or (nn2 in met_incidence):
-                if ((nn1 == nn2) or ((v1,v2,e) in self.net.graph.loop_edges())):
+                if ((nn1 == nn2) or ((v1,v2,e) in self.net.loop_edges())):
                     return True
 
         return False
@@ -866,7 +870,7 @@ class Build(object):
     def init_embed(self):
         # keep track of the sbu vertices
         edges_split = []
-        self.sbu_vertices = self._net.graph.vertices()
+        self.sbu_vertices = self._net.vertices()
         met_incidence = [sbu.degree for sbu in self._sbus if sbu.is_metal]
         org_incidence = [sbu.degree for sbu in self._sbus if not sbu.is_metal]
         # Some special cases: linear sbus and no loops. 
@@ -880,13 +884,13 @@ class Build(object):
         #            self.sbu_vertices.append(vertices[2])
         #            edges_split += edges
         self.sbu_joins = {}
-        for (v1, v2, e) in self._net.graph.edges():
+        for (v1, v2, e) in self._net.all_edges():
             if (v1, v2, e) not in edges_split:
                 nn1 = len(self._net.neighbours(v1))
                 nn2 = len(self._net.neighbours(v2))
                 # LOADS of ands here.
                 if self.linear_sbus:
-                    if ((v1, v2, e) in self._net.graph.loop_edges()) or \
+                    if ((v1, v2, e) in self._net.loop_edges()) or \
                         ((nn1==nn2) and (nn1 in met_incidence)):
                         vertices, edges = self._net.add_edges_between((v1, v2, e), 5)
                         # add the middle vertex to the SBU vertices..
@@ -940,8 +944,6 @@ class Build(object):
         count = 0
         for i in G:
             count += 1
-            print i
-            print i.dict()
             # find equivalent edges after vertex automorphism
 
             # construct linear representation
@@ -969,8 +971,8 @@ class Build(object):
         init = np.array(init)
         data = {"cell":cell, "nodes":{}, "edges":{}}
         # set the first node down at the init position
-        V = self._net.graph.vertices()[0]
-        edges = self._net.graph.outgoing_edges(V) + self._net.graph.incoming_edges(V)
+        V = self._net.vertices(0)
+        edges = self._net.neigbours(V)
         unit_cell_vertices = self._net.vertex_positions(edges, [], pos={V:init})
         for key, value in unit_cell_vertices.items():
             if key in self._vertex_sbu.keys():
@@ -982,11 +984,11 @@ class Build(object):
                         if cp.vertex_assign == key:
                             label = str(cp.identifier)
             data["nodes"][label] = np.array(value)
-            for edge in self._net.graph.outgoing_edges(key):
+            for edge in self._net.out_edges(key):
                 ind = self._net.get_index(edge)
                 arc = np.array(self._net.lattice_arcs)[ind]
                 data["edges"][edge[2]]=(np.array(value), arc)
-            for edge in self._net.graph.incoming_edges(key):
+            for edge in self._net.in_edges(key):
                 ind = self._net.get_index(edge)
                 arc = -np.array(self._net.lattice_arcs)[ind]
                 data["edges"][edge[2]]=(np.array(value), arc)

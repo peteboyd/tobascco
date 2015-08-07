@@ -1,5 +1,14 @@
 #!/usr/bin/env python
 _version_=3.0
+try:
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    MPIsize = comm.size
+    MPIrank = comm.rank
+except ImportError:
+    comm = None
+    MPIsize = 0
+    MPIrank = 0
 from optparse import OptionParser
 import optparse
 import ConfigParser
@@ -10,6 +19,7 @@ import re
 import copy
 from ast import literal_eval
 from logging import info, debug, warning, error, critical
+
 
 class Options(object):
     def __init__(self):
@@ -179,4 +189,6 @@ def Terminate(errcode=None):
         info("TopCryst terminated normally")
     else:
         warning("TopCryst terminated with errors!")
+    if comm is not None:
+        comm.Barrier()
     sys.exit()

@@ -453,17 +453,15 @@ def main():
     log = glog.Log(options)
     global MPIsize 
     global MPIrank 
-    #try:
-    #    from mpi4py import MPI
-    #    comm = MPI.COMM_WORLD
-    #    MPIsize = comm.size
-    #    MPIrank = comm.rank
-    #except ImportError:
-    #    warning("No MPI routines found! Defaulting to serial")
-    #    MPIsize = 0
-    #    MPIrank = 0
-    MPIsize=0
-    MPIrank=0
+    try:
+        from mpi4py import MPI
+        comm = MPI.COMM_WORLD
+        MPIsize = comm.size
+        MPIrank = comm.rank
+    except ImportError:
+        warning("No MPI routines found! Defaulting to serial")
+        MPIsize = 0
+        MPIrank = 0
     jerb = JobHandler(options)
     jerb.direct_job()
     

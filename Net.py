@@ -549,7 +549,6 @@ class Net(object):
         ub[xinc:] = .4 
         lb[xinc:] = -.4
         scale_ind = int(self.scale[0][0][0])
-       
         x = nl.nloptimize(self.ndim,
                           scale_ind,
                           lb,

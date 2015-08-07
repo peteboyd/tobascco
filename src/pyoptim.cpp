@@ -196,7 +196,7 @@ double objectivefunc(unsigned n, const double *x, double *grad, void *dd)
         //forward_difference_grad(grad, x, ans, dd, 1e-5);
         central_difference_grad(grad, x, dd, 1e-4);
     }
-    std::cout<<ans<<std::endl;
+    //std::cout<<ans<<std::endl;
     return ans; 
 }
 double ** construct2darray(int rows, int cols){

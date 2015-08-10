@@ -44,6 +44,7 @@ class JobHandler(object):
         self.options = options
         self._topologies = SystreDB()
         self._stored_nets = {}
+        self._stored_builds = {}
         self.sbu_pool = []
 
     def _mpi_split(self):
@@ -217,6 +218,17 @@ class JobHandler(object):
             str += "%s, "%j.name
         return str[:-2]+")"
 
+    def construct_from_prev_embedding(self, top, combo, build):
+        """Routine to just change the SBU to something else and 
+        snap it to some previously embedded net. Only works for 
+        SBUs with identical or similar connectivity. Like
+        for example in ZIFs......."""
+        for vert in self.sbu_vertices:
+            print self._vertex_sbu[vert]
+        sys.exit()
+
+
+
     def embed_sbu_combo(self, top, combo, build):
         count = build.net.original_graph.size()
         self.options.csv.add_data(**{"topology.1":top, 
@@ -230,6 +242,7 @@ class JobHandler(object):
                 (build.net.order, build.net.shape))
         build.assign_vertices()
         build.assign_edges()
+        sys.exit()
         build.obtain_embedding()
         t2 = time()
         if build.success:
@@ -237,6 +250,8 @@ class JobHandler(object):
             self.options.csv.add_data(**{"net_charge.1":build.struct.charge})
             if self.options.store_net:
                 self._stored_nets[build.name] = build.embedded_net
+            elif self.options.store_builds:
+                self._stored_builds[top] = build
         else:
             sym = "None"
         self.options.csv.add_data(**{"time.1":t2-t1,
@@ -271,7 +286,13 @@ class JobHandler(object):
                 Terminate()
             debug("Trying "+self.combo_str(combo))
             for top, graph in self._topologies.items():
-                build = Build(self.options)
+                if self.options.store_builds:
+                    try:
+                        build = self._stored_builds[top]
+                    except:
+                        build = Build(self.options)
+                else:
+                    build = Build(self.options)
                 build.sbus = list(set(combo))
                 build.net = (top, graph, self._topologies.voltages[top])
                 #build.get_automorphisms()
@@ -452,16 +473,18 @@ def main():
     options.version = __version__
     log = glog.Log(options)
     global MPIsize 
-    global MPIrank 
-    try:
-        from mpi4py import MPI
-        comm = MPI.COMM_WORLD
-        MPIsize = comm.size
-        MPIrank = comm.rank
-    except ImportError:
-        warning("No MPI routines found! Defaulting to serial")
-        MPIsize = 0
-        MPIrank = 0
+    global MPIrank
+    MPIsize=0
+    MPIrank=0
+    #try:
+    #    from mpi4py import MPI
+    #    comm = MPI.COMM_WORLD
+    #    MPIsize = comm.size
+    #    MPIrank = comm.rank
+    #except ImportError:
+    #    warning("No MPI routines found! Defaulting to serial")
+    #    MPIsize = 0
+    #    MPIrank = 0
     jerb = JobHandler(options)
     jerb.direct_job()
     

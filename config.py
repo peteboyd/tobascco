@@ -1,14 +1,16 @@
 #!/usr/bin/env python
 _version_=3.0
-try:
-    from mpi4py import MPI
-    comm = MPI.COMM_WORLD
-    MPIsize = comm.size
-    MPIrank = comm.rank
-except ImportError:
-    comm = None
-    MPIsize = 0
-    MPIrank = 0
+MPIsize=0
+MPIrank=0
+#try:
+#    from mpi4py import MPI
+#    comm = MPI.COMM_WORLD
+#    MPIsize = comm.size
+#    MPIrank = comm.rank
+#except ImportError:
+#    comm = None
+#    MPIsize = 0
+#    MPIrank = 0
 from optparse import OptionParser
 import optparse
 import ConfigParser
@@ -126,7 +128,8 @@ class Options(object):
                     'show_embedded_net',
                     'get_run_info',
                     'find_symmetric_h',
-                    'store_net']
+                    'store_net',
+                    'store_builds']
         floats = ['overlap_tolerance',
                   'sbu_bond_length',
                   'cell_vol_tolerance',

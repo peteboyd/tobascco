@@ -1,12 +1,14 @@
 #!/usr/bin/env python
-try:
-    from mpi4py import MPI
-    comm = MPI.COMM_WORLD
-    MPIsize = comm.size 
-    MPIrank = comm.rank 
-except ImportError:
-    MPIsize = 0
-    MPIrank = 0
+MPIsize=0
+MPIrank=0
+#try:
+#    from mpi4py import MPI
+#    comm = MPI.COMM_WORLD
+#    MPIsize = comm.size 
+#    MPIrank = comm.rank 
+#except ImportError:
+#    MPIsize = 0
+#    MPIrank = 0
 import logging
 from logging import info, debug, warning, error, critical
 import config

@@ -2,6 +2,7 @@
 import logging
 import sys
 from logging import info, debug, warning, error, critical
+from copy import deepcopy
 import config
 import pickle
 from config import Terminate
@@ -223,11 +224,36 @@ class JobHandler(object):
         snap it to some previously embedded net. Only works for 
         SBUs with identical or similar connectivity. Like
         for example in ZIFs......."""
-        for vert in self.sbu_vertices:
-            print self._vertex_sbu[vert]
-        sys.exit()
+        # match sbus to vertices.
+        build.sbus = combo
+        for vert in build.sbu_vertices:
+            vertex_bu = build._vertex_sbu[vert]
+            v_elems = [i.element for i in vertex_bu.atoms]
+            # assumes only 1:1 swapping here, combinations of sbus with the
+            # same connectivity are not implemented.
+            for sbu in combo:
+                # atoms are compared, they must be in the exact same order for this
+                # to proceed?
+                sbu_elems = [i.element for i in sbu.atoms]
+                if (sbu.is_metal == vertex_bu.is_metal) and (len(sbu.connect_points) 
+                        == len(vertex_bu.connect_points)) and (v_elems == sbu_elems) and \
+                       (vertex_bu.name == sbu.name): 
+                    pass 
+                    # no need to change SBU in this case
+                elif (sbu.is_metal == vertex_bu.is_metal) and (len(sbu.connect_points) 
+                        == len(vertex_bu.connect_points)):
+                    bu = deepcopy(sbu)
+                    bu.vertex_id = vert
+                    # do a substitution of these bus...
+                    for j in range(len(vertex_bu.connect_points)):
+                        bu.connect_points[j].set_sbu_vertex(vert)
+                        # just copy the vertex assignment from the previous SBU
+                        # NB: This will cause problems if the CPs are in different order!!!
+                        bu.connect_points[j].vertex_assign = vertex_bu.connect_points[j].vertex_assign
+                        bu.connect_points[j].bonded_cp_vertex = vertex_bu.connect_points[j].bonded_cp_vertex
+                    build._vertex_sbu[vert] = bu
 
-
+        build.build_structure_from_net(np.array([0.5, 0.5, 0.5]))
 
     def embed_sbu_combo(self, top, combo, build):
         count = build.net.original_graph.size()
@@ -237,13 +263,18 @@ class JobHandler(object):
         info("Setting up %s"%(self.combo_str(combo)) +
                 " with net %s, with an edge count = %i "%(top, count))
         t1 = time()
-        build.init_embed()
+        # use build.success to indicate that the net has already been
+        # embedded here.
+        if build.success and self.options.store_builds:
+            self.construct_from_prev_embedding(top,combo,build)
+
+        else:
+            build.init_embed()
+            build.assign_vertices()
+            build.assign_edges()
+            build.obtain_embedding()
         debug("Augmented graph consists of %i vertices and %i edges"%
                 (build.net.order, build.net.shape))
-        build.assign_vertices()
-        build.assign_edges()
-        sys.exit()
-        build.obtain_embedding()
         t2 = time()
         if build.success:
             sym = build.struct.space_group_name
@@ -291,10 +322,11 @@ class JobHandler(object):
                         build = self._stored_builds[top]
                     except:
                         build = Build(self.options)
+                        build.net = (top, graph, self._topologies.voltages[top])
                 else:
                     build = Build(self.options)
+                    build.net = (top, graph, self._topologies.voltages[top])
                 build.sbus = list(set(combo))
-                build.net = (top, graph, self._topologies.voltages[top])
                 #build.get_automorphisms()
                 if self.options.show_barycentric_net_only:
                     info("Preparing barycentric embedding of %s"%(top))
@@ -307,6 +339,13 @@ class JobHandler(object):
                             debug("Metal-type nodes attached to metal-type nodes. "+
                                     "Attempting to insert 2-c organic SBUs between these nodes.")
                             for comb in run.yield_linear_org_sbu(combo):
+                                if self.options.store_builds:
+                                    try:
+                                        build = self._stored_builds[top]
+                                    except:
+                                        build = Build(self.options)
+                                else:
+                                    build = Build(self.options)
                                 build = Build(self.options)
                                 build.sbus = list(set(comb))
                                 build.net = (top, graph, self._topologies.voltages[top])
@@ -321,6 +360,7 @@ class JobHandler(object):
                             self.embed_sbu_combo(top, combo, build)
                         elif not build.met_met_bonds:
                             self.embed_sbu_combo(top, combo, build)
+
                     else:
                         debug("Net %s does not support the same"%(top)+
                                 " connectivity offered by the SBUs")

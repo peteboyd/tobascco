@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 _version_=3.0
+comm=None
 MPIsize=0
 MPIrank=0
 #try:

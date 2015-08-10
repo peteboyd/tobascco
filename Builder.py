@@ -45,31 +45,6 @@ class Build(object):
             val[ind] = data[ind][int(p.value)]
         return val
    
-    def obtain_sbu_fittings(self, vertex):
-        g = self._net.graph
-        edges = self._net.neighbours(vertex) 
-        indices = self._net.return_indices(edges)
-        lattice_arcs = self._net.lattice_arcs[indices]
-        ipv = np.dot(np.dot(lattice_arcs, self._net.metric_tensor), lattice_arcs.T)
-        ipv = self.scaled_ipmatrix(ipv)
-        inds = np.triu_indices(ipv.shape[0], k=1) 
-        # just take the max and min angles... 
-        max, min = np.absolute(ipv[inds]).max(), np.absolute(ipv[inds]).min()
-        #incidence = len(g.neighbors_out(vertex) + g.neighbors_in(vertex)) # SAGE compliant
-        incidence = len(g.neighbors(vertex)) # networkx compliant
-        weights = []
-        for sbu in self._sbus:
-            vects = np.array([self.vector_from_cp_SBU(cp, sbu) for cp in 
-                              sbu.connect_points])
-            if incidence == sbu.degree:
-                ipc = self.scaled_ipmatrix(np.inner(vects, vects))
-                imax, imin = np.absolute(ipc[inds]).max(), np.absolute(ipc[inds]).min()
-                mm = np.sum(np.absolute([max-imax, min-imin]))
-                weights.append(mm)
-            else:
-                weights.append(1500000.)
-        return np.array(weights)
-
     def assign_vertices(self):
         """Assign SBUs to particular vertices in the graph"""
         # TODO(pboyd): assign sbus intelligently, based on edge lengths

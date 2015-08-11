@@ -130,7 +130,8 @@ class Options(object):
                     'get_run_info',
                     'find_symmetric_h',
                     'store_net',
-                    'store_builds']
+                    'use_builds',
+                    'save_builds']
         floats = ['overlap_tolerance',
                   'sbu_bond_length',
                   'cell_vol_tolerance',
@@ -145,6 +146,7 @@ class Options(object):
         lists = ['topologies', 'sbu_files', 'topology_files',
                 'organic_sbus',
                  'metal_sbus',
+                 'build_files',
                  'ignore_topologies']
         tuple_of_tuples = ['sbu_combinations']
         

@@ -167,7 +167,10 @@ class SBU(object):
         [a.rotate(rotation_matrix) for a in self.atoms]
    
     def translate(self, v):
-        vector = v - self.COM[:3]
+        if self.two_connected and not self.linear:
+            vector = v - self.closest_midpoint
+        else:
+            vector = v - self.COM[:3]
         [c.translate(vector) for c in self.connect_points]
         [i.translate(vector) for i in self.atoms]
 
@@ -205,7 +208,50 @@ class SBU(object):
         for atom in self.atoms:
             # sort in order of increasing distance
             atom.neighbours = sorted(atom.neighbours)[:]
-           
+
+    @property
+    def closest_midpoint(self):
+        """The 'intersection' between the first two connect points
+        of the SBU. (or the closest point).
+        """
+        # Calculate denominator
+        A = self.connect_points[0].z[:3]
+        B = self.connect_points[1].z[:3]
+        _A=A/np.linalg.norm(A)
+        _B=B/np.linalg.norm(B)
+        cross = np.cross(_A,_B)
+        denom = np.linalg.norm(cross)**2
+        # If denominator is 0, the lines are parallel
+        if (denom==0):
+            return None
+        a0 = self.connect_points[0].origin[:3]
+        b0 = self.connect_points[1].origin[:3]
+
+        t = (b0-a0)
+        det0 = np.linalg.det([t, _B, cross])
+        det1 = np.linalg.det([t, _A, cross])
+
+        t0 = det0/denom
+        t1 = det1/denom
+
+        pA = a0 + (_A*t0)
+        pB = b0 + (_B*t1)
+        d = np.linalg.norm(pA - pB)
+        if d > 2.:
+            debug("The distance between the line tracing the connection sites "+
+                    "of SBU %s is pretty big! %9.5f Angstroms"%(self.name, d))
+
+        
+        self._midpoint = (pA + pB)/2.
+
+        v1 = self.connect_points[0].origin[:3] - self._midpoint
+        v2 = self.connect_points[1].origin[:3] - self._midpoint
+        v1 = v1/np.linalg.norm(v1)
+        v2 = v2/np.linalg.norm(v2)
+        cp1 = self.connect_points[1]
+        cp0 = self.connect_points[0]
+        return self._midpoint
+
     @property
     def linear(self):
         """Return true if linear else false"""

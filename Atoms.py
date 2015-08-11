@@ -49,7 +49,7 @@ class Atom(object):
             self.coordinates[i] = float(c)
     
     def rotate(self, R):
-        self.coordinates = np.dot(R, self.coordinates)
+        self.coordinates[:3] = np.dot(R[:3,:3], self.coordinates[:3])
         
     def translate(self, vector):
         self.coordinates[:3] += vector

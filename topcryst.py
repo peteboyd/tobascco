@@ -91,6 +91,8 @@ class JobHandler(object):
 
         self._read_sbu_database_files()
         self._read_topology_database_files()
+        if self.options.use_builds:
+            self._read_build_files()
         # failsafe in case no topology is requested in the input file.
         if not self.options.topologies:
             self.options.topologies = self._topologies.keys()
@@ -236,15 +238,11 @@ class JobHandler(object):
                 # to proceed?
                 sbu_elems = [i.element for i in sbu.atoms]
                 if (sbu.is_metal == vertex_bu.is_metal) and (len(sbu.connect_points) 
-                        == len(vertex_bu.connect_points)) and (v_elems == sbu_elems) and \
-                       (vertex_bu.name == sbu.name): 
-                    pass 
-                    # no need to change SBU in this case
-                elif (sbu.is_metal == vertex_bu.is_metal) and (len(sbu.connect_points) 
                         == len(vertex_bu.connect_points)):
                     bu = deepcopy(sbu)
                     bu.vertex_id = vert
                     # do a substitution of these bus...
+                    bu.edge_assignments = vertex_bu.edge_assignments
                     for j in range(len(vertex_bu.connect_points)):
                         bu.connect_points[j].set_sbu_vertex(vert)
                         # just copy the vertex assignment from the previous SBU
@@ -252,6 +250,12 @@ class JobHandler(object):
                         bu.connect_points[j].vertex_assign = vertex_bu.connect_points[j].vertex_assign
                         bu.connect_points[j].bonded_cp_vertex = vertex_bu.connect_points[j].bonded_cp_vertex
                     build._vertex_sbu[vert] = bu
+                    #build.assign_edge_labels(vert)
+                    #for cp in bu.connect_points:
+                    #    cp.set_sbu_vertex(vert)
+                    #    cpe = build.net.neighbours(cp.vertex_assign)
+                    #    edge = cpe[0] if cpe[0] not in bu.edge_assignments else cpe[1]
+                    #    cp.bonded_cp_vertex = edge[0] if edge[0] != cp.vertex_assign else edge[1]
 
         build.build_structure_from_net(np.array([0.5, 0.5, 0.5]))
 
@@ -265,7 +269,7 @@ class JobHandler(object):
         t1 = time()
         # use build.success to indicate that the net has already been
         # embedded here.
-        if build.success and self.options.store_builds:
+        if build.success and self.options.use_builds:
             self.construct_from_prev_embedding(top,combo,build)
 
         else:
@@ -281,7 +285,7 @@ class JobHandler(object):
             self.options.csv.add_data(**{"net_charge.1":build.struct.charge})
             if self.options.store_net:
                 self._stored_nets[build.name] = build.embedded_net
-            elif self.options.store_builds:
+            elif self.options.use_builds:
                 self._stored_builds[top] = build
         else:
             sym = "None"
@@ -291,6 +295,9 @@ class JobHandler(object):
         #build.custom_embedding(rep, mt)
         if self.options.show_embedded_net:
             build.show()
+        if self.options.save_builds:
+            name="build_%s.pkl"%top 
+            pickle.dump({top:build}, open(name, 'wb'))
 
     def _build_structures(self):
         """Pass the sbu combinations to a MOF building algorithm."""
@@ -317,7 +324,7 @@ class JobHandler(object):
                 Terminate()
             debug("Trying "+self.combo_str(combo))
             for top, graph in self._topologies.items():
-                if self.options.store_builds:
+                if self.options.use_builds:
                     try:
                         build = self._stored_builds[top]
                     except:
@@ -339,7 +346,7 @@ class JobHandler(object):
                             debug("Metal-type nodes attached to metal-type nodes. "+
                                     "Attempting to insert 2-c organic SBUs between these nodes.")
                             for comb in run.yield_linear_org_sbu(combo):
-                                if self.options.store_builds:
+                                if self.options.use_builds:
                                     try:
                                         build = self._stored_builds[top]
                                     except:
@@ -415,7 +422,12 @@ class JobHandler(object):
             if self.options.calc_max_sbu_span:
                 report.add_data(**{"sbu_span.1": sbu.max_span})
         report.write()
-         
+    
+    def _read_build_files(self):
+        for file in self.options.build_files:
+            f = open(file, 'rb')
+            d = pickle.load(f)
+            self._stored_builds.update(d)
     def _read_topology_database_files(self):
         for file in self.options.topology_files:
             paths = path_splitter(file)

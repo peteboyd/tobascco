@@ -287,6 +287,9 @@ class JobHandler(object):
                 self._stored_nets[build.name] = build.embedded_net
             elif self.options.use_builds:
                 self._stored_builds[top] = build
+            if self.options.save_builds:
+                name="build_%s.pkl"%top 
+                pickle.dump({top:build}, open(name, 'wb'))
         else:
             sym = "None"
         self.options.csv.add_data(**{"time.1":t2-t1,
@@ -295,9 +298,6 @@ class JobHandler(object):
         #build.custom_embedding(rep, mt)
         if self.options.show_embedded_net:
             build.show()
-        if self.options.save_builds:
-            name="build_%s.pkl"%top 
-            pickle.dump({top:build}, open(name, 'wb'))
 
     def _build_structures(self):
         """Pass the sbu combinations to a MOF building algorithm."""

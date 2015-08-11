@@ -579,6 +579,7 @@ class Build(object):
             # compute dihedral angle, if one exists...
             struct.add_sbu(self._vertex_sbu[v])
         struct.connect_sbus(self._vertex_sbu)
+        # WARNING::: TURNED OFF FOR SPEED! TURN BACK ON!!!!!!!!!!!1!!
         #if struct.compute_overlap():
             #struct.write_cif()
         #    warning("Overlap found in final structure, not creating MOF.")

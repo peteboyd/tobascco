@@ -6,7 +6,8 @@ import os
 
 #NB for shared libraries ensure that the lib dir is in LD_LIBRARY_PATH!
 # eg export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/pboyd/lib/nlopt-2.4.1/lib
-
+#os.environ["CC"] = "g++"
+#os.environ["CXX"] = "g++"
 include_dirs = [os.getcwd(), os.environ['NL_INCDIR']]
 
 module = Extension('_nloptimize',

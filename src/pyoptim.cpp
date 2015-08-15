@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <map>
+#include <string.h>
 #include <math.h>
 #include <nlopt.h>
 #include <numpy/arrayobject.h>
@@ -56,6 +57,7 @@ PyMODINIT_FUNC init_nloptimize(void)
 
 static PyObject * nloptimize(PyObject *self, PyObject *args)
 {
+
     int ndim;
     int diag_ind;
     double minf; /* the minimum objective value, upon return */
@@ -66,8 +68,10 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
                                                     2 = STOPVAL REACHED
                                                     3 = FTOL REACHED
                                                     4 = XTOL REACHED
-                                                    5 MAXEVAL REACHED
+                                                    5 = MAXEVAL REACHED
                                                     6 = MAXTIME REACHED*/
+    nlopt_algorithm global; //global optimizer
+    nlopt_algorithm local; //local optimizer
     PyArrayObject* lower_bounds;
     PyArrayObject* upper_bounds;
     PyArrayObject* init_x;
@@ -76,8 +80,9 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     PyArrayObject* cycle_rep;
     PyArrayObject* cycle_cocycle_I;
     PyArrayObject* zero_indi, *zero_indj;
+    PyObject* pgoptim, *ploptim;
     //read in all the parameters
-    if (!PyArg_ParseTuple(args, "iiOOOOOOOOdd",
+    if (!PyArg_ParseTuple(args, "iiOOOOOOOOddOO",
                           &ndim,
                           &diag_ind,
                           &lower_bounds,
@@ -89,11 +94,16 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
                           &zero_indi,
                           &zero_indj,
                           &xrel,
-                          &frel)){
+                          &frel,
+                          &pgoptim,
+                          &ploptim)){
         return NULL;
     };
-    nlopt_opt opt;
+    nlopt_opt opt, local_opt;
     double *x, *lb, *ub;
+    std::string goptim=PyString_AsString(pgoptim);
+    std::string loptim=PyString_AsString(ploptim);
+    
     lb = get1darrayd(lower_bounds);
     ub = get1darrayd(upper_bounds);
     x = get1darrayd(init_x);
@@ -134,10 +144,67 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     int res=1;
     data.angle_inds = factorial(ndim, res) / factorial(2, res) / factorial(ndim-2, res); 
     data.start = data.angle_inds + data.ndim;
-    
+    //initialize the local and global optimizers, so the compilation doesn't spew
+    // out useless warnings
+    global=NLOPT_GN_DIRECT;
+    local=NLOPT_LD_LBFGS;
+    //determine local optimizer
+    if (loptim == "cobyla")local=NLOPT_LN_COBYLA;
+    else if (loptim == "bobyqa")local=NLOPT_LN_BOBYQA;
+    else if (loptim == "newoua")local=NLOPT_LN_NEWUOA_BOUND;
+    else if (loptim == "praxis")local=NLOPT_LN_PRAXIS;
+    else if (loptim == "nelder-mead")local=NLOPT_LN_NELDERMEAD;
+    else if (loptim == "mma")local=NLOPT_LD_MMA;
+    else if (loptim == "ccsa")local=NLOPT_LD_CCSAQ;
+    else if (loptim == "slsqp")local=NLOPT_LD_SLSQP;
+    else if (loptim == "lbfgs")local=NLOPT_LD_LBFGS;
+    else if (loptim == "newton")local=NLOPT_LD_TNEWTON;
+    else if (loptim == "newton-restart")local=NLOPT_LD_TNEWTON_RESTART;
+    else if (loptim == "newton-precond")local=NLOPT_LD_TNEWTON_PRECOND;
+    else if (loptim == "newton-precond-restart")local=NLOPT_LD_TNEWTON_PRECOND_RESTART;
+    else if (loptim == "var1")local=NLOPT_LD_VAR1;
+    else if (loptim == "var2")local=NLOPT_LD_VAR2;
+
+    //GLOBAL OPTIMIZER***********************************
+    if (!goptim.empty()){
+        if (goptim == "direct")global=NLOPT_GN_DIRECT;
+        else if (goptim == "direct")global=NLOPT_GN_DIRECT;
+        else if (goptim == "direct-l")global=NLOPT_GN_DIRECT_L;
+        //else if (goptim == "direct-l-rand")global=NLOPT_GLOBAL_DIRECT_L_RAND;
+        //else if (goptim == "direct-noscale")global=NLOPT_GLOBAL_DIRECT_NOSCAL;
+        //else if (goptim == "direct-l-noscale")global=NLOPT_GLOBAL_DIRECT_L_NOSCAL;
+        //else if (goptim == "direct-l-rand-noscale")global=NLOPT_GLOBAL_DIRECT_L_RAND_NOSCAL;
+        else if (goptim == "crs2")global=NLOPT_GN_CRS2_LM;
+        else if (goptim == "stogo")global=NLOPT_GD_STOGO;
+        else if (goptim == "stogo-rand")global=NLOPT_GD_STOGO_RAND;
+        else if (goptim == "isres")global=NLOPT_GN_ISRES;
+        else if (goptim == "esch")global=NLOPT_GN_ESCH;
+        else if (goptim == "mlsl")global=NLOPT_G_MLSL;
+        else if (goptim == "mlsl-lds")global=NLOPT_G_MLSL_LDS;
+        opt = nlopt_create(global, data.x_size);
+        // create local optimizer for the mlsl algorithms.
+        if ((goptim == "mlsl") || (goptim == "mlsl-lds")){
+            local_opt = nlopt_create(local, data.x_size);
+            nlopt_set_local_optimizer(opt, local_opt);
+        }
+        nlopt_set_min_objective(opt, objectivefunc, &data);
+        nlopt_set_lower_bounds(opt, lb);
+        nlopt_set_upper_bounds(opt, ub);
+        nlopt_set_xtol_rel(opt, xrel);  // set absolute tolerance on the change in the input parameters
+        nlopt_set_ftol_abs(opt, frel);  // set absolute tolerance on the change in the objective funtion
+        retval = nlopt_optimize(opt, x, &minf);
+        if (retval < 0) {
+                printf("global nlopt failed!\n");
+        }
+        nlopt_destroy(opt); 
+    }
+    /*else{
+        printf("No global optimisation requested, preparing local optimiser\n");
+    }*/
+    //END GLOBAL OPTIMIZER******************************* 
    
     //LOCAL OPTIMIZER***********************************
-    opt = nlopt_create(NLOPT_LD_LBFGS, data.x_size);
+    opt = nlopt_create(local, data.x_size);
     nlopt_set_vector_storage(opt, 10000); // for quasi-newton algorithms, how many gradients to store 
     nlopt_set_min_objective(opt, objectivefunc, &data);
     nlopt_set_lower_bounds(opt, lb);
@@ -196,7 +263,7 @@ double objectivefunc(unsigned n, const double *x, double *grad, void *dd)
         //forward_difference_grad(grad, x, ans, dd, 1e-5);
         central_difference_grad(grad, x, dd, 1e-5);
     }
-    //std::cout<<ans<<std::endl;
+    std::cout<<ans<<std::endl;
     return ans; 
 }
 double ** construct2darray(int rows, int cols){
@@ -391,6 +458,7 @@ double compute_inner_product_fast(const double *x, data_info d){
         j = d._zj[r];
         if(i==j){
             squarediff += pow((d.diag2[i]/max - d._ip_mat[i][j]), 2);
+            //squarediff += pow((d.diag2[i] - d._ip_mat[i][j]), 2);
         }
         else{
             for (int k = 0 ; k < d.ndim ; k++ ){
@@ -404,6 +472,7 @@ double compute_inner_product_fast(const double *x, data_info d){
             }
 
             squarediff += pow((sum/d.diag[i]/d.diag[j] - d._ip_mat[i][j]), 2);
+            //squarediff += pow((sum - d._ip_mat[i][j]), 2);
             sum=0;
         }
     }

@@ -484,7 +484,6 @@ class Net(object):
                 self.colattice_dotmatrix[i,j] = val 
                 self.colattice_dotmatrix[j,i] = val
 
-
     def convert_params(self, x, ndim, angle_inds, cocycle_size):
         cell_lengths = x[:ndim]
         angles = x[ndim: ndim + angle_inds]
@@ -549,6 +548,11 @@ class Net(object):
         ub[xinc:] = .4 
         lb[xinc:] = -.4
         scale_ind = int(self.scale[0][0][0])
+        if self.options.global_optimiser:
+            debug("Preparing a global optimisation with %s, followed by a %s"%(
+                self.options.global_optimiser,self.options.local_optimiser))
+        else:
+            debug("Preparing local optimisation using %s"%(self.options.local_optimiser))
         x = nl.nloptimize(self.ndim,
                           scale_ind,
                           lb,
@@ -561,7 +565,9 @@ class Net(object):
                           np.array(self.colattice_inds[0]), 
                           np.array(self.colattice_inds[1]),
                           self.options.opt_parameter_tol,
-                          self.options.opt_function_tol,)
+                          self.options.opt_function_tol,
+                          self.options.global_optimiser,
+                          self.options.local_optimiser)
 
         if x is None:
             return False
@@ -575,6 +581,7 @@ class Net(object):
         scind = self.scale[0]
         sclen = self.scale[1]
         self.scale_factor = sclen/inner_p[scind]
+        #self.scale_factor = 1.
         self.metric_tensor *= self.scale_factor
         
         self.report_errors_nlopt()

@@ -1,4 +1,4 @@
-#!/usr/bin/env sage-python
+#!/usr/bin/env python
 import matplotlib
 #matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -155,22 +155,22 @@ class GraphPlot(object):
     def view_placement(self, init=(0., 0., 0.), edge_labels=True, sbu_only=[]):
         init = np.array(init)
         # set the first node down at the init position
-        V = self.net.graph.vertices()[0] 
-        edges = self.net.graph.outgoing_edges(V) + self.net.graph.incoming_edges(V)
+        V = self.net.graph.nodes()[0] 
+        edges = self.net.out_edges(V) + self.net.in_edges(V)
         unit_cell_vertices = self.net.vertex_positions(edges, [], pos={V:init})
         for key, value in unit_cell_vertices.items():
             if (sbu_only and key in sbu_only) or (not sbu_only):
                 self.add_point(p=np.array(value), label=key, colour='k')
             elif sbu_only and key not in sbu_only:
                 self.add_point(p=np.array(value), label=None, colour='#FF6600') #Blaze Orange
-            for edge in self.net.graph.outgoing_edges(key):
+            for edge in self.net.out_edges(key):
                 ind = self.net.get_index(edge)
                 arc = np.array(self.net.lattice_arcs)[ind]
                 el = None
                 if edge_labels:
                     el = edge[2]
                 self.add_edge(arc, origin=np.array(value), label=el)
-            for edge in self.net.graph.incoming_edges(key):
+            for edge in self.net.in_edges(key):
                 ind = self.net.get_index(edge)
                 arc = -np.array(self.net.lattice_arcs)[ind]
                 el = None

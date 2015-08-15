@@ -10,7 +10,7 @@ import glog
 from time import time
 import ConfigParser
 from Generator import Generate
-#from Visualizer import GraphPlot 
+from Visualizer import GraphPlot 
 from CSV import CSV
 from Net import SystreDB, Net
 from Builder import Build
@@ -158,9 +158,9 @@ class JobHandler(object):
 
         #print G.order()
         #print G.gens()
-        #g = GraphPlot(net)
+        g = GraphPlot(net)
         #g.view_graph()
-        #g.view_placement(init=(0.625, 0.625, 0.625))
+        g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False)
         #g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False, sbu_only=["1"]) # for bcu for paper
         #g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False) # for bcu for paper
 

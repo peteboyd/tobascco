@@ -4,7 +4,7 @@ from Net import Net
 from networkx import degree_histogram
 import sys
 import itertools
-#from Visualizer import GraphPlot
+from Visualizer import GraphPlot
 from LinAlg import rotation_from_vectors, rotation_matrix, rotation_from_omega, calc_angle, calc_axis, DEG2RAD
 from LinAlg import central_moment, raw_moment, get_CI, elipsoid_vol, normalized_vectors 
 from Structure import Structure, Cell
@@ -784,10 +784,9 @@ class Build(object):
         sbu.translate(trans)
 
     def show(self):
-        pass
-        #g = GraphPlot(self._net)
+        g = GraphPlot(self._net)
         #g.view_graph()
-        #g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False, sbu_only=self.sbu_vertices)
+        g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False, sbu_only=self.sbu_vertices)
 
     def vector_from_cp_intersecting_pt(self, cp, sbu):
         for atom in sbu.atoms:

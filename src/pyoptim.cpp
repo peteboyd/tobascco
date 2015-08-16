@@ -12,6 +12,7 @@ void create_full_rep(int, int, double**, int, int, const double*, double**);
 static PyObject * nloptimize(PyObject *self, PyObject *args);
 void forward_difference_grad(double*, const double*, double, void*, double);
 void central_difference_grad(double*, const double* , void*, double);
+double* analytical_3dgrad(double*, const double* , void*, double);
 double objectivefunc(unsigned, const double*, double*, void*);
 void create_metric_tensor(int, const double*, double*);
 double * get1darrayd(PyArrayObject*);
@@ -44,6 +45,7 @@ struct data_info{
     double * diag2;
     double * farray;
     double * barray;
+    double * stored_dp; 
 };
 
 double compute_inner_product_fast(const double*, data_info);
@@ -114,8 +116,7 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     data._cycle_rep = get2darrayd(cycle_rep);
     data._ip_mat = get2darrayd(inner_product_matrix);
     data._zi = get1darrayi(zero_indi);
-    data._zj = get1darrayi(zero_indj);
-    
+    data._zj = get1darrayi(zero_indj); 
     //PyObject_Print((PyObject*)zero_indj, stdout, 0);
     data.ndim = ndim;
     data.diag_ind = diag_ind;
@@ -135,12 +136,14 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     // summation of squared errors = return val.
     data.edge_vectors = construct2darray(data.B_shape, data.ndim);
     data.edge_vectors_T = construct2darray(data.ndim, data.B_shape);
-    data.Z = (double*)malloc(sizeof(double) * 6);
+    if(data.ndim == 3)data.Z = (double*)malloc(sizeof(double) * 6);
+    else if(data.ndim == 2)data.Z = (double*)malloc(sizeof(double) * 3);
     data.M1 = construct2darray(data.B_shape, data.ndim);
     data.farray = (double*)malloc(sizeof(double) * data.x_size);
     data.barray = (double*)malloc(sizeof(double) * data.x_size);
     data.diag = (double*)malloc(sizeof(double) * data.B_shape);
     data.diag2 = (double*)malloc(sizeof(double) * data.B_shape);
+    data.stored_dp = (double*)malloc(sizeof(double) * data.B_shape);
     int res=1;
     data.angle_inds = factorial(ndim, res) / factorial(2, res) / factorial(ndim-2, res); 
     data.start = data.angle_inds + data.ndim;
@@ -247,6 +250,7 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     free(data.barray);
     free(data.diag);
     free(data.diag2);
+    free(data.stored_dp);
     free(data.Z);
     return PyArray_Return(array_x); 
 }
@@ -414,7 +418,7 @@ double compute_inner_product_fast(const double *x, data_info d){
     //function.
     //
     //data_info d = *((struct data_info *)data);
-    double max,sum,squarediff;
+    double max,sum,squarediff, dp;
     int i, j, t, s;
     //row1, col2, row2
     //B*-1 * alpha(B) 
@@ -457,7 +461,9 @@ double compute_inner_product_fast(const double *x, data_info d){
         i = d._zi[r];
         j = d._zj[r];
         if(i==j){
-            squarediff += pow((d.diag2[i]/max - d._ip_mat[i][j]), 2);
+            dp = d.diag2[i]/max - d._ip_mat[i][j];
+            d.stored_dp[r] = dp;
+            squarediff += pow(dp, 2);
             //squarediff += pow((d.diag2[i] - d._ip_mat[i][j]), 2);
         }
         else{
@@ -470,8 +476,9 @@ double compute_inner_product_fast(const double *x, data_info d){
 
                 sum += d.Z[k+3]*(d.M1[i][t]*d.M1[j][s] + d.M1[i][s]*d.M1[j][t]);
             }
-
-            squarediff += pow((sum/d.diag[i]/d.diag[j] - d._ip_mat[i][j]), 2);
+            dp = sum/d.diag[i]/d.diag[j] - d._ip_mat[i][j];
+            d.stored_dp[r] = dp;
+            squarediff += pow(dp, 2);
             //squarediff += pow((sum - d._ip_mat[i][j]), 2);
             sum=0;
         }
@@ -481,4 +488,73 @@ double compute_inner_product_fast(const double *x, data_info d){
 
 int factorial(int x, int result = 1) {
     if (x == 1) return result; else return factorial(x - 1, x * result);
+}
+
+double* jacobian3D_sums(const double* x, void* data) {
+    data_info d = *((struct data_info *)data);
+    int i, j, m, n, cocycle_start,z_ind;
+    double sum, max;
+    double dp1,dp2,dp3,dp4;
+    max=d.diag2[d.diag_ind];
+    //Z should already be created from the objective function
+    //create_metric_tensor(d.ndim, d.farray, d.Z);
+    //the metric tensor first
+    for (int sz=0; sz<6; sz++){
+        if(dim<3){
+            i=dim;
+            j=dim;
+        }
+
+        else { 
+            i=;
+            j=;
+        }
+        grad[sz]=0.0;
+        for (int r = 0 ; r < d.nz_size ; r++ ){
+            m = d._zi[r];
+            n = d._zj[r];
+            dp1=0.0;
+            dp2=0.0;
+            dp3=0.0;
+            dp4=0.0;
+            for (int size=0; size<d.size; size++){
+                dp1 += d._cycle_cocycle_I[m][size]*d.rep[size][i];
+                dp2 += d._cycle_cocycle_I[n][size]*d.rep[size][j];
+                dp3 += d._cycle_cocycle_I[n][size]*d.rep[size][i];
+                dp4 += d._cycle_cocycle_I[m][size]*d.rep[size][j];
+            }
+            sum = dp1*dp2 + dp3*dp4 
+            if(m==n)grad[sz] += 2.0*(d.stored_dp[r])*sum/max;
+            else grad[sz] += 2.0*(d.stored_dp[r])*sum/d.diag[m]/d.diag[n]; 
+        }
+    }
+
+
+    //then the other entries
+    cocycle_start=d.cycle_size;
+    for (int sz=6; sz<d.x_size; i++){
+        i = cocycle_start + (sz-6)/3;
+        j = sz%3;
+        grad[sz]=0.0
+        for (int r = 0 ; r < d.nz_size ; r++ ){
+            m = d._zi[r];
+            n = d._zj[r];
+            sum=0.0
+            for (int dim=0; dim<3; dim++){
+                dp1=0.0;
+                dp2=0.0;
+                if(dim==j)z_ind=dim;
+                else z_ind=j+dim+2;
+                for (int size=0; size<d.size; size++){
+                    dp1 += d._cycle_cocycle_I[n][size]*d.rep[size][dim];
+                    dp2 += d._cycle_cocycle_I[m][size]*d.rep[size][dim];
+                }
+                sum += (d._cycle_cocycle_I[m][i]*dp1 + d._cycle_cocycle_I[n][i]*dp2)*d.Z[z_ind];
+            }
+            if(m==n)grad[sz] += 2.0*(d.stored_dp[r])*sum/max;
+            else grad[sz] += 2.0*(d.stored_dp[r])*sum/d.diag[m]/d.diag[n]; 
+        }
+    }
+    return grad
+
 }

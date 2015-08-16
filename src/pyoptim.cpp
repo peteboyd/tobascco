@@ -12,7 +12,6 @@ void create_full_rep(int, int, double**, int, int, const double*, double**);
 static PyObject * nloptimize(PyObject *self, PyObject *args);
 void forward_difference_grad(double*, const double*, double, void*, double);
 void central_difference_grad(double*, const double* , void*, double);
-double* analytical_3dgrad(double*, const double* , void*, double);
 double objectivefunc(unsigned, const double*, double*, void*);
 void create_metric_tensor(int, const double*, double*);
 double * get1darrayd(PyArrayObject*);
@@ -49,6 +48,7 @@ struct data_info{
 };
 
 double compute_inner_product_fast(const double*, data_info);
+void jacobian3D_sums(double*, const double* , data_info);
 
 PyMODINIT_FUNC init_nloptimize(void)
 {
@@ -136,14 +136,18 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     // summation of squared errors = return val.
     data.edge_vectors = construct2darray(data.B_shape, data.ndim);
     data.edge_vectors_T = construct2darray(data.ndim, data.B_shape);
-    if(data.ndim == 3)data.Z = (double*)malloc(sizeof(double) * 6);
-    else if(data.ndim == 2)data.Z = (double*)malloc(sizeof(double) * 3);
+    if(ndim == 3){
+        data.Z = (double*)malloc(sizeof(double) * 6);
+    }
+    else if(data.ndim == 2){
+        data.Z = (double*)malloc(sizeof(double) * 3);
+    }
     data.M1 = construct2darray(data.B_shape, data.ndim);
     data.farray = (double*)malloc(sizeof(double) * data.x_size);
     data.barray = (double*)malloc(sizeof(double) * data.x_size);
     data.diag = (double*)malloc(sizeof(double) * data.B_shape);
     data.diag2 = (double*)malloc(sizeof(double) * data.B_shape);
-    data.stored_dp = (double*)malloc(sizeof(double) * data.B_shape);
+    data.stored_dp = (double*)malloc(sizeof(double) * data.nz_size);
     int res=1;
     data.angle_inds = factorial(ndim, res) / factorial(2, res) / factorial(ndim-2, res); 
     data.start = data.angle_inds + data.ndim;
@@ -264,10 +268,12 @@ double objectivefunc(unsigned n, const double *x, double *grad, void *dd)
     create_metric_tensor(d.ndim, x, d.Z);
     ans = compute_inner_product_fast(x, d);
     if (grad) {
+        //Jacobian calc not working!!
+        //jacobian3D_sums(grad, x, d);
         //forward_difference_grad(grad, x, ans, dd, 1e-5);
         central_difference_grad(grad, x, dd, 1e-5);
     }
-    std::cout<<ans<<std::endl;
+    //std::cout<<ans<<std::endl;
     return ans; 
 }
 double ** construct2darray(int rows, int cols){
@@ -410,6 +416,7 @@ void central_difference_grad(double* grad, const double* x, void* data, double x
         create_metric_tensor(d.ndim, d.barray, d.Z);
         back = compute_inner_product_fast(d.barray,d);
         grad[i] = (forward - back)/(2.*xinc);
+        //std::cout<<grad[i]<<std::endl;
     }
 }
 double compute_inner_product_fast(const double *x, data_info d){
@@ -490,25 +497,40 @@ int factorial(int x, int result = 1) {
     if (x == 1) return result; else return factorial(x - 1, x * result);
 }
 
-double* jacobian3D_sums(const double* x, void* data) {
-    data_info d = *((struct data_info *)data);
+void jacobian3D_sums(double* grad, const double* x, data_info d) {
+    //data_info d = *((struct data_info *)data);
     int i, j, m, n, cocycle_start,z_ind;
-    double sum, max;
+    double sum, max; 
     double dp1,dp2,dp3,dp4;
     max=d.diag2[d.diag_ind];
     //Z should already be created from the objective function
     //create_metric_tensor(d.ndim, d.farray, d.Z);
     //the metric tensor first
+    //Something wrong with this as the x parameters are scaled to form the
+    // Z matrix...
     for (int sz=0; sz<6; sz++){
-        if(dim<3){
-            i=dim;
-            j=dim;
+        if(sz<3){
+            i=sz;
+            j=sz;
+            
         }
 
-        else { 
-            i=;
-            j=;
+        else if(sz==3){ 
+            i=0;
+            j=1;
+            
         }
+        else if(sz==4){
+            i=0;
+            j=2;
+            
+        }
+        else if (sz==5){
+            i=1;
+            j=2;
+            
+        }
+        //std::cout<<sz<<" "<<"Index: "<<i<<" "<<j<<std::endl;
         grad[sz]=0.0;
         for (int r = 0 ; r < d.nz_size ; r++ ){
             m = d._zi[r];
@@ -517,44 +539,57 @@ double* jacobian3D_sums(const double* x, void* data) {
             dp2=0.0;
             dp3=0.0;
             dp4=0.0;
-            for (int size=0; size<d.size; size++){
+            for (int size=0; size<d.B_shape; size++){
                 dp1 += d._cycle_cocycle_I[m][size]*d.rep[size][i];
                 dp2 += d._cycle_cocycle_I[n][size]*d.rep[size][j];
                 dp3 += d._cycle_cocycle_I[n][size]*d.rep[size][i];
                 dp4 += d._cycle_cocycle_I[m][size]*d.rep[size][j];
             }
-            sum = dp1*dp2 + dp3*dp4 
-            if(m==n)grad[sz] += 2.0*(d.stored_dp[r])*sum/max;
-            else grad[sz] += 2.0*(d.stored_dp[r])*sum/d.diag[m]/d.diag[n]; 
+            sum = dp1*dp2 + dp3*dp4; 
+            if(m==n){
+                grad[sz] += 2.0*(d.stored_dp[r])*sum/max;
+                //grad[sz] += sum;
+            }
+            else{
+                grad[sz] += 2.0*(d.stored_dp[r])*sum/d.diag[m]/d.diag[n];
+                //grad[sz] += sum; 
+            } 
         }
+        std::cout<<grad[sz]<<std::endl;
     }
 
 
     //then the other entries
     cocycle_start=d.cycle_size;
-    for (int sz=6; sz<d.x_size; i++){
-        i = cocycle_start + (sz-6)/3;
+    for (int sz=6; sz<d.x_size; sz++){
+        i = (cocycle_start) + (sz-6)/3;
         j = sz%3;
-        grad[sz]=0.0
+        grad[sz]=0.0;
         for (int r = 0 ; r < d.nz_size ; r++ ){
             m = d._zi[r];
             n = d._zj[r];
-            sum=0.0
+            sum=0.0;
             for (int dim=0; dim<3; dim++){
                 dp1=0.0;
                 dp2=0.0;
                 if(dim==j)z_ind=dim;
                 else z_ind=j+dim+2;
-                for (int size=0; size<d.size; size++){
+                for (int size=0; size<d.B_shape; size++){
                     dp1 += d._cycle_cocycle_I[n][size]*d.rep[size][dim];
                     dp2 += d._cycle_cocycle_I[m][size]*d.rep[size][dim];
                 }
                 sum += (d._cycle_cocycle_I[m][i]*dp1 + d._cycle_cocycle_I[n][i]*dp2)*d.Z[z_ind];
             }
-            if(m==n)grad[sz] += 2.0*(d.stored_dp[r])*sum/max;
-            else grad[sz] += 2.0*(d.stored_dp[r])*sum/d.diag[m]/d.diag[n]; 
+            if(m==n){
+                grad[sz] += 2.0*(d.stored_dp[r])*sum/max;
+                //grad[sz] += sum/max;
+            }
+            else {
+                grad[sz] += 2.0*(d.stored_dp[r])*sum/d.diag[m]/d.diag[n]; 
+                //grad[sz] += sum/d.diag[m]/d.diag[n];
+            }
         }
+        //std::cout<<grad[sz]<<std::endl;
     }
-    return grad
-
 }
+

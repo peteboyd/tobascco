@@ -715,7 +715,11 @@ class Build(object):
 
             
         inds = self._net.return_indices(indexed_edges)
-        arcs = np.dot(np.array(self._net.lattice_arcs[inds]), cell)
+        la = self._net.lattice_arcs[inds]
+        if self._net.ndim == 2:
+            la = np.hstack((la, np.zeros((la.shape[0], 1))))
+
+        arcs = np.dot(la, cell)
         arcs = normalized_vectors(arcs) * coefficients[:, None]
 
         sbu_vects = normalized_vectors(np.array([self.vector_from_cp_SBU(cp, sbu) 

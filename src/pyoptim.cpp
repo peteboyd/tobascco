@@ -574,7 +574,7 @@ void jacobian3D_sums(double* grad, const double* x, data_info d) {
                 //grad[sz] += sum; 
             } 
         }
-        std::cout<<grad[sz]<<std::endl;
+        //std::cout<<grad[sz]<<std::endl;
     }
 
 
@@ -626,7 +626,7 @@ double objectivefunc2D(unsigned n, const double *x, double *grad, void *dd)
         //forward_difference_grad(grad, x, ans, dd, 1e-5);
         central_difference_grad2D(grad, x, dd, 1e-5);
     }
-    std::cout<<ans<<std::endl;
+    //std::cout<<ans<<std::endl;
     return ans; 
 }
 

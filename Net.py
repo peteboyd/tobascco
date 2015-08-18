@@ -48,9 +48,9 @@ class SystreDB(dict):
                 block.append(' '.join(l))
             elif l and l[0].lower() == 'end':
                 name = self.get_name(block)
-                systre_key = self.get_key(block)
+                ndim, systre_key = self.get_key(block)
                 #g, v = self.gen_sage_graph_format(systre_key) # SAGE compliant
-                g, v = self.gen_networkx_graph_format(systre_key) # networkx compliant
+                g, v = self.gen_networkx_graph_format(systre_key, ndim) # networkx compliant
                 self[name] = g
                 self.voltages[name] = np.array(v)
                 block = []
@@ -59,7 +59,8 @@ class SystreDB(dict):
         for j in block:
             l = j.split()
             if l[0].lower() == 'key':
-                return list(self.Nd_chunks([int(i) for i in l[2:]], 3))
+                dim = int(l[1]) 
+                return dim, list(self.Nd_chunks([int(i) for i in l[2:]], dim))
         return None
 
     def get_name(self, block):
@@ -75,7 +76,7 @@ class SystreDB(dict):
         for i in xrange(0, len(list), n):
             yield tuple(list[i:i+n])
 
-    def gen_networkx_graph_format(self, edges):
+    def gen_networkx_graph_format(self, edges, dim=3):
         """Take the edges from a systre db file and convert 
         to a networkx graph readable format.
         
@@ -84,10 +85,23 @@ class SystreDB(dict):
         """
         x_dat = []
         voltages = []
-        for id, (v1, v2, e1, e2, e3) in enumerate(edges):
-            ename = 'e%i'%(id+1)
-            voltages.append((e1, e2, e3))
-            x_dat.append((str(v1),str(v2), dict(label=ename))) # networkx compliant
+        if dim==2:
+            for id, (v1, v2, e1, e2) in enumerate(edges):
+                ename = 'e%i'%(id+1)
+                voltages.append((e1, e2))
+                x_dat.append((str(v1),str(v2), dict(label=ename))) # networkx compliant
+
+        elif dim==3:
+            for id, (v1, v2, e1, e2, e3) in enumerate(edges):
+                ename = 'e%i'%(id+1)
+                voltages.append((e1, e2, e3))
+                x_dat.append((str(v1),str(v2), dict(label=ename))) # networkx compliant
+        else:
+            error("Embedding nets of dimension %i is not currently implementd."%dim +
+                    " Also, why?....")
+
+            Terminate(-1)
+
         return (x_dat, voltages)
 
     def gen_sage_graph_format(self, edges):
@@ -682,12 +696,21 @@ class Net(object):
         return lena, lenb, gamma
 
     def get_3d_params(self):
-        lena = math.sqrt(self.metric_tensor[0,0])
-        lenb = math.sqrt(self.metric_tensor[1,1])
-        lenc = math.sqrt(self.metric_tensor[2,2])
-        alpha = math.acos(self.metric_tensor[1,2]/lenb/lenc)
-        beta = math.acos(self.metric_tensor[0,2]/lena/lenc)
-        gamma = math.acos(self.metric_tensor[0,1]/lena/lenb)
+        if self.ndim==2:
+            lena = math.sqrt(self.metric_tensor[0,0])
+            lenb = math.sqrt(self.metric_tensor[1,1])
+            lenc = 10.0 
+            alpha = np.pi/2. 
+            beta = np.pi/2. 
+            gamma = math.acos(self.metric_tensor[0,1]/lena/lenb)
+
+        elif self.ndim==3:
+            lena = math.sqrt(self.metric_tensor[0,0])
+            lenb = math.sqrt(self.metric_tensor[1,1])
+            lenc = math.sqrt(self.metric_tensor[2,2])
+            alpha = math.acos(self.metric_tensor[1,2]/lenb/lenc)
+            beta = math.acos(self.metric_tensor[0,2]/lena/lenc)
+            gamma = math.acos(self.metric_tensor[0,1]/lena/lenb)
         return lena, lenb, lenc, alpha, beta, gamma
     
     def vertex_positions(self, edges, used, pos={}, bad_ones = {}):

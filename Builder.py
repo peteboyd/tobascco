@@ -276,6 +276,8 @@ class Build(object):
         debug("%s assigned to %s"%(sbu.name, vertex))
         cell = Cell()
         cell.mkcell(self._net.get_3d_params())
+        if self._net.ndim == 2:
+            lattice_arcs = np.hstack((lattice_arcs, np.zeros((lattice_arcs.shape[0],1))))
         lattice_vects = np.dot(lattice_arcs, cell.lattice)
         count = 0
         for e in itertools.permutations(edges):
@@ -928,7 +930,8 @@ class Build(object):
 
     @net.setter
     def net(self, (name, graph, volt)):
-        self._net = Net(graph, options=self.options)
+        dim=volt.shape[1]
+        self._net = Net(graph, dim=dim, options=self.options)
         self._net.name = name
         self._net.voltage = volt
 

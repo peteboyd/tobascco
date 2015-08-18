@@ -13,13 +13,15 @@ static PyObject * nloptimize(PyObject *self, PyObject *args);
 void forward_difference_grad(double*, const double*, double, void*, double);
 void central_difference_grad(double*, const double* , void*, double);
 double objectivefunc(unsigned, const double*, double*, void*);
+double objectivefunc2D(unsigned, const double*, double*, void*);
+void central_difference_grad2D(double*, const double* , void*, double);
 void create_metric_tensor(int, const double*, double*);
+void create_metric_tensor2D(int, const double*, double*);
 double * get1darrayd(PyArrayObject*);
 int * get1darrayi(PyArrayObject*);
 double ** get2darrayd(PyArrayObject*);
 double ** construct2darray(int rows, int cols);
 void free_2d_array(double**, int);
-int factorial(int, int);
 
 static PyMethodDef functions[] = {
     {"nloptimize", nloptimize, METH_VARARGS, NULL},
@@ -30,7 +32,7 @@ static PyMethodDef functions[] = {
 struct data_info{
     int rep_size, cycle_size, nz_size, x_size;
     int B_shape, ndim, diag_ind;
-    int angle_inds, start;
+    int start;
     int *_zi, *_zj;
     double ** _cycle_cocycle_I;
     double ** _cycle_rep;
@@ -48,6 +50,7 @@ struct data_info{
 };
 
 double compute_inner_product_fast(const double*, data_info);
+double compute_inner_product_fast2D(const double*, data_info);
 void jacobian3D_sums(double*, const double* , data_info);
 
 PyMODINIT_FUNC init_nloptimize(void)
@@ -138,9 +141,11 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     data.edge_vectors_T = construct2darray(data.ndim, data.B_shape);
     if(ndim == 3){
         data.Z = (double*)malloc(sizeof(double) * 6);
+        data.start = 6; 
     }
     else if(data.ndim == 2){
         data.Z = (double*)malloc(sizeof(double) * 3);
+        data.start = 3; 
     }
     data.M1 = construct2darray(data.B_shape, data.ndim);
     data.farray = (double*)malloc(sizeof(double) * data.x_size);
@@ -148,9 +153,6 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     data.diag = (double*)malloc(sizeof(double) * data.B_shape);
     data.diag2 = (double*)malloc(sizeof(double) * data.B_shape);
     data.stored_dp = (double*)malloc(sizeof(double) * data.nz_size);
-    int res=1;
-    data.angle_inds = factorial(ndim, res) / factorial(2, res) / factorial(ndim-2, res); 
-    data.start = data.angle_inds + data.ndim;
     //initialize the local and global optimizers, so the compilation doesn't spew
     // out useless warnings
     global=NLOPT_GN_DIRECT;
@@ -194,7 +196,13 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
             local_opt = nlopt_create(local, data.x_size);
             nlopt_set_local_optimizer(opt, local_opt);
         }
-        nlopt_set_min_objective(opt, objectivefunc, &data);
+        if(ndim==3){
+            nlopt_set_min_objective(opt, objectivefunc, &data);
+        }
+        else if(ndim==2){
+            nlopt_set_min_objective(opt, objectivefunc2D, &data);
+        }
+
         nlopt_set_lower_bounds(opt, lb);
         nlopt_set_upper_bounds(opt, ub);
         nlopt_set_xtol_rel(opt, xrel);  // set absolute tolerance on the change in the input parameters
@@ -213,7 +221,12 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     //LOCAL OPTIMIZER***********************************
     opt = nlopt_create(local, data.x_size);
     nlopt_set_vector_storage(opt, 10000); // for quasi-newton algorithms, how many gradients to store 
-    nlopt_set_min_objective(opt, objectivefunc, &data);
+    if(ndim==3){
+        nlopt_set_min_objective(opt, objectivefunc, &data);
+    }
+    else if(ndim==2){
+        nlopt_set_min_objective(opt, objectivefunc2D, &data);
+    }
     nlopt_set_lower_bounds(opt, lb);
     nlopt_set_upper_bounds(opt, ub);
     nlopt_set_xtol_rel(opt, xrel);  // set absolute tolerance on the change in the input parameters
@@ -276,6 +289,8 @@ double objectivefunc(unsigned n, const double *x, double *grad, void *dd)
     //std::cout<<ans<<std::endl;
     return ans; 
 }
+
+
 double ** construct2darray(int rows, int cols){
     double **carray;
     carray = (double**)malloc(sizeof(double*)*rows);
@@ -383,6 +398,13 @@ void create_metric_tensor(int ndim, const double *x, double *Z){
     Z[3] = x[3]*sqrt(x[0])*sqrt(x[1]);
     Z[4] = x[4]*sqrt(x[0])*sqrt(x[2]);
     Z[5] = x[5]*sqrt(x[1])*sqrt(x[2]);
+}
+
+void create_metric_tensor2D(int ndim, const double *x, double *Z){
+    //only for ndim = 3!!
+    Z[0] = x[0];
+    Z[1] = x[1];
+    Z[2] = x[2]*sqrt(x[0])*sqrt(x[1]);
 }
 
 void forward_difference_grad(double* grad, const double* x, double fval, void* data, double xinc){
@@ -493,9 +515,6 @@ double compute_inner_product_fast(const double *x, data_info d){
     return squarediff;
 }
 
-int factorial(int x, int result = 1) {
-    if (x == 1) return result; else return factorial(x - 1, x * result);
-}
 
 void jacobian3D_sums(double* grad, const double* x, data_info d) {
     //data_info d = *((struct data_info *)data);
@@ -593,3 +612,107 @@ void jacobian3D_sums(double* grad, const double* x, data_info d) {
     }
 }
 
+
+double objectivefunc2D(unsigned n, const double *x, double *grad, void *dd)
+{
+    double ans;
+    data_info d = *((struct data_info *)dd); 
+    create_full_rep(d.cycle_size, d.ndim, d._cycle_rep, d.start, d.x_size/d.ndim, x, d.rep);
+    create_metric_tensor2D(d.ndim, x, d.Z);
+    ans = compute_inner_product_fast2D(x, d);
+    if (grad) {
+        //Jacobian calc not working!!
+        //jacobian3D_sums(grad, x, d);
+        //forward_difference_grad(grad, x, ans, dd, 1e-5);
+        central_difference_grad2D(grad, x, dd, 1e-5);
+    }
+    std::cout<<ans<<std::endl;
+    return ans; 
+}
+
+void central_difference_grad2D(double* grad, const double* x, void* data, double xinc){
+    data_info d = *((struct data_info *)data);
+    double forward, back;
+    for (int i=0; i<d.x_size; i++){
+        memcpy((void*)d.farray, (void*)x, d.x_size*sizeof(double));
+        memcpy((void*)d.barray, (void*)x, d.x_size*sizeof(double));
+        d.farray[i] += xinc;
+        d.barray[i] -= xinc;
+        //forward grad
+        create_full_rep(d.cycle_size, d.ndim, d._cycle_rep, d.start, d.x_size/d.ndim, d.farray, d.rep);
+        create_metric_tensor2D(d.ndim, d.farray, d.Z);
+        forward = compute_inner_product_fast2D(d.farray, d);
+
+        //backward grad
+        create_full_rep(d.cycle_size, d.ndim, d._cycle_rep, d.start, d.x_size/d.ndim, d.barray, d.rep);
+        create_metric_tensor2D(d.ndim, d.barray, d.Z);
+        back = compute_inner_product_fast2D(d.barray,d);
+        grad[i] = (forward - back)/(2.*xinc);
+        //std::cout<<grad[i]<<std::endl;
+    }
+}
+double compute_inner_product_fast2D(const double *x, data_info d){
+    //Try to eliminate some inefficiencies in the code, no more explicit transposing
+    //Optimize matrix products to reduce the number of multiplications all in a singls
+    //function.
+    //
+    //data_info d = *((struct data_info *)data);
+    double max,sum,squarediff, dp;
+    int i, j;
+    //row1, col2, row2
+    //B*-1 * alpha(B) 
+    //resulting B_shape * ndim array
+    sum=0;
+    squarediff=0;
+
+    for (int i = 0 ; i < d.B_shape ; i++ ){
+        for (int j = 0 ; j < d.ndim ; j++ ){
+            for (int k = 0 ; k < d.B_shape ; k++ ){
+                sum += d._cycle_cocycle_I[i][k]*d.rep[k][j];
+            }
+        
+            d.M1[i][j] = sum;
+            sum=0; 
+ 
+        }
+    }
+    
+
+    sum=0;
+    //need the diagonal values first
+    for (int r = 0; r < d.B_shape; r++){
+
+        sum+= d.Z[0] * d.M1[r][0]*d.M1[r][0];
+        sum+= d.Z[1] * d.M1[r][1]*d.M1[r][1];
+        sum+= d.Z[2] * 2.*d.M1[r][0]*d.M1[r][1];
+        if(sum<0)sum=500;
+        d.diag2[r] = sum;
+        d.diag[r] = sqrt(sum);
+
+        sum=0;
+    }
+    max=d.diag2[d.diag_ind];
+
+    for (int r = 0 ; r < d.nz_size ; r++ ){
+        i = d._zi[r];
+        j = d._zj[r];
+        if(i==j){
+            dp = d.diag2[i]/max - d._ip_mat[i][j];
+            d.stored_dp[r] = dp;
+            squarediff += pow(dp, 2);
+            //squarediff += pow((d.diag2[i] - d._ip_mat[i][j]), 2);
+        }
+        else{
+
+            sum += d.Z[0]*d.M1[i][0]*d.M1[j][0];
+            sum += d.Z[1]*d.M1[i][1]*d.M1[j][1];
+            sum += d.Z[2]*(d.M1[i][1]*d.M1[j][0] + d.M1[i][0]*d.M1[j][1]);
+            dp = sum/d.diag[i]/d.diag[j] - d._ip_mat[i][j];
+            d.stored_dp[r] = dp;
+            squarediff += pow(dp, 2);
+            //squarediff += pow((sum - d._ip_mat[i][j]), 2);
+            sum=0;
+        }
+    }
+    return squarediff;
+}

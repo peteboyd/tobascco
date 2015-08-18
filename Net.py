@@ -723,6 +723,8 @@ class Net(object):
         """
         # NOTE: NOT WORKING - FIX!!!
         lattice_arcs = self.lattice_arcs
+        if self.ndim == 2:
+            lattice_arcs = np.hstack((np.array(lattice_arcs),np.zeros((np.array(lattice_arcs).shape[0], 1))))
         if len(pos.keys()) == self.graph.order():
             return pos
         else:
@@ -738,6 +740,7 @@ class Net(object):
                 
                 coeff = 1. if e in self.out_edges(from_v) else -1.
                 index = self.get_index(e)
+
                 to_pos = coeff*np.array(lattice_arcs)[index] + pos[from_v]
                 newedges = []
                 #FROM HERE REMOVED IN-CELL CHECK

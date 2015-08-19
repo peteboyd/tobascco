@@ -97,7 +97,7 @@ class SystreDB(dict):
                 voltages.append((e1, e2, e3))
                 x_dat.append((str(v1),str(v2), dict(label=ename))) # networkx compliant
         else:
-            error("Embedding nets of dimension %i is not currently implementd."%dim +
+            error("Embedding nets of dimension %i is not currently implemented."%dim +
                     " Also, why?....")
 
             Terminate(-1)

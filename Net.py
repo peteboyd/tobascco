@@ -699,7 +699,7 @@ class Net(object):
         if self.ndim==2:
             lena = math.sqrt(self.metric_tensor[0,0])
             lenb = math.sqrt(self.metric_tensor[1,1])
-            lenc = 10.0 
+            lenc = self.options.third_dimension 
             alpha = np.pi/2. 
             beta = np.pi/2. 
             gamma = math.acos(self.metric_tensor[0,1]/lena/lenb)

@@ -137,7 +137,8 @@ class Options(object):
                   'cell_vol_tolerance',
                   'symmetry_precision',
                   'opt_parameter_tol',
-                  'opt_function_tol']
+                  'opt_function_tol',
+                  'third_dimension']
         integers = ['organic_sbu_per_structure',
                     'metal_sbu_per_structure',
                     'max_structures',

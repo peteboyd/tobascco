@@ -1,0 +1,19 @@
+TOPCRYST
+
+**WARNING**
+to run the code, you have to compile the parts written in C++. This is located in the src directory of the main program.
+Simply run "python setup.py build" to compile the program
+-- Notes: the compilation of the C++ program currently works with python 2.7.3 but fails with other packages (problems with numpy C++ interface when using anaconda)
+
+This program requires other non-standard, but prevalent, python packages. Until recently many of the linear algebra routines in the program were adopted from the SAGE package. Due to the odd nature of accessing these routines (ie. by only using it's own local python package) I have recently eliminated this dependency. The SAGE package has now been replaced with networkx and sympy. Both of which are currently well maintained. I have tested these new routines on the construction of several MOFs, but it is by no way complete. If the program builds structures that have strange shape, or you receive errors such as "Could not obtain the lattice basis from the cycle vectors!" please don't hesitate to contact me.
+
+Full list of dependencies:
+nlopt           (optimisation routines used to relax the net shape)
+networkx        (graph theory routines to construct a cycle basis of the graph)
+sympy           (linear algebra routines to obtain the lattice basis and kernel of the net)
+
+These are all freely available under an open source licence which I never cared to read. 
+
+Peter Boyd
+<peter.g.boyd@gmail.com>
+

@@ -353,9 +353,8 @@ class JobHandler(object):
                                         build = Build(self.options)
                                 else:
                                     build = Build(self.options)
-                                build = Build(self.options)
-                                build.sbus = list(set(comb))
-                                build.net = (top, graph, self._topologies.voltages[top])
+                                    build.sbus = list(set(comb))
+                                    build.net = (top, graph, self._topologies.voltages[top])
                                 self.embed_sbu_combo(top, comb, build)
                         elif build.met_met_bonds and run.linear_in_combo(combo):
                             self.embed_sbu_combo(top, combo, build)

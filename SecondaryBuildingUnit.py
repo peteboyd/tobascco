@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 from Atoms import Atom
 from ConnectPoints import ConnectPoint
-import ConfigParser
+# Python 3 fix
+try:
+    import configparser
+except ImportError:
+    import ConfigParser as configparser
 import numpy as np
 import itertools
 from scipy.spatial import distance
@@ -69,7 +73,7 @@ class SBU(object):
         self.identifier = cfgdic.getint(section, 'index')
         try:
             self.charge = cfgdic.getfloat(section, 'charge')
-        except ConfigParser.NoOptionError:
+        except configparser.NoOptionError:
             # charge not specified in the input file.
             pass
         self.topology = cfgdic.get(section, 'topology')

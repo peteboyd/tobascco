@@ -8,7 +8,11 @@ import pickle
 from config import Terminate
 import glog
 from time import time
-import ConfigParser
+# Python 3 fix
+try:
+    import configparser
+except ImportError:
+    import ConfigParser as configparser
 from Generator import Generate
 from Visualizer import GraphPlot 
 from CSV import CSV
@@ -452,7 +456,7 @@ class JobHandler(object):
             #self._from_config(file)
                 
     def _from_config(self, filename):
-        sbu_config = ConfigParser.SafeConfigParser()
+        sbu_config = configparser.SafeConfigParser()
         sbu_config.read(filename)
         basedir = os.path.split(filename)[0]
         info("basedir = %s"%basedir)

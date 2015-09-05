@@ -14,7 +14,11 @@ MPIrank=0
 #    MPIrank = 0
 from optparse import OptionParser
 import optparse
-import ConfigParser
+# Python 3 fix
+try:
+    import configparser
+except ImportError:
+    import ConfigParser as configparser
 import os
 from StringIO import StringIO
 import sys
@@ -28,7 +32,7 @@ class Options(object):
     def __init__(self):
 
         self._command_options()
-        self.job = ConfigParser.SafeConfigParser()
+        self.job = configparser.SafeConfigParser()
         self.csv = None
         self._set_paths()
         self._load_defaults()

@@ -24,10 +24,40 @@ double ** construct2darray(int rows, int cols);
 void free_2d_array(double**, int);
 
 static PyMethodDef functions[] = {
-    {"nloptimize", nloptimize, METH_VARARGS, NULL},
-    {NULL, NULL, 0, NULL} 
+    {"nloptimize", (PyCFunction)nloptimize, METH_VARARGS, NULL},
+    {NULL, NULL} 
 };
 
+#if PY_MAJOR_VERSION >= 3
+    #define MOD_ERROR_VAL NULL
+    #define MOD_SUCCESS_VAL(val) val
+    #define MOD_INIT(name) PyMODINIT_FUNC PyInit_##name(void)
+    #define MOD_DEF(ob,name,doc,methods)\
+        static struct PyModuleDef moduledef = { \
+            PyModuleDef_HEAD_INIT, name, doc, -1, methods, };\
+            ob = PyModule_Create(&moduledef);\
+            import_array();
+    #define PyInt_FromLong PyLong_FromLong
+    #define PyString_AsString PyBytes_AsString
+    #define PyInt_AsLong PyLong_AsLong  
+#else
+    #define MOD_ERROR_VAL
+    #define MOD_SUCCESS_VAL(val)
+    #define MOD_INIT(name) void init##name(void)
+    #define MOD_DEF(ob,name,doc,methods) \
+        ob = Py_InitModule3(name,methods,doc); \
+        import_array();
+#endif
+
+MOD_INIT(_nloptimize)
+{
+    PyObject *m;
+    MOD_DEF(m, "_nloptimize", "", functions);
+    if (m==NULL)
+        return MOD_ERROR_VAL;
+
+    return MOD_SUCCESS_VAL(m);
+}
 
 struct data_info{
     int rep_size, cycle_size, nz_size, x_size;
@@ -52,13 +82,6 @@ struct data_info{
 double compute_inner_product_fast(const double*, data_info);
 double compute_inner_product_fast2D(const double*, data_info);
 void jacobian3D_sums(double*, const double* , data_info);
-
-PyMODINIT_FUNC init_nloptimize(void)
-{
-    Py_InitModule("_nloptimize", functions);
-    import_array();
-    return;
-}
 
 static PyObject * nloptimize(PyObject *self, PyObject *args)
 {

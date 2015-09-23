@@ -1,5 +1,8 @@
 import math
-import os, sys
+import os
+from os.path import join, dirname, realpath
+import sys
+from sys import version_info
 #from sage.all import *
 import sympy as sy
 from sympy.utilities.lambdify import lambdify
@@ -10,7 +13,11 @@ from uuid import uuid4
 from logging import info, debug, warning, error
 import numpy as np
 from LinAlg import DEG2RAD
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src', 'build', 'lib.linux-x86_64-2.7')) 
+from platform import system, machine
+sys.path[:0] = [join(dirname(realpath(__file__)), "build", "lib.%s-%s-%i-%i"%(system().lower(),
+                                                                              machine(),
+                                                                              version_info.major,
+                                                                              version_info.minor))]
 import _nloptimize as nl
 from config import Terminate
 sys.setrecursionlimit(100000)

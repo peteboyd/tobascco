@@ -857,9 +857,6 @@ class Build(object):
                 return True
         return False
 
-    @property
-    def net(self):
-        return self._net
     
     @property
     def met_met_bonds(self):
@@ -932,20 +929,26 @@ class Build(object):
         self._net.barycentric_embedding()
         #self.show()
 
-    @net.setter
-    def net(self, (name, graph, volt)):
+    def setnet(self, tupl):
+        (name, graph, volt) = tupl
         dim=volt.shape[1]
         self._net = Net(graph, dim=dim, options=self.options)
         self._net.name = name
         self._net.voltage = volt
+    
+    def getnet(self):
+        return self._net
 
-    @property
-    def sbus(self):
+    net=property(getnet, setnet)
+    
+    
+    def getsbus(self):
         return self._sbus
 
-    @sbus.setter
-    def sbus(self, sbus):
+    def setsbus(self, sbus):
         self._sbus = sbus
+
+    sbus=property(getsbus,setsbus)
 
     def get_automorphisms(self):
         """Compute the automorphisms associated with the graph.

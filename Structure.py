@@ -406,7 +406,7 @@ class Symmetry(object):
             try:
                 self.dataset['wyckoffs'] = [letters[x] for x in dataset['wyckoffs']]
             except IndexError:
-                print dataset['wyckoffs']
+                print(dataset['wyckoffs'])
             self.dataset['equivalent_atoms'] = np.array(dataset['equivalent_atoms'])
             self._lattice = ref_lattice.T.copy()
             self._scaled_coords = ref_pos[:num_atom_bravais].copy()

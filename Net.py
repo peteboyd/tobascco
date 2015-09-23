@@ -181,7 +181,7 @@ class Net(object):
                 self.cocycle = self.add_to_array(vect, self.cocycle)
 
         if count != size:
-            print "ERROR - could not find a linearly independent cocycle basis!"
+            print("ERROR - could not find a linearly independent cocycle basis!")
             Terminate(errcode=1) 
         # special case - pcu
         if size == 0:
@@ -295,7 +295,7 @@ class Net(object):
         return np.dot(cycle,self.voltage)
 
     def debug_print(self, val, msg):
-        print "%s[%d] %s"%("  "*val, val, msg)
+        print("%s[%d] %s"%("  "*val, val, msg))
 
     def simple_cycle_basis(self):
         """Cycle basis is constructed using a minimum spanning tree.

@@ -20,7 +20,10 @@ try:
 except ImportError:
     import ConfigParser as configparser
 import os
-from StringIO import StringIO
+try:
+    from StringIO import StringIO 
+except ImportError:
+    from io import StringIO
 import sys
 import re
 import copy

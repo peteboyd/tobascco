@@ -35,7 +35,7 @@ class CSV(object):
             if key in self._headings:
                 self._data.setdefault(key, []).append(val)
             else:
-                print "%s not in the headings! Ignoring data!"%(key)
+                print("%s not in the headings! Ignoring data!"%(key))
         
     @property
     def item_count(self):
@@ -112,7 +112,7 @@ class CSV(object):
             return self._data[key]
         except KeyError:
             #print self._data
-            print "Error no such key, %s, found in data"%key
+            print("Error no such key, %s, found in data"%key)
             return None
 
     def get_row(self, row):
@@ -131,7 +131,7 @@ class CSV(object):
             # MOFname.1 becasue we add integers for redundant column headers.
             self._data['MOFname.1']
         except KeyError:
-            print "No MOFname key - returning an empty dictionary"
+            print("No MOFname key - returning an empty dictionary")
             return dic
         # remaining headers
         heads = [i for i in self._headings if i != "MOFname.1"]

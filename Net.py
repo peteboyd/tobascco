@@ -14,7 +14,7 @@ from logging import info, debug, warning, error
 import numpy as np
 from LinAlg import DEG2RAD
 from platform import system, machine
-sys.path[:0] = [join(dirname(realpath(__file__)), "build", "lib.%s-%s-%i-%i"%(system().lower(),
+sys.path[:0] = [join(dirname(realpath(__file__)), "src", "build", "lib.%s-%s-%i-%i"%(system().lower(),
                                                                               machine(),
                                                                               version_info.major,
                                                                               version_info.minor))]

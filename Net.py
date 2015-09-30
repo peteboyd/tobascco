@@ -14,14 +14,14 @@ from logging import info, debug, warning, error
 import numpy as np
 from LinAlg import DEG2RAD
 from platform import system, machine
-sys.path[:0] = [join(dirname(realpath(__file__)), "src", "build", "lib.%s-%s-%i-%i"%(system().lower(),
+sys.path[:0] = [join(dirname(realpath(__file__)), "src", "build", "lib.%s-%s-%i.%i"%(system().lower(),
                                                                               machine(),
                                                                               version_info.major,
                                                                               version_info.minor))]
+
 import _nloptimize as nl
 from config import Terminate
 sys.setrecursionlimit(100000)
-
 class SystreDB(dict):
     """A dictionary which reads a file of the same format read by Systre"""
     def __init__(self, filename=None):

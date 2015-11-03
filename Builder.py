@@ -4,6 +4,7 @@ from Net import Net
 from networkx import degree_histogram
 import sys
 import itertools
+from functools import reduce
 from Visualizer import GraphPlot
 from LinAlg import rotation_from_vectors, rotation_matrix, rotation_from_omega, calc_angle, calc_axis, DEG2RAD
 from LinAlg import central_moment, raw_moment, get_CI, elipsoid_vol, normalized_vectors 
@@ -19,7 +20,7 @@ np.set_printoptions(threshold=np.nan, precision=4, suppress=True, linewidth=185)
 
 class Build(object):
     """Build a MOF from SBUs and a Net."""
-    def __init__(self, options):
+    def __init__(self, options=None):
         self.name = ""
         self._net = None
         self.options = options

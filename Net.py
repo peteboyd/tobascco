@@ -80,7 +80,7 @@ class SystreDB(dict):
 
     def Nd_chunks(self, list, dim):
         n = 2+dim
-        for i in xrange(0, len(list), n):
+        for i in range(0, len(list), n):
             yield tuple(list[i:i+n])
 
     def gen_networkx_graph_format(self, edges, dim=3):
@@ -326,7 +326,7 @@ class Net(object):
             path = nx.shortest_path(tree, source=v1, target=v2) # networkx compliant
             basis_vector = np.zeros(self.shape)
             cycle, coefficients = [], []
-            for pv1, pv2 in itertools.izip(path[:-1], path[1:]):
+            for pv1, pv2 in zip(path[:-1], path[1:]):
                 #edge = [i for i in tree.edges_incident([pv1, pv2]) if pv1 in i[:2] and pv2 in i[:2]][0] # SAGE compliant
                 edge = [(i[0], i[1], i[2]['label']) for i in 
                         tree.edges(nbunch=[pv1, pv2], data=True) 
@@ -433,7 +433,7 @@ class Net(object):
 
     def get_lattice_basis(self):
         L = []
-        inds = range(self.cycle_rep.shape[0])
+        inds = list(range(self.cycle_rep.shape[0]))
         np.random.shuffle(inds)
         cycle_rep = self.cycle_rep.copy()
         cycle = self.cycle.copy()
@@ -574,6 +574,13 @@ class Net(object):
                 self.options.global_optimiser,self.options.local_optimiser))
         else:
             debug("Preparing local optimisation using %s"%(self.options.local_optimiser))
+        # convert to bytes.. because python 3.
+        if version_info.major >= 3:
+            globalo=self.options.global_optimiser.encode('utf-8')
+            localo=self.options.local_optimiser.encode('utf-8')
+        else:
+            globalo=self.options.global_optimiser
+            localo = self.options.local_optimiser
         x = nl.nloptimize(self.ndim,
                           scale_ind,
                           lb,
@@ -587,9 +594,8 @@ class Net(object):
                           np.array(self.colattice_inds[1]),
                           self.options.opt_parameter_tol,
                           self.options.opt_function_tol,
-                          self.options.global_optimiser,
-                          self.options.local_optimiser)
-
+                          globalo,
+                          localo)
         if x is None:
             return False
         angle_inds = f(self.ndim) / f(2) / f(self.ndim - 2)
@@ -804,7 +810,11 @@ class Net(object):
                                  counter=0)
             while len(kernel_vectors) < max_count:
                 try:
-                    cycle = c.next()
+                    
+                    if version_info.major >= 3:
+                        cycle = next(c)
+                    else:
+                        cycle = c.next()
                 except StopIteration:
                     # give up, use the cocycle basis
                     self._kernel = self.cocycle.copy()

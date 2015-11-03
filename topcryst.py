@@ -500,7 +500,8 @@ class JobHandler(object):
             if sbu_request not in [i.identifier for i in self.sbu_pool if i.is_metal]:
                 warning("SBU id %i is not in the metal SBU database"%(int(sbu_request)))
     def _pop_unwanted_topologies(self):
-        [self._topologies.pop(k, None) for k in self._topologies.keys()
+        topkeys=list(self._topologies.keys())
+        [self._topologies.pop(k, None) for k in topkeys 
             if k not in self.options.topologies or k in 
             self.options.ignore_topologies]
         for k in self.options.topologies:

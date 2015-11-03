@@ -103,7 +103,7 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     PyArrayObject* lower_bounds;
     PyArrayObject* upper_bounds;
     PyArrayObject* init_x;
-    PyArrayObject* array_x = NULL;
+    PyArrayObject* array_x;
     PyArrayObject* inner_product_matrix;
     PyArrayObject* cycle_rep;
     PyArrayObject* cycle_cocycle_I;
@@ -131,7 +131,6 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     double *x, *lb, *ub;
     std::string goptim=PyString_AsString(pgoptim);
     std::string loptim=PyString_AsString(ploptim);
-    
     lb = get1darrayd(lower_bounds);
     ub = get1darrayd(upper_bounds);
     x = get1darrayd(init_x);

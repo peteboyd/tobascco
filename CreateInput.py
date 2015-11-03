@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import sys
+from sys import version_info
 import os
 sys.path.append("/share/apps/openbabel/2.3.1-gg/lib/python2.7/site-packages")
 try:
@@ -28,7 +29,11 @@ class InputSBU(object):
         name = os.path.split(filename)[-1]
         self.name = clean(name, ext) 
         self.update(name=self.name)
-        self.mol = pybel.readfile(ext, filename).next()
+        # may be a source of error.. untested
+        if version_info.major >= 3:
+            self.mol = next(pybel.readfile(ext, filename))
+        else:
+            self.mol = pybel.readfile(ext, filename).next()
         self._reset_formal_charges()
 
     def get_index(self):

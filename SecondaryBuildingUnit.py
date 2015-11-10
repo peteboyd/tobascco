@@ -332,7 +332,52 @@ class SBU(object):
             if dist_matrix[cp1, cp2] > max_dist:
                 max_dist = dist_matrix[cp1, cp2]
         return max_dist
-        
+
+    @property
+    def moment_of_inertia(self):
+        try:
+            return self.I
+        except AttributeError:
+            moi = np.empty((3,3))
+            rsq = np.identity(3, dtype=float)
+            self.I = np.empty((3,3))
+            for (i,j),val in np.ndenumerate(self.moi):
+                val=0.0
+                for atom in self.atoms:
+                    val += atom.mass(atom.coordinates[i] - self.COM[i]) * \
+                            (atom.coordinates[j] - self.COM[j])
+                moi[i,j] = val
+                rval = np.identity(3, dtype=float)[i,j] * val
+                rsq[0,0] += rval
+                rsq[1,1] += rval
+                rsq[2,2] += rval
+            self.I = rsq - moi
+            return self.I
+    
+    @property
+    def massless_moment_of_inertia(self):
+        moi = np.empty((3,3))
+        rsq = np.identity(3, dtype=float)
+        I = np.empty((3,3))
+        for (i,j),val in np.ndenumerate(self.moi):
+            val=0.0
+            for atom in self.atoms:
+                val += (atom.coordinates[i] - self.COM[i]) * \
+                        (atom.coordinates[j] - self.COM[j])
+            moi[i,j] = val
+            rval = np.identity(3, dtype=float)[i,j] * val
+            rsq[0,0] += rval
+            rsq[1,1] += rval
+            rsq[2,2] += rval
+        I = rsq - moi
+        return I
+
+    @property
+    def aproximate_oval_volume(self):
+        J = self.massless_moment_of_inertia
+        vals,vects = np.linalg.eig(J)
+        return 4.*np.pi*vals[0]*vals[1]*vals[2]/3.
+
     def get_cp(self, identifier):
         for cp in self.connect_points:
             if identifier == cp.identifier:

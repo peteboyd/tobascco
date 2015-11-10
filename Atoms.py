@@ -54,3 +54,14 @@ class Atom(object):
     def translate(self, vector):
         self.coordinates[:3] += vector
 
+    @property
+    def x(self):
+        return self.coordinates[0]
+
+    @property
+    def y(self):
+        return self.coordinates[1]
+
+    @property
+    def z(self):
+        return self.coordinates[2]

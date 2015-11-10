@@ -341,7 +341,7 @@ class SBU(object):
             moi = np.empty((3,3))
             rsq = np.identity(3, dtype=float)
             self.I = np.empty((3,3))
-            for (i,j),val in np.ndenumerate(self.moi):
+            for (i,j),val in np.ndenumerate(moi):
                 val=0.0
                 for atom in self.atoms:
                     val += atom.mass(atom.coordinates[i] - self.COM[i]) * \
@@ -359,7 +359,7 @@ class SBU(object):
         moi = np.empty((3,3))
         rsq = np.identity(3, dtype=float)
         I = np.empty((3,3))
-        for (i,j),val in np.ndenumerate(self.moi):
+        for (i,j),val in np.ndenumerate(moi):
             val=0.0
             for atom in self.atoms:
                 val += (atom.coordinates[i] - self.COM[i]) * \

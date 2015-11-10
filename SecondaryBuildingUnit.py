@@ -373,7 +373,7 @@ class SBU(object):
         return I
 
     @property
-    def aproximate_oval_volume(self):
+    def approximate_ellipsoid_volume(self):
         J = self.massless_moment_of_inertia
         vals,vects = np.linalg.eig(J)
         return 4.*np.pi*vals[0]*vals[1]*vals[2]/3.

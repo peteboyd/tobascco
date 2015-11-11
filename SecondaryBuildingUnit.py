@@ -339,7 +339,7 @@ class SBU(object):
             return self.I
         except AttributeError:
             moi = np.empty((3,3))
-            rsq = np.identity(3, dtype=float)
+            rsq = np.zeros((3,3)) 
             self.I = np.empty((3,3))
             for (i,j),val in np.ndenumerate(moi):
                 val=0.0
@@ -347,36 +347,38 @@ class SBU(object):
                     val += atom.mass(atom.coordinates[i] - self.COM[i]) * \
                             (atom.coordinates[j] - self.COM[j])
                 moi[i,j] = val
-                rval = np.identity(3, dtype=float)[i,j] * val
+                rval = np.identity(3)[i,j] * val
                 rsq[0,0] += rval
                 rsq[1,1] += rval
                 rsq[2,2] += rval
             self.I = rsq - moi
             return self.I
-    
-    @property
-    def massless_moment_of_inertia(self):
-        moi = np.empty((3,3))
-        rsq = np.identity(3, dtype=float)
-        I = np.empty((3,3))
-        for (i,j),val in np.ndenumerate(moi):
-            val=0.0
-            for atom in self.atoms:
-                val += (atom.coordinates[i] - self.COM[i]) * \
-                        (atom.coordinates[j] - self.COM[j])
-            moi[i,j] = val
-            rval = np.identity(3, dtype=float)[i,j] * val
-            rsq[0,0] += rval
-            rsq[1,1] += rval
-            rsq[2,2] += rval
-        I = rsq - moi
-        return I
 
     @property
     def approximate_ellipsoid_volume(self):
-        J = self.massless_moment_of_inertia
-        vals,vects = np.linalg.eig(J)
-        return 4.*np.pi*vals[0]*vals[1]*vals[2]/3.
+        # PCA.
+        coords = np.array([j.coordinates[:3] for j in self.atoms])
+        cov_mat = np.cov((coords-self.COM[:3]).T)
+        eig_val, eig_vec = np.linalg.eig(cov_mat)
+        #sf = float(len(self)) - 1.
+        #eig_vec*=sf
+        tformed = np.dot(coords,eig_vec)
+        r = np.empty(3)
+        r[0] = max(([x-y for x,y in itertools.combinations(tformed[:,0], 2)])) # max distance in the first axis
+        r[1] = max(([x-y for x,y in itertools.combinations(tformed[:,1], 2)])) # max distance in the second axis
+        r[2] = max(([x-y for x,y in itertools.combinations(tformed[:,2], 2)])) # max distance in the third axis
+        for id, v in enumerate(eig_vec.T):
+            line = ""
+            atom = "H"
+            line += "%s %12.5f %12.5f %12.5f "%(tuple([atom] + self.centre_of_atoms[:3].tolist()))
+            line += "atom_vector %12.5f %12.5f %12.5f "%(tuple((r[id])*v[:3]))
+            print(line)
+        # minimum R distance is the carbon radius.
+        R0 = Radii["C"]
+        r1 = r[0]/2. if r[0]/2. >= R0 else R0 
+        r2 = r[1]/2. if r[1]/2. >= R0 else R0
+        r3 = r[2]/2. if r[2]/2. >= R0 else R0
+        return 4.*np.pi*r1*r2*r3/3.
 
     def get_cp(self, identifier):
         for cp in self.connect_points:

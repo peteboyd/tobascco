@@ -158,11 +158,22 @@ class GraphPlot(object):
     def view_placement(self, init=(0., 0., 0.), edge_labels=True, sbu_only=[]):
         init = np.array(init)
         # set the first node down at the init position
-        V = self.net.graph.nodes()[0] 
+        V = self.net.graph.nodes()[0]
+        V='1'
         edges = self.net.out_edges(V) + self.net.in_edges(V)
         unit_cell_vertices = self.net.vertex_positions(edges, [], pos={V:init})
         for key, value in unit_cell_vertices.items():
             if (sbu_only and key in sbu_only) or (not sbu_only):
+                if (key=='1'):
+                    key = "A"
+                elif(key =="19"):
+                    key = "E"
+                elif(key =="4"):
+                    key="C"
+                elif(key=="14"):
+                    key="D"
+                elif(key=="9"):
+                    key="B"
                 self.add_point(p=np.array(value), label=key, colour='k')
             elif sbu_only and key not in sbu_only:
                 self.add_point(p=np.array(value), label=None, colour='#FF6600') #Blaze Orange

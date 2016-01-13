@@ -793,7 +793,8 @@ class Build(object):
     def show(self):
         g = GraphPlot(self._net)
         #g.view_graph()
-        g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False, sbu_only=self.sbu_vertices)
+        sbu_verts = self.sbu_vertices
+        g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False, sbu_only=sbu_verts)
 
     def vector_from_cp_intersecting_pt(self, cp, sbu):
         for atom in sbu.atoms:
@@ -928,7 +929,6 @@ class Build(object):
         self._obtain_cycle_bases()
         # start off with the barycentric embedding
         self._net.barycentric_embedding()
-        #self.show()
 
     def setnet(self, tupl):
         (name, graph, volt) = tupl

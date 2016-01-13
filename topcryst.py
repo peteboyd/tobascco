@@ -1,6 +1,8 @@
 #!/usr/bin/env python 
 import logging
 import sys
+import os
+from os.path import join, dirname, realpath
 from logging import info, debug, warning, error, critical
 from copy import deepcopy
 import config
@@ -23,7 +25,6 @@ from CreateInput import SBUFileRead
 from random import randint
 import itertools
 import numpy as np
-import os
 # Turn on keyword expansion to get revision numbers in version strings
 # in .hg/hgrc put
 # [extensions]
@@ -528,6 +529,11 @@ def main():
     options = config.Options()
     options.version = __version__
     log = glog.Log(options)
+    if (os.getenv("TOPCRYST_DIR") is None):
+        warning("No environment variable pointing to the TOPCRYST directory,"+
+        " this may cause runtime problems.\n" + "To avoid this warning type: "+
+        "export TOPCRYST_DIR=%s"%(os.path.join(os.path.dirname(os.path.realpath(__file__)))))
+
     global MPIsize 
     global MPIrank
     MPIsize=0

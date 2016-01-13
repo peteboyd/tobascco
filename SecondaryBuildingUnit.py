@@ -372,7 +372,7 @@ class SBU(object):
             atom = "H"
             line += "%s %12.5f %12.5f %12.5f "%(tuple([atom] + self.centre_of_atoms[:3].tolist()))
             line += "atom_vector %12.5f %12.5f %12.5f "%(tuple((r[id])*v[:3]))
-            print(line)
+            #print(line)
         # minimum R distance is the carbon radius.
         R0 = Radii["C"]
         r1 = r[0]/2. if r[0]/2. >= R0 else R0 

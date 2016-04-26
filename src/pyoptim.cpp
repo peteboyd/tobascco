@@ -199,7 +199,6 @@ static PyObject * nloptimize(PyObject *self, PyObject *args)
     //GLOBAL OPTIMIZER***********************************
     if (!goptim.empty()){
         if (goptim == "direct")global=NLOPT_GN_DIRECT;
-        else if (goptim == "direct")global=NLOPT_GN_DIRECT;
         else if (goptim == "direct-l")global=NLOPT_GN_DIRECT_L;
         //else if (goptim == "direct-l-rand")global=NLOPT_GLOBAL_DIRECT_L_RAND;
         //else if (goptim == "direct-noscale")global=NLOPT_GLOBAL_DIRECT_NOSCAL;

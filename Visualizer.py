@@ -192,9 +192,14 @@ class GraphPlot(object):
                     el = edge[2]
                 self.add_edge(arc, origin=np.array(value), label=el)
         mx = max(self.params[:3])
-        self.ax.set_xlim3d(0,mx)
+        mn = min(self.params[:3])
+        self.ax.set_xlim3d(-1,mx)
         self.ax.set_ylim3d(0,mx)
         self.ax.set_zlim3d(0,mx)
+        self.ax.view_init(elev=17, azim=-96)
         plt.axis('off')
-        plt.show()
-        plt.savefig('name.png')
+        plt.savefig('name.png', dpi=900)
+        #for ii in range(0, 360, 10):
+        #    plt.savefig('name.%i.png'%ii, dpi=600)
+
+        #    self.ax.view_init(elev=10.0, azim=ii)

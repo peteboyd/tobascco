@@ -173,8 +173,8 @@ class Net(object):
             self._graph = nx.MultiDiGraph()
             self.original_graph = nx.MultiDiGraph()
             for (e1,e2,d) in graph:
-                self._graph.add_edge(int(e1),int(e2), **d)
-                self.original_graph.add_edge(int(e1),int(e2), **d)
+                self._graph.add_edge(e1,e2, **d)
+                self.original_graph.add_edge(e1,e2, **d)
             # self._graph = DiGraph(graph, multiedges=True, loops=True) # SAGE compliant
             #self._graph = nx.MultiDiGraph(graph) # networkx compliant
             #print(graph, list(self._graph.edges))
@@ -897,7 +897,6 @@ class Net(object):
    
     def vertices(self, vertex=None):
         if vertex is not None:
-            print(list(self._graph.nodes)[0])
             #return self._graph.vertices()[vertex] # SAGE compliant
             return list(self._graph.nodes())[vertex] # networkx compliant
         #return self._graph.vertices()  # SAGE compliant

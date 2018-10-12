@@ -145,7 +145,7 @@ class Structure(object):
         """Write structure information to a cif file."""
         self._compute_bond_info()
         c = CIF(name=self.name)
-        c.insert_block_order("fragment", 4)
+        #c.insert_block_order("fragment", 4)
         labels = []
         # data block
         c.add_data("data", data_=self.name)
@@ -178,9 +178,9 @@ class Structure(object):
         c.add_data("cell", _cell_angle_beta=CIF.cell_angle_beta(self.cell.beta))
         c.add_data("cell", _cell_angle_gamma=CIF.cell_angle_gamma(self.cell.gamma))
 
-        for name, order in self.fragments:
-            c.add_data("fragment", _chemical_identifier=CIF.label(order),
-                                   _chemical_name=CIF.label(name))
+        #for name, order in self.fragments:
+        #    c.add_data("fragment", _chemical_identifier=CIF.label(order),
+        #                           _chemical_name=CIF.label(name))
         # atom block
         element_counter = {}
         if self.options.find_symmetric_h:
@@ -201,7 +201,7 @@ class Structure(object):
                                     CIF.atom_site_type_symbol(atom.element))
             c.add_data("atoms", _atom_site_description=
                                     CIF.atom_site_description(atom.force_field_type))
-            c.add_data("atoms", _atom_site_fragment=CIF.atom_site_fragment(atom.sbu_order))
+            #c.add_data("atoms", _atom_site_fragment=CIF.atom_site_fragment(atom.sbu_order))
             if self.options.find_symmetric_h:
                 if atom.element == "H":
                     symconst = h_equiv[id]

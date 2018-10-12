@@ -76,7 +76,11 @@ class SBU(object):
         except configparser.NoOptionError:
             # charge not specified in the input file.
             pass
-        self.topology = cfgdic.get(section, 'topology')
+        try:
+            self.topology = cfgdic.get(section, 'topology')
+        except configparser.NoOptionError:
+            # topologies are depreciated for topcryst
+            pass
         self.is_metal = cfgdic.getboolean(section, 'metal')
         if cfgdic.has_option(section, 'parent'):
             self.parent = cfgdic.get(section,'parent')

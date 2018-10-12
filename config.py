@@ -138,7 +138,8 @@ class Options(object):
                     'find_symmetric_h',
                     'store_net',
                     'use_builds',
-                    'save_builds']
+                    'save_builds',
+                    'count_edges_along_lattice_dirs']
         floats = ['overlap_tolerance',
                   'sbu_bond_length',
                   'cell_vol_tolerance',

@@ -7,6 +7,7 @@ try:
 except:
     pass
 from logging import info, debug, warning, error
+import networkx as nx
 import numpy as np
 import itertools
 import Net
@@ -69,21 +70,21 @@ class GraphPlot(object):
         pp = np.dot(p.copy(), self.cell)
         tp = np.dot(tp, self.cell)
         try:
-            self.ax.scatter(*pp, color=colour)
+            self.ax.scatter(*pp, c=colour, lw=0)
         except TypeError:
             pp = pp.tolist()
-            self.ax.scatter(pp, color=colour)
+            self.ax.scatter(pp, c=colour, lw=0)
         if label:
-            #if label == "1":
-            #    label = "A"
-            #elif label == "4":
-            #    label = "C"
-            #elif label == "9":
-            #    label = "B"
-            #elif label == "14":
-            #    label = "D"
-            #elif label == "19":
-            #    label = "E"
+            if label == "1":
+                label = "A"
+            elif label == "4":
+                label = "C"
+            elif label == "9":
+                label = "B"
+            elif label == "14":
+                label = "D"
+            elif label == "19":
+                label = "E"
             self.ax.text(*tp, s=label, fontsize=self.fontsize, color=colour)
 
     def add_edge(self, vector, origin=np.zeros(3), label=None, colour='g'):

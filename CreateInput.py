@@ -109,12 +109,14 @@ class InputSBU(object):
                         bond_vector = "%12.4f %8.4f %8.4f"%(x, y, z)
                         remove.append(bond_atom)
                     else:
+                        #TEMP if Rn does not exist
+                        bond_vector = "%12.4f %8.4f %8.4f"%(-x, -y, -z)
                         neighbour.SetFormalCharge(connect_index)
                         id = neighbour.GetIdx()
-
                 con_line += "".join([X, bond_vector, net_vector, "\n"])
                 self.update(connectivity=con_line)
                 remove.append(atom.OBAtom)
+
         self._remove_atoms(*remove)
 
         # include special considerations
@@ -198,18 +200,19 @@ class SBUFileRead(object):
 
     def read_sbu_files(self):
         files = []
+        ext_len = len(self.options.file_extension.strip())
         if self.options.sbu_files:
             for sbuf in self.options.sbu_files:
-                if sbuf[-4:] == '.'+self.options.file_extension:
+                if sbuf[-ext_len:] == '.'+self.options.file_extension:
                     files.append(sbuf)
                 else:
                     if os.path.isdir(os.path.abspath(sbuf)):
                         for j in os.listdir(os.path.abspath(sbuf)):
-                            if j[-4:] == '.'+self.options.file_extension:
+                            if j[-ext_len:] == '.'+self.options.file_extension:
                                 files.append(os.path.join(os.path.abspath(sbuf),j))
 
         else:
-            files = os.listdir('.')
+            files = [j for j in os.listdir(os.getcwd()) if j.endswith(self.options.file_extension)]
         for f in files:
             info("Reading: %s"%(os.path.basename(f)))
             s = InputSBU(f, self.options.file_extension)

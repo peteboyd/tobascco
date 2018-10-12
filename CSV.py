@@ -96,7 +96,12 @@ class CSV(object):
                 if index == 0:
                     self.set_headings(*[j for j in line.split(',') if j])
                 else:
-                    self.add_data(**{j:i for j, i in zip(self._headings, [k for k in line.split(',')])})
+                    self.add_data(**{j:i for j, i in zip(self._headings, [k for k in line.split(',') if not k.startswith("#")])})
+
+    def iter_key_vals(self):
+        vals = [self._data[j] for j in self._headings]
+        for k in zip(*vals):
+            yield(zip(self._headings, k))
 
     def keys(self):
         return self._data.keys()
@@ -139,7 +144,13 @@ class CSV(object):
             name = self.clean(name)
             dic.setdefault(name, {})
             for j in heads:
-                dic[name][j] = self._data[j][i]
+                try:
+                    dic[name][j] = self._data[j][i]
+                except IndexError:
+                    print(i, len(self._data[j]))
+                    print("No data associated with %s, removing from object"%(name))
+                    dic.pop(name)
+                    break
         return dic
 
     def clean(self, name):

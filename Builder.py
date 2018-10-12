@@ -35,9 +35,12 @@ class Build(object):
 
     def _obtain_cycle_bases(self):
         self._net.simple_cycle_basis()
-        self._net.get_lattice_basis()
+        i = self._net.get_lattice_basis()
+        if i<0:
+            return i
         #self._net.get_cycle_basis()
         self._net.get_cocycle_basis()
+        return i
 
     def fit_function(self, params, data):
         val = np.zeros(len(params))
@@ -64,14 +67,14 @@ class Build(object):
         temp_vertices = self.sbu_vertices[:]
         for vert in self.sbu_vertices:
             vert_deg = self._net.graph.degree(vert)
+            
             sbu_match = [i for i in self._sbus if i.degree == vert_deg]
             if len(sbu_match) == 1:
                 bu = deepcopy(sbu_match[0])
                 temp_vertices.pop(temp_vertices.index(vert))
-                self._vertex_sbu[vert] = bu 
+                self._vertex_sbu[vert] = bu
                 bu.vertex_id = vert
                 [cp.set_sbu_vertex(bu.vertex_id) for cp in bu.connect_points]
-
         # the remaining we will need to choose (automorphisms?)
         #orbits = self._net.graph.automorphism_group(orbits=True)[1]
         init_verts = []
@@ -85,8 +88,13 @@ class Build(object):
         # new SBUs first
         temp_vertices = init_verts + temp_vertices
         for vert in temp_vertices[:]:
-            neighbours = self._net.original_graph.neighbors(vert)
+            # For DiGraphs in networkx, neighbors function only returns the
+            # successors of this vertex. Add predecessors to get full function
+            neighbours = self._net.original_graph.neighbors(vert) + \
+                         self._net.original_graph.predecessors(vert)
+            
             vert_deg = self._net.graph.degree(vert)
+
             sbu_match = [i for i in self._sbus if i.degree == vert_deg]
             neighbour_sbus = [i for i in neighbours if i in self._vertex_sbu.keys()]
             temp_assign = []
@@ -117,7 +125,6 @@ class Build(object):
                 bu = self._vertex_sbu[vert]
                 bu.vertex_id = vert
                 [cp.set_sbu_vertex(bu.vertex_id) for cp in bu.connect_points]
-
         #for vert in self.sbu_vertices:
         #    # is there a way to determine the symmetry operations applicable
         #    # to a vertex?
@@ -572,7 +579,7 @@ class Build(object):
 
         cell = struct.cell.lattice
         V = self.net.vertices(0)
-        edges = self.net.neighbours(V) 
+        edges = self.net.neighbours(V)
         sbu_pos = self._net.vertex_positions(edges, [], pos={V:init_placement})
         for v in self.sbu_vertices:
             self.sbu_orient(v, cell)
@@ -582,17 +589,15 @@ class Build(object):
             # compute dihedral angle, if one exists...
             struct.add_sbu(self._vertex_sbu[v])
         struct.connect_sbus(self._vertex_sbu)
-        # WARNING::: TURNED OFF FOR SPEED! TURN BACK ON!!!!!!!!!!!1!!
-        #if struct.compute_overlap():
-            #struct.write_cif()
-        #    warning("Overlap found in final structure, not creating MOF.")
-        #else:
-        struct.write_cif()
-        self.struct = struct
-        self.success=True
-        if self.options.store_net:
-            self.embedded_net = self.store_placement(cell, init_placement) 
-        info("Structure Generated!")
+        if self.options.overlap_tolerance != 0.0 and struct.compute_overlap():
+            warning("Overlap found in final structure, not creating MOF.")
+        else:
+            struct.write_cif()
+            self.struct = struct
+            self.success=True
+            if self.options.store_net:
+                self.embedded_net = self.store_placement(cell, init_placement) 
+            info("Structure Generated!")
 
     def rotation_function(self, params, vect1, vect2):
         #axis = np.array((params['a1'].value, params['a2'].value, params['a3'].value))
@@ -794,7 +799,7 @@ class Build(object):
         g = GraphPlot(self._net)
         #g.view_graph()
         sbu_verts = self.sbu_vertices
-        g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False, sbu_only=sbu_verts)
+        g.view_placement(init=(0.51, 0.51, 0.51), edge_labels=False, sbu_only=sbu_verts)
 
     def vector_from_cp_intersecting_pt(self, cp, sbu):
         for atom in sbu.atoms:
@@ -883,7 +888,7 @@ class Build(object):
     def init_embed(self):
         # keep track of the sbu vertices
         edges_split = []
-        self.sbu_vertices = self._net.vertices()
+        self.sbu_vertices = list(self._net.vertices())
         met_incidence = [sbu.degree for sbu in self._sbus if sbu.is_metal]
         org_incidence = [sbu.degree for sbu in self._sbus if not sbu.is_metal]
         # Some special cases: linear sbus and no loops. 
@@ -926,9 +931,12 @@ class Build(object):
                     vertices, edges = self._net.add_edges_between((v1, v2, e), 2)
                     edges_split += edges
 
-        self._obtain_cycle_bases()
+        i = self._obtain_cycle_bases()
+        if i<0:
+            return i
         # start off with the barycentric embedding
         self._net.barycentric_embedding()
+        return i
 
     def setnet(self, tupl):
         (name, graph, volt) = tupl

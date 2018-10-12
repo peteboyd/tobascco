@@ -13,12 +13,22 @@ from uuid import uuid4
 from logging import info, debug, warning, error
 import numpy as np
 from LinAlg import DEG2RAD
-from platform import system, machine
-sys.path[:0] = [join(dirname(realpath(__file__)), "src", "build", "lib.%s-%s-%i.%i"%(system().lower(),
-                                                                              machine(),
-                                                                              version_info.major,
-                                                                              version_info.minor))]
+from platform import system, machine, release
+import re
+import distutils.util as du
+#if system().lower().startswith("cygwin"):
+#    system = "cygwin-%s"%(re.sub(r'\([^)]*\)', '', release()))
+#else:
+#    system = system().lower()
+platform = du.get_platform()
 
+#sys.path.insert(1, join(dirname(realpath(__file__)), "src", "build", "lib.%s-%s-%i.%i"%(system,
+#                                                                              machine(),
+#                                                                              version_info.major,
+#                                                                              version_info.minor)))
+sys.path.insert(1, join(dirname(realpath(__file__)), "src", "build", "lib.%s-%i.%i"%(platform,
+                                                                                     version_info.major,
+                                                                                     version_info.minor)))
 import _nloptimize as nl
 from config import Terminate
 sys.setrecursionlimit(100000)
@@ -160,14 +170,51 @@ class Net(object):
         # n-dimensional representation, default is 3
         self.ndim = dim
         if graph is not None:
+            self._graph = nx.MultiDiGraph()
+            self.original_graph = nx.MultiDiGraph()
+            for (e1,e2,d) in graph:
+                self._graph.add_edge(int(e1),int(e2), **d)
+                self.original_graph.add_edge(int(e1),int(e2), **d)
             # self._graph = DiGraph(graph, multiedges=True, loops=True) # SAGE compliant
-            self._graph = nx.MultiDiGraph(graph) # networkx compliant
+            #self._graph = nx.MultiDiGraph(graph) # networkx compliant
+            #print(graph, list(self._graph.edges))
             # Keep an original for reference purposes.
             #self.original_graph = DiGraph(graph, multiedges=True, loops=True) # SAGE compliant
-            self.original_graph = nx.MultiDiGraph(graph) # networkx compliant
+            #self.original_graph = nx.MultiDiGraph(graph) # networkx compliant
 
         self.options = options
 
+    def nodes_iter(self, data=True):
+        """Oh man, fixing to networkx 2.0
+
+        This probably breaks a lot of stuff in the code. THANKS NETWORKX!!!!!!!1
+
+        """
+        for node in self._graph.nodes():
+            if(data):
+                d = self._graph.node[node]
+                yield (node, d)
+            else:
+                yield node
+
+    def edges_iter(self, data=True):
+        for erp in self._graph.edges(data=data):
+            #d=self.edges[(n1,n2)]
+            if(data):
+                yield (erp[0],erp[1],erp[2])
+            else:
+                yield (erp[0],erp[1])
+    
+    def out_edges(self, data=True):
+        for (n1,n2) in self._graph.out_edges():
+            #d=self.edges[(n1,n2)]
+            d=self._graph[n1][n2]
+            if(data):
+                yield (v1,v2,d)
+            else:
+                yield (v1,v2)
+        #for n1, n2, d in self.edges_iter(**kwargs):
+        #    yield (self.sorted_edge_dict[(n1, n2)][0], self.sorted_edge_dict[(n1,n2)][1], d)
     def get_cocycle_basis(self):
         """The orientation is important here!"""
         size = self._graph.order() - 1
@@ -316,7 +363,7 @@ class Net(object):
         #tree = Graph(mspt, multiedges=False, loops=False) # SAGE compliant
         #cycle_completes = [i for i in edges if i not in mspt and (i[1], i[0], i[2]) not in mspt] # SAGE compliant
         tree = nx.minimum_spanning_tree(self.graph.to_undirected()) # networkx compliant
-        mspt_edges = [(i,j,k['label']) for (i,j,k) in tree.edges(data=True)] # networkx compliant
+        mspt_edges = [(i,j,d['label']) for (i,j,d) in tree.edges(data=True)] # networkx compliant
         cycle_completes = [i for i in edges if i not in mspt_edges and (i[1], i[0], i[2]) not in mspt_edges] # networkx compliant
         #self.graph.show()
         self.cycle = []
@@ -328,9 +375,9 @@ class Net(object):
             cycle, coefficients = [], []
             for pv1, pv2 in zip(path[:-1], path[1:]):
                 #edge = [i for i in tree.edges_incident([pv1, pv2]) if pv1 in i[:2] and pv2 in i[:2]][0] # SAGE compliant
-                edge = [(i[0], i[1], i[2]['label']) for i in 
-                        tree.edges(nbunch=[pv1, pv2], data=True) 
-                        if pv1 in i[:2] and pv2 in i[:2]][0] # networkx compliant
+                edge = [(i, j, d['label']) for (i,j,d) in 
+                        tree.edges(nbunch=[pv1, pv2], data=True)
+                        if pv1 in (i,j) and pv2 in (i,j)][0] # networkx compliant
                 if edge not in edges:
                     edge = (edge[1], edge[0], edge[2])
                     if edge not in edges:
@@ -456,8 +503,10 @@ class Net(object):
                         break
             if not found_vector:
                 error("Could not obtain the lattice basis from the cycle vectors!")
-                Terminate(1)
+                #Terminate(1)
+                return -1
         self.lattice_basis = np.array(lattice)
+        return 1
 
     def check_linear_dependency(self, vect, vset):
         if not np.any(vset):
@@ -684,6 +733,21 @@ class Net(object):
         self.metric_tensor = np.dot(np.dot(self.lattice_basis, self.eon_projection),
                                     self.lattice_basis.T)
 
+    def print_edge_count(self):
+        if self.cocycle is not None:
+            self.cocycle_rep = np.zeros((self.order-1, self.ndim))
+            #self.cocycle_rep = (np.random.random((self.order-1, self.ndim)) - .5)/40. #used to make MOFs from unstable nets
+            #self.cocycle_rep[0] = np.array([0.0, 0.0, -0.5]) # Used to show non-barycentric placement of pts net for Smit meeting.
+            self.periodic_rep = np.concatenate((self.cycle_rep,
+                                            self.cocycle_rep),
+                                            axis = 0)
+        else:
+            self.periodic_rep = self.cycle_rep
+        latt_counts = []
+        for j in self.lattice_basis:
+            latt_counts.append(np.sum(np.abs(j)))
+        return(",".join(["%i"%i for i in latt_counts]))
+
     def barycentric_embedding(self):
         if self.cocycle is not None:
             self.cocycle_rep = np.zeros((self.order-1, self.ndim))
@@ -833,35 +897,36 @@ class Net(object):
    
     def vertices(self, vertex=None):
         if vertex is not None:
+            print(list(self._graph.nodes)[0])
             #return self._graph.vertices()[vertex] # SAGE compliant
-            return self._graph.nodes()[vertex] # networkx compliant
+            return list(self._graph.nodes())[vertex] # networkx compliant
         #return self._graph.vertices()  # SAGE compliant
-        return self._graph.nodes() # networkx compliant
+        return list(self._graph.nodes()) # networkx compliant
 
     def out_edges(self, vertex):
         #out =  self.graph.outgoing_edges(vertex) # SAGE compliant
-        out =  [(i,j,k['label']) for (i,j,k) in self.graph.out_edges(vertex, data=True)] # networkx compliant
+        out =  [(i,j, d['label']) for (i,j,d) in self.graph.out_edges(vertex,data=True)] # networkx compliant
         if out is None:
             return []
         return out
 
     def in_edges(self, vertex):
         #ine = self.graph.incoming_edges(vertex) # SAGE compliant
-        ine = [(i,j,k['label']) for (i,j,k) in self.graph.in_edges(vertex, data=True)] # networkx compliant
+        ine = [(i,j,d['label']) for (i,j,d) in self.graph.in_edges(vertex,data=True)] # networkx compliant
         if ine is None:
             return []
         return ine
 
     def all_edges(self):
         #return self.graph.edges() # SAGE compliant
-        return [(i,j,k['label']) for (i,j,k) in self.graph.edges(data=True)]
+        return [(i,j,d['label']) for (i,j,d) in self.graph.edges(data=True)]
 
     def neighbours(self, vertex):
         return self.out_edges(vertex) + self.in_edges(vertex)
 
     def loop_edges(self):
         #return self.graph.loop_edges() # SAGE compliant
-        return [(i,j,k['label']) for (i,j,k) in self.graph.selfloop_edges(data=True)]
+        return [(i,j,d['label']) for (i,j,d) in self.graph.edges(data=True) if i==j]
 
     def add_vertex(self, v):
         #self.graph.add_vertex(v) # SAGE compliant
@@ -873,9 +938,9 @@ class Net(object):
 
     def delete_edge(self, e):
         #self.graph.delete_edge(e) # SAGE compliant
-        for (v1,v2,k,d) in self._graph.edges(data=True, keys=True):
+        for (v1,v2,d) in self._graph.edges(data=True):
             if (v1, v2, d['label']) == e:
-                self._graph.remove_edge(v1, v2, k)
+                self._graph.remove_edge(v1, v2)
                 return
 
         error("could not find the edge (%s, %s, %s) in the graph"%(tuple(e)))

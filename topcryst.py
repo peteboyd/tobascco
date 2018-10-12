@@ -164,7 +164,7 @@ class JobHandler(object):
         #print G.order()
         #print G.gens()
         g = GraphPlot(net)
-        #g.view_graph()
+        g.view_graph()
         g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False)
         #g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False, sbu_only=["1"]) # for bcu for paper
         #g.view_placement(init=(0.5, 0.5, 0.5), edge_labels=False) # for bcu for paper
@@ -181,8 +181,20 @@ class JobHandler(object):
         self.options.csv = csvinfo
         run = Generate(self.options, self.sbu_pool)
         inittime = time()
+        if self.options.count_edges_along_lattice_dirs:
+            lattfile = open("edge_counts.csv","w")
+            lattfile.writelines("topology,Na,Nb,Nc\n")
         for top, graph in self._topologies.items():
-            if self.options.show_barycentric_net_only:
+            if self.options.count_edges_along_lattice_dirs:
+                info("Computing Edge lengths along each lattice direction for %s"%(top))
+                n = Net(graph)
+                n.voltage = self._topologies.voltages[top]
+                n.simple_cycle_basis()
+                n.get_lattice_basis()
+                n.get_cocycle_basis()
+                edge_str = n.print_edge_count()
+                lattfile.writelines("%s,%s"%(top, edge_str))
+            elif self.options.show_barycentric_net_only:
                 info("Preparing barycentric embedding of %s"%(top))
                 self._check_barycentric_embedding(graph, self._topologies.voltages[top])
             else:
@@ -215,7 +227,8 @@ class JobHandler(object):
                     else:
                         self.embed_sbu_combo(top, combo, build)
 
-
+        if self.options.count_edges_along_lattice_dirs:
+            lattfile.close() 
         finaltime = time() - inittime
         info("Topcryst completed after %f seconds"%finaltime)
         Terminate()
@@ -276,14 +289,17 @@ class JobHandler(object):
         # embedded here.
         if build.success and self.options.use_builds:
             self.construct_from_prev_embedding(top,combo,build)
+            debug("Augmented graph consists of %i vertices and %i edges"%
+                    (build.net.order, build.net.shape))
 
         else:
-            build.init_embed()
-            build.assign_vertices()
-            build.assign_edges()
-            build.obtain_embedding()
-        debug("Augmented graph consists of %i vertices and %i edges"%
-                (build.net.order, build.net.shape))
+            i = build.init_embed()
+            if i>=0:
+                build.assign_vertices()
+                build.assign_edges()
+                build.obtain_embedding()
+                debug("Augmented graph consists of %i vertices and %i edges"%
+                    (build.net.order, build.net.shape))
         t2 = time()
         if build.success:
             sym = build.struct.space_group_name
@@ -318,6 +334,9 @@ class JobHandler(object):
         csvinfo.set_headings('edge_length_err', 'edge_length_std', 'edge_angle_err', 'edge_angle_std')
         self.options.csv = csvinfo
         # generate the MOFs.
+        if self.options.count_edges_along_lattice_dirs:
+            lattfile = open("edge_counts.csv","w")
+            lattfile.writelines("topology,Na,Nb,Nc\n")
         inittime = time()
         for combo in combinations:
             node_degree = [i.degree for i in set(combo)]
@@ -340,8 +359,18 @@ class JobHandler(object):
                     build.net = (top, graph, self._topologies.voltages[top])
                 build.sbus = list(set(combo))
                 #build.get_automorphisms()
-                if self.options.show_barycentric_net_only:
+                if self.options.count_edges_along_lattice_dirs:
+                    info("Computing Edge lengths along each lattice direction for %s"%(top))
+                    n = Net(graph)
+                    n.voltage = self._topologies.voltages[top]
+                    n.simple_cycle_basis()
+                    n.get_lattice_basis()
+                    n.get_cocycle_basis()
+                    edge_str = n.print_edge_count()
+                    lattfile.writelines("%s,%s\n"%(top, edge_str))
+                elif self.options.show_barycentric_net_only:
                     info("Preparing barycentric embedding of %s"%(top))
+                    #print("CHECK", top, build.net.graph.number_of_selfloops())
                     self._check_barycentric_embedding(graph, self._topologies.voltages[top])
                 else:
                     if build.check_net:
@@ -376,6 +405,8 @@ class JobHandler(object):
                         debug("Net %s does not support the same"%(top)+
                                 " connectivity offered by the SBUs")
 
+        if self.options.count_edges_along_lattice_dirs:
+            lattfile.close() 
         finaltime = time() - inittime
         info("Topcryst completed after %f seconds"%finaltime)
         if self.options.get_run_info:
@@ -429,9 +460,22 @@ class JobHandler(object):
     
     def _read_build_files(self):
         for file in self.options.build_files:
-            f = open(file, 'rb')
-            d = pickle.load(f)
-            self._stored_builds.update(d)
+            if os.path.isdir(file):
+                for bb in os.listdir(file):
+                    full_path = os.path.join(file, bb)
+                    if (os.path.isfile(full_path) and bb.endswith('.pkl')):
+                        f = open(full_path, 'rb')
+                        d = pickle.load(f)
+                        for k in d.keys():
+                            debug("Found build for topology %s"%k)
+                        self._stored_builds.update(d)
+            else:
+                f = open(file, 'rb')
+                d = pickle.load(f)
+                for k in d.keys():
+                    debug("Found build for topology %s"%k)
+                self._stored_builds.update(d)
+
     def _read_topology_database_files(self):
         for file in self.options.topology_files:
             paths = path_splitter(file)
@@ -460,7 +504,7 @@ class JobHandler(object):
         sbu_config = configparser.SafeConfigParser()
         sbu_config.read(filename)
         basedir = os.path.split(filename)[0]
-        info("basedir = %s"%basedir)
+        debug("basedir = %s"%basedir)
         info("Found %i SBUs"%(len(sbu_config.sections())))
         for raw_sbu in sbu_config.sections():
             debug("Reading %s"%(raw_sbu))
@@ -526,14 +570,14 @@ def path_splitter(path):
     return folders
 
 def main():
-    options = config.Options()
-    options.version = __version__
-    log = glog.Log(options)
     if (os.getenv("TOPCRYST_DIR") is None):
         warning("No environment variable pointing to the TOPCRYST directory,"+
         " this may cause runtime problems.\n" + "To avoid this warning type: "+
         "export TOPCRYST_DIR=%s"%(os.path.join(os.path.dirname(os.path.realpath(__file__)))))
-
+    os.environ["TOPCRYST_DIR"]=os.path.join(os.path.dirname(os.path.realpath(__file__)))
+    options = config.Options()
+    options.version = __version__
+    log = glog.Log(options)
     global MPIsize 
     global MPIrank
     MPIsize=0

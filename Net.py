@@ -556,6 +556,7 @@ class Net(object):
 
     def convert_params(self, x, ndim, angle_inds, cocycle_size):
         cell_lengths = x[:ndim]
+        print(ndim, angle_inds)
         angles = x[ndim: ndim + angle_inds]
         cocycle = x[ndim + angle_inds : ]
         mt = np.empty((ndim, ndim))
@@ -584,7 +585,7 @@ class Net(object):
     def net_embedding(self):
         f = math.factorial
         mtsize = self.ndim + f(self.ndim) / f(2) / f(self.ndim - 2)
-        size = mtsize + self.cocycle_rep.shape[0] * self.ndim
+        size = int(mtsize + self.cocycle_rep.shape[0] * self.ndim)
         x = np.empty(size)
         ub = np.empty(size)
         lb = np.empty(size)
@@ -647,10 +648,10 @@ class Net(object):
                           localo)
         if x is None:
             return False
-        angle_inds = f(self.ndim) / f(2) / f(self.ndim - 2)
+        angle_inds = int(f(self.ndim) / f(2) / f(self.ndim - 2))
         self.metric_tensor, self.cocycle_rep = self.convert_params(x, self.ndim,
                                                                    angle_inds,
-                                                                   self.order-1
+                                                                   int(self.order-1)
                                                                    )
         self.periodic_rep = np.concatenate((self.cycle_rep, self.cocycle_rep))
         inner_p = np.dot(np.dot(self.lattice_arcs, self.metric_tensor), self.lattice_arcs.T)

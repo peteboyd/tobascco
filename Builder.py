@@ -16,7 +16,7 @@ from copy import deepcopy
 #sys.path.append('/home/pboyd/lib/lmfit-0.7.4')
 #from lmfit import Minimizer, minimize, Parameters, report_errors
 
-np.set_printoptions(threshold=np.nan, precision=4, suppress=True, linewidth=185)
+#np.set_printoptions(threshold=np.nan, precision=4, suppress=True, linewidth=185)
 
 class Build(object):
     """Build a MOF from SBUs and a Net."""

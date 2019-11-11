@@ -1,11 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3.7
 import sys
 from sys import version_info
 import os
-sys.path.append("/share/apps/openbabel/2.3.1-gg/lib/python2.7/site-packages")
+#sys.path.append("/share/apps/openbabel/2.3.1-gg/lib/python2.7/site-packages")
 try:
-    import openbabel as ob
-    import pybel
+    from openbabel import openbabel as ob
 except ImportError:
     print ("Could not load the openbabel libraries!") 
 from logging import info, debug, warning, error, critical
@@ -30,10 +29,15 @@ class InputSBU(object):
         self.name = clean(name, ext) 
         self.update(name=self.name)
         # may be a source of error.. untested
+        obConversion = ob.OBConversion()
+        obConversion.SetInAndOutFormats(ext, 'pdb')
+        self.mol = ob.OBMol()
         if version_info.major >= 3:
-            self.mol = next(pybel.readfile(ext, filename))
+            #self.mol = next(pybel.readfile(ext, filename))
+            obConversion.ReadFile(self.mol, filename)
         else:
-            self.mol = pybel.readfile(ext, filename).next()
+            obConversion.ReadFile(self.mol, filename)
+            #self.mol = pybel.readfile(ext, filename).next()
         self._reset_formal_charges()
 
     def get_index(self):
@@ -73,12 +77,12 @@ class InputSBU(object):
     def _reset_formal_charges(self):
         """Set all formal charges to zero, this is how special
         information will be passed to oBMol objects."""
-        for atom in self.mol:
-            atom.OBAtom.SetFormalCharge(0)
+        for atom in ob.OBMolAtomIter(self.mol):
+            atom.SetFormalCharge(0)
 
     def _remove_atoms(self, *args):
         for obatom in args:
-            self.mol.OBMol.DeleteAtom(obatom)
+            self.mol.DeleteAtom(obatom)
 
     def get_connect_info(self):
         """Grab all the atoms which are flagged by this program to be
@@ -87,19 +91,19 @@ class InputSBU(object):
         """
         special, remove = [], []
         connect_index = 0
-        for ind, atom in enumerate(self.mol):
-            N = atom.atomicnum
+        for ind, atom in enumerate(ob.OBMolAtomIter(self.mol)):
+            N = atom.GetAtomicNum()
             if N == 54 or (N >= 89 and N <= 102):
                 connect_index += 1
                 con_line = "%4i "%(connect_index)
-                X = "%12.4f %8.4f %8.4f"%(atom.coords)
+                X = "%12.4f %8.4f %8.4f"%(atom.GetX(), atom.GetY(), atom.GetZ())
                 if (N >= 89 and N <= 102):
                     special.append((connect_index, N%89+1))
                 net_vector, bond_vector = "", ""
-                for neighbour in ob.OBAtomAtomIter(atom.OBAtom):
-                    x = neighbour.GetX() - atom.coords[0]
-                    y = neighbour.GetY() - atom.coords[1]
-                    z = neighbour.GetZ() - atom.coords[2]
+                for neighbour in ob.OBAtomAtomIter(atom):
+                    x = neighbour.GetX() - atom.GetX()
+                    y = neighbour.GetY() - atom.GetY()
+                    z = neighbour.GetZ() - atom.GetZ()
                     if neighbour.GetAtomicNum() == 39:
                         net_atom = neighbour
                         net_vector = "%12.4f %8.4f %8.4f"%(x, y, z)
@@ -115,7 +119,7 @@ class InputSBU(object):
                         id = neighbour.GetIdx()
                 con_line += "".join([X, bond_vector, net_vector, "\n"])
                 self.update(connectivity=con_line)
-                remove.append(atom.OBAtom)
+                remove.append(atom)
 
         self._remove_atoms(*remove)
 
@@ -131,21 +135,21 @@ class InputSBU(object):
             self.update(connect_flag = const_line)
 
     def get_atom_info(self):
-        for atom in self.mol:
-            N = atom.OBAtom.GetAtomicNum()
+        for atom in ob.OBMolAtomIter(self.mol):
+            N = atom.GetAtomicNum()
             element = ATOMIC_NUMBER[N]
             coordlines = "%4s  %-6s %8.4f %8.4f %8.4f\n"%(
-                    element, self._get_ff_type(atom), atom.coords[0],
-                    atom.coords[1], atom.coords[2])
+                    element, self._get_ff_type(atom), atom.GetX(),
+                    atom.GetY(), atom.GetZ())
             self.update(atomic_info=coordlines)
-            if atom.OBAtom.GetFormalCharge() != 0:
-                conn_atom = str(atom.formalcharge) + "C"
+            if atom.GetFormalCharge() != 0:
+                conn_atom = str(atom.GetFormalCharge()) + "C"
                 order = "S" # currently set to a single bond.
-                tableline = "%4i%4s%4s\n"%(atom.idx-1, conn_atom, order)
+                tableline = "%4i%4s%4s\n"%(atom.GetIdx()-1, conn_atom, order)
                 self.update(bond_table=tableline)
 
     def get_bond_info(self):
-        for bond in ob.OBMolBondIter(self.mol.OBMol):
+        for bond in ob.OBMolBondIter(self.mol):
             start_idx = bond.GetBeginAtomIdx()
             end_idx = bond.GetEndAtomIdx()
             type = self.return_bondtype(bond)
@@ -155,11 +159,15 @@ class InputSBU(object):
     def return_bondtype(self, bond):
         start_atom = bond.GetBeginAtom()
         end_atom = bond.GetEndAtom()
-        if bond.IsSingle():
+        order = bond.GetBondOrder()
+        #if bond.IsSingle():
+        if order == 1:
             return "S"
-        elif bond.IsDouble():
+        #elif bond.IsDouble():
+        if order == 2:
             return "D"
-        elif bond.IsTriple():
+        #elif bond.IsTriple():
+        if order == 3:
             return "T"
         elif bond.IsAromatic():
             return "A"
@@ -173,11 +181,11 @@ class InputSBU(object):
     def set_uff(self):
         """Adds UFF atomtyping to the openbabel molecule description"""
         uff = ob.OBForceField_FindForceField('uff')
-        uff.Setup(self.mol.OBMol)
-        uff.GetAtomTypes(self.mol.OBMol)
+        uff.Setup(self.mol)
+        uff.GetAtomTypes(self.mol)
 
     def _get_ff_type(self, pyatom):
-       return pyatom.OBAtom.GetData("FFAtomType").GetValue()
+       return pyatom.GetData("FFAtomType").GetValue()
 
     def __str__(self):
         line = "[%(name)s]\nindex = %(index)s\nmetal = %(metal)s\n"%(self.data)

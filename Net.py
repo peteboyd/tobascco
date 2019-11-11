@@ -173,8 +173,8 @@ class Net(object):
             self._graph = nx.MultiDiGraph()
             self.original_graph = nx.MultiDiGraph()
             for (e1,e2,d) in graph:
-                self._graph.add_edge(e1,e2, **d)
-                self.original_graph.add_edge(e1,e2, **d)
+                self._graph.add_edge(e1,e2, **d, key=d['label'])
+                self.original_graph.add_edge(e1,e2, **d, key=d['label'])
             # self._graph = DiGraph(graph, multiedges=True, loops=True) # SAGE compliant
             #self._graph = nx.MultiDiGraph(graph) # networkx compliant
             #print(graph, list(self._graph.edges))
@@ -556,7 +556,6 @@ class Net(object):
 
     def convert_params(self, x, ndim, angle_inds, cocycle_size):
         cell_lengths = x[:ndim]
-        print(ndim, angle_inds)
         angles = x[ndim: ndim + angle_inds]
         cocycle = x[ndim + angle_inds : ]
         mt = np.empty((ndim, ndim))
@@ -934,13 +933,13 @@ class Net(object):
     
     def add_edge(self, v1, v2, name):
         #self.graph.add_edge(v1, v2, name) # SAGE compliant
-        self.graph.add_edge(v1, v2, label=name) # networkx compliant
+        self.graph.add_edge(v1, v2, label=name, key=name) # networkx compliant
 
     def delete_edge(self, e):
         #self.graph.delete_edge(e) # SAGE compliant
         for (v1,v2,d) in self._graph.edges(data=True):
             if (v1, v2, d['label']) == e:
-                self._graph.remove_edge(v1, v2)
+                self._graph.remove_edge(v1, v2, key=d['label'])
                 return
 
         error("could not find the edge (%s, %s, %s) in the graph"%(tuple(e)))

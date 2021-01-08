@@ -10,16 +10,16 @@ from time import time
 
 import numpy as np
 
-from CSV import CSV
+from .csv import CSV
 
 from . import config, glog
-from .Builder import Build
+from .builder import Build
 from .config import Terminate
-from .CreateInput import SBUFileRead
-from .Generator import Generate
-from .Net import Net, SystreDB
-from .SecondaryBuildingUnit import SBU
-from .Visualizer import GraphPlot
+from .createinput import SBUFileRead
+from .generator import Generate
+from .net import Net, SystreDB
+from .sbu import SBU
+from .visualizer import GraphPlot
 
 # Python 3 fix
 try:

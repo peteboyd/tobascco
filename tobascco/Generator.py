@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import itertools
 
-from .SecondaryBuildingUnit import SBU_list
+from .sbu import SBU_list
 
 
 class Generate(object):

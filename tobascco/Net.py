@@ -14,7 +14,7 @@ import sympy as sy
 import _nloptimize as nl
 
 from .config import Terminate
-from .LinAlg import DEG2RAD
+from .linalg import DEG2RAD
 
 platform = du.get_platform()
 

@@ -6,9 +6,9 @@ import sys
 import numpy as np
 from scipy.spatial import distance
 
-from .CIFer import CIF
+from .cifer import CIF
 from .element_properties import ATOMIC_NUMBER, Radii
-from .LinAlg import DEG2RAD, RAD2DEG
+from .linalg import DEG2RAD, RAD2DEG, calc_angle
 
 
 class Structure(object):
@@ -301,7 +301,7 @@ class Cell(object):
         self._params[0:3] = [np.linalg.norm(i) for i in self.lattice][:]
         # angles in rad
         self._params[3:6] = [
-            LinAlg.calc_angle(i, j)
+            calc_angle(i, j)
             for i, j in reversed(list(itertools.combinations(self.lattice, 2)))
         ]
 

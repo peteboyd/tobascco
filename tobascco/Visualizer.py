@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 try:
-    import matplotlib
+
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
 except:
@@ -8,10 +8,8 @@ except:
 import itertools
 from logging import debug, error, info, warning
 
-import networkx as nx
 import numpy as np
 
-from . import Net
 
 
 class GraphPlot(object):

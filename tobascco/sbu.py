@@ -6,8 +6,8 @@ import numpy as np
 from numpy import arccos, cos, pi, sin
 from scipy.spatial import distance
 
-from .Atoms import Atom
-from .ConnectPoints import ConnectPoint
+from .atoms import Atom
+from .connectpoints import ConnectPoint
 from .element_properties import Radii
 
 # Python 3 fix

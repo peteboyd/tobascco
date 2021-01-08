@@ -10,7 +10,7 @@ import numpy as np
 from networkx import degree_histogram
 
 from .config import Terminate
-from .LinAlg import (
+from .linalg import (
     DEG2RAD,
     calc_angle,
     central_moment,
@@ -21,10 +21,10 @@ from .LinAlg import (
     rotation_from_omega,
     rotation_from_vectors,
 )
-from .Net import Net
-from .SecondaryBuildingUnit import SBU
-from .Structure import Cell, Structure
-from .Visualizer import GraphPlot
+from .net import Net
+from .sbu import SBU
+from .structure import Cell, Structure
+from .visualizer import GraphPlot
 
 
 class Build(object):

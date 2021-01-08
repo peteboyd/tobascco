@@ -8,7 +8,7 @@ from scipy.spatial import distance
 
 from .cifer import CIF
 from .element_properties import ATOMIC_NUMBER, Radii
-from .linalg import DEG2RAD, RAD2DEG, calc_angle
+from .linalg import RAD2DEG, calc_angle
 
 
 class Structure(object):

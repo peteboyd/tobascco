@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
-import logging
 import os
 import pickle
-import sys
 from copy import deepcopy
 from logging import critical, debug, error, info, warning
 from os.path import dirname, join, realpath
@@ -25,16 +23,7 @@ try:
     import configparser
 except ImportError:
     import ConfigParser as configparser
-# Turn on keyword expansion to get revision numbers in version strings
-# in .hg/hgrc put
-# [extensions]
-# keyword =
-#
-# [keyword]
-# faps.py =
-#
-# [keywordmaps]
-# Revision = {rev}
+
 try:
     __version_info__ = (0, 0, 1, int("$Revision$".strip("$Revision: ")))
 except ValueError:
@@ -44,9 +33,7 @@ __version__ = "%i.%i.%i.%i" % __version_info__
 
 class JobHandler(object):
     """determines what job(s) to run based on arguments from the
-    options class.
-
-    """
+    options class."""
 
     def __init__(self, options):
         self.options = options
@@ -60,7 +47,7 @@ class JobHandler(object):
 
         def chunks(l, n):
             c = []
-            for i in xrange(0, len(l), n):
+            for i in range(0, len(l), n):
                 c.append(l[i : i + n])
             return c
 

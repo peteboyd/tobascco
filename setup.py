@@ -37,15 +37,8 @@ setup(
             "sphinx-autodoc-typehints==1.*",
             "sphinx-copybutton==0.*",
         ],
-        "pre-commit": [
-            "pre-commit==2.*",
-            "pylint==2.*",
-            "isort==5.*",
-        ],
-        "dev": [
-            "versioneer==0.*",
-            "black==20.*",
-        ],
+        "pre-commit": ["pre-commit==2.*", "pylint==2.*", "isort==5.*",],
+        "dev": ["versioneer==0.*", "black==20.*",],
     },
     author="Peter Boyd",
     author_email="peter.g.boyd@gmail.com",
@@ -64,12 +57,14 @@ setup(
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
-    module=Extension(
-        "_nloptimize",
-        include_dirs=include_dirs + get_numpy_include_dirs(),
-        sources=["pyoptim.cpp"],
-        language="c++",
-        libraries=["nlopt"],
-        extra_link_args=["-O"],
-    ),
+    ext_modules=[
+        Extension(
+            "_nloptimize",
+            include_dirs=include_dirs + get_numpy_include_dirs(),
+            sources=[os.path.join(os.getcwd(), "tobascco", "src", "pyoptim.cpp")],
+            language="c++",
+            libraries=["nlopt"],
+            extra_link_args=["-O"],
+        ),
+    ],
 )

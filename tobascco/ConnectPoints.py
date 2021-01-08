@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
+import warnings
 
 
 class ConnectPoint(object):
@@ -36,7 +37,7 @@ class ConnectPoint(object):
         try:
             self.z[:3] = np.array([float(x) for x in line[4:7]])
         except ValueError:
-            warning(
+            warnings.warn(
                 "Improper formatting of input SBU file! cannot find the"
                 + "connecting vector for bond %i." % (self.identifier)
                 + "Catastrophic errors in the bonding will ensue!"

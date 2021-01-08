@@ -2,10 +2,10 @@
 
 ## Installation
 
-You need to first install openbabel (we're working on a conda recipe to skip this step):
+You need to first install openbabel and nlopt (we're working on a conda recipe to skip this step):
 
 ```
-conda install -c conda-forge openbabel
+conda install -c conda-forge openbabel nlopt
 ```
 
 Then you can install the package
@@ -15,6 +15,16 @@ pip install git+https://github.com/peteboyd/tobascco
 ```
 
 ## Usage
+
+### Assembling MOFs
+
+### SBU databases
+
+A key part of the code are the SBU databases (metal nodes, organic linkers)
+
+#### Extending the SBU database
+
+New entries to the SBU database can be added using the code in `createinput.py` module (or job type `create_sbu_input_files=True` in an input file
 
 ## Reference
 

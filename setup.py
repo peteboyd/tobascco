@@ -1,7 +1,14 @@
 # -*- coding: utf-8 -*-
+import os
+
+from numpy.distutils.core import Extension
+from numpy.distutils.misc_util import get_numpy_include_dirs
 from setuptools import find_packages, setup
 
 import versioneer
+
+include_dirs = [os.path.join(os.getcwd(), "tobascco", "src")]
+
 
 with open("requirements.txt", "r") as fh:
     REQUIREMENTS = fh.readlines()
@@ -14,7 +21,8 @@ setup(
     name="tobascco",
     version=versioneer.get_version(),
     cmdclass=versioneer.get_cmdclass(),
-    description="Assembles MOF",
+    description="Assembles MOFs",
+    setup_requires=["numpy"],
     long_description=LONG_DESCRIPTION,
     long_description_content_type="text/markdown",
     packages=find_packages(include=["tobascco", "tobascco.*"]),
@@ -29,8 +37,15 @@ setup(
             "sphinx-autodoc-typehints==1.*",
             "sphinx-copybutton==0.*",
         ],
-        "pre-commit": ["pre-commit==2.*", "pylint==2.*", "isort==5.*",],
-        "dev": ["versioneer==0.*", "black==20.*",],
+        "pre-commit": [
+            "pre-commit==2.*",
+            "pylint==2.*",
+            "isort==5.*",
+        ],
+        "dev": [
+            "versioneer==0.*",
+            "black==20.*",
+        ],
     },
     author="Peter Boyd",
     author_email="peter.g.boyd@gmail.com",
@@ -49,4 +64,12 @@ setup(
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
+    module=Extension(
+        "_nloptimize",
+        include_dirs=include_dirs + get_numpy_include_dirs(),
+        sources=["pyoptim.cpp"],
+        language="c++",
+        libraries=["nlopt"],
+        extra_link_args=["-O"],
+    ),
 )

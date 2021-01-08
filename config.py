@@ -1,27 +1,19 @@
-#!/usr/bin/env python
-_version_=3.0
-comm=None
-MPIsize=0
-MPIrank=0
-#try:
-#    from mpi4py import MPI
-#    comm = MPI.COMM_WORLD
-#    MPIsize = comm.size
-#    MPIrank = comm.rank
-#except ImportError:
-#    comm = None
-#    MPIsize = 0
-#    MPIrank = 0
+_version_ = 3.0
+comm = None
+MPIsize = 0
+MPIrank = 0
 from optparse import OptionParser
 import optparse
+
 # Python 3 fix
 try:
     import configparser
 except ImportError:
     import ConfigParser as configparser
 import os
+
 try:
-    from StringIO import StringIO 
+    from StringIO import StringIO
 except ImportError:
     from io import StringIO
 import sys
@@ -41,34 +33,45 @@ class Options(object):
         self._load_defaults()
         self._load_job()
         self._set_attr()
-    
+
     def _set_paths(self):
-        if __name__ != '__main__':
+        if __name__ != "__main__":
             self.script_dir = os.path.dirname(__file__)
         else:
             self.script_dir = os.path.abspath(sys.path[0])
         self.job_dir = os.getcwd()
-        self.jobname = os.path.splitext(os.path.basename(
-                                       self.input_file))[0]
+        self.jobname = os.path.splitext(os.path.basename(self.input_file))[0]
         # TODO: add command line argument to search here for database files
-        self.dot_dir = os.path.join(os.path.expanduser('~'), '.sbus')
+        self.dot_dir = os.path.join(os.path.expanduser("~"), ".sbus")
 
     def _command_options(self):
         """Load data from the command line."""
 
         usage = "%prog [options] input_file"
-        version = "%prog " + "%f"%(_version_)
+        version = "%prog " + "%f" % (_version_)
         parser = OptionParser(usage=usage, version=version)
         group = optparse.OptionGroup(parser, "Verbosity Options")
-        group.add_option("-s", "--silent", action="store_true",
-                          dest="silent",
-                          help="Print nothing to the console.")
-        group.add_option("-q", "--quiet", action="store_true",
-                          dest="quiet",
-                          help="Print only warnings and errors.")
-        group.add_option("-v", "--verbose", action="store_true",
-                          dest="verbose",
-                          help="Print everything to the console.")
+        group.add_option(
+            "-s",
+            "--silent",
+            action="store_true",
+            dest="silent",
+            help="Print nothing to the console.",
+        )
+        group.add_option(
+            "-q",
+            "--quiet",
+            action="store_true",
+            dest="quiet",
+            help="Print only warnings and errors.",
+        )
+        group.add_option(
+            "-v",
+            "--verbose",
+            action="store_true",
+            dest="verbose",
+            help="Print everything to the console.",
+        )
         parser.add_option_group(group)
         (self.cmd_options, local_args) = parser.parse_args()
 
@@ -80,47 +83,47 @@ class Options(object):
             sys.exit(1)
         else:
             self.input_file = os.path.abspath(local_args[0])
-        
+
     def _load_defaults(self):
-        default_path = os.path.join(self.script_dir, 'defaults.ini')        
+        default_path = os.path.join(self.script_dir, "defaults.ini")
         try:
-            filetemp = open(default_path, 'r')
+            filetemp = open(default_path, "r")
             default = filetemp.read()
             filetemp.close()
-            if not '[defaults]' in default.lower():
-                default = '[defaults]\n' + default
+            if not "[defaults]" in default.lower():
+                default = "[defaults]\n" + default
             default = StringIO(default)
         except IOError:
             error("Error loading defaults.ini")
-            default = StringIO('[defaults]\n')
+            default = StringIO("[defaults]\n")
         self.job.readfp(default)
-        
+
     def _load_job(self):
         """Load data from the local job name."""
         if self.input_file is not None:
             try:
-                filetemp = open(self.input_file, 'r')
+                filetemp = open(self.input_file, "r")
                 job = filetemp.read()
                 filetemp.close()
-                if not '[job]' in job.lower():
-                    job = '[job]\n' + job
+                if not "[job]" in job.lower():
+                    job = "[job]\n" + job
                 job = StringIO(job)
             except IOError:
-                job = StringIO('[job]\n')
+                job = StringIO("[job]\n")
         else:
-            job = StringIO('[job]\n')
+            job = StringIO("[job]\n")
         self.job.readfp(job)
-        
+
     def _set_attr(self):
         """Sets attributes to the base class. default options are over-written
         by job-specific options.
 
         """
-        for key, value in self.job.items('defaults'):
-            value = self.get_val('defaults', key)
+        for key, value in self.job.items("defaults"):
+            value = self.get_val("defaults", key)
             setattr(self, key, value)
-        for key, value in self.job.items('job'):
-            value = self.get_val('job', key)
+        for key, value in self.job.items("job"):
+            value = self.get_val("job", key)
             setattr(self, key, value)
         for key, value in self.cmd_options.__dict__.items():
             setattr(self, key, value)
@@ -128,37 +131,49 @@ class Options(object):
     def get_val(self, section, key):
         """Returns the proper type based on the key used."""
         # known booleans
-        booleans = ['verbose', 'quiet', 'silent',
-                    'create_sbu_input_files',
-                    'calc_sbu_surface_area',
-                    'calc_max_sbu_span',
-                    'show_barycentric_net_only',
-                    'show_embedded_net',
-                    'get_run_info',
-                    'find_symmetric_h',
-                    'store_net',
-                    'use_builds',
-                    'save_builds',
-                    'count_edges_along_lattice_dirs']
-        floats = ['overlap_tolerance',
-                  'sbu_bond_length',
-                  'cell_vol_tolerance',
-                  'symmetry_precision',
-                  'opt_parameter_tol',
-                  'opt_function_tol',
-                  'third_dimension']
-        integers = ['organic_sbu_per_structure',
-                    'metal_sbu_per_structure',
-                    'max_structures',
-                    'max_edge_count',
-                    'min_edge_count']
-        lists = ['topologies', 'sbu_files', 'topology_files',
-                'organic_sbus',
-                 'metal_sbus',
-                 'build_files',
-                 'ignore_topologies']
-        tuple_of_tuples = ['sbu_combinations']
-        
+        booleans = [
+            "verbose",
+            "quiet",
+            "silent",
+            "create_sbu_input_files",
+            "calc_sbu_surface_area",
+            "calc_max_sbu_span",
+            "show_barycentric_net_only",
+            "show_embedded_net",
+            "get_run_info",
+            "find_symmetric_h",
+            "store_net",
+            "use_builds",
+            "save_builds",
+            "count_edges_along_lattice_dirs",
+        ]
+        floats = [
+            "overlap_tolerance",
+            "sbu_bond_length",
+            "cell_vol_tolerance",
+            "symmetry_precision",
+            "opt_parameter_tol",
+            "opt_function_tol",
+            "third_dimension",
+        ]
+        integers = [
+            "organic_sbu_per_structure",
+            "metal_sbu_per_structure",
+            "max_structures",
+            "max_edge_count",
+            "min_edge_count",
+        ]
+        lists = [
+            "topologies",
+            "sbu_files",
+            "topology_files",
+            "organic_sbus",
+            "metal_sbus",
+            "build_files",
+            "ignore_topologies",
+        ]
+        tuple_of_tuples = ["sbu_combinations"]
+
         if key in booleans:
             try:
                 val = self.job.getboolean(section, key)
@@ -169,28 +184,31 @@ class Options(object):
             try:
                 val = self.job.getint(section, key)
             except ValueError:
-                val = 0;
+                val = 0
         # known floats
         elif key in floats:
             try:
                 val = self.job.getfloat(section, key)
             except ValueError:
-                val = 0.
+                val = 0.0
             except TypeError:
                 val = None
         # known lists
         elif key in lists:
-            p = re.compile('[,;\s]+')
+            p = re.compile("[,;\s]+")
             val = p.split(self.job.get(section, key))
             try:
                 val = [int(i) for i in val if i]
             except ValueError:
                 val = [i for i in val if i]
-                
+
         # tuple of tuples.
         elif key in tuple_of_tuples:
-            val = literal_eval(self.job.get(section, key)) \
-                    if self.job.get(section, key) else None
+            val = (
+                literal_eval(self.job.get(section, key))
+                if self.job.get(section, key)
+                else None
+            )
             # failsafe if only one tuple is presented, need to embed it.
             if val is not None:
                 if isinstance(val[0], int) or isinstance(val[0], float):
@@ -198,6 +216,7 @@ class Options(object):
         else:
             val = self.job.get(section, key)
         return val
+
 
 def Terminate(errcode=None):
     if errcode is None:

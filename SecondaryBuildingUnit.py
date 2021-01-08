@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 from Atoms import Atom
 from ConnectPoints import ConnectPoint
 # Python 3 fix

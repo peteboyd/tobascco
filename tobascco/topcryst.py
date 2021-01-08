@@ -10,12 +10,11 @@ from time import time
 
 import numpy as np
 
-from .csv import CSV
-
 from . import config, glog
 from .builder import Build
 from .config import Terminate
 from .createinput import SBUFileRead
+from .csv import CSV
 from .generator import Generate
 from .net import Net, SystreDB
 from .sbu import SBU

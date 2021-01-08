@@ -11,7 +11,6 @@ from logging import debug, error, info, warning
 import numpy as np
 
 
-
 class GraphPlot(object):
     def __init__(self, net, two_dimensional=False):
         self.fig, self.ax = plt.subplots()

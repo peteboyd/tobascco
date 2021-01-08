@@ -17,9 +17,6 @@ except ImportError:
     import ConfigParser as configparser
 
 
-
-
-
 class SBU_list(object):
     def __init__(self, sbu_list):
         self.list = sbu_list

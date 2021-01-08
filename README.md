@@ -2,6 +2,18 @@
 
 ## Installation
 
+You need to first install openbabel (we're working on a conda recipe to skip this step):
+
+```
+conda install -c conda-forge openbabel
+```
+
+Then you can install the package
+
+```
+pip install git+https://github.com/peteboyd/tobascco
+```
+
 ## Usage
 
 ## Reference

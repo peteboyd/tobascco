@@ -14,9 +14,13 @@ Then you can install the package
 pip install git+https://github.com/peteboyd/tobascco
 ```
 
+This automatically installs a runscript that is appropriate for most use cases
+
 ## Usage
 
 ### Assembling MOFs
+
+
 
 ### SBU databases
 

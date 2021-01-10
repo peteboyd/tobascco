@@ -1,29 +1,31 @@
 # -*- coding: utf-8 -*-
-_version_ = 3.0
-comm = None
-MPIsize = 0
-MPIrank = 0
+import configparser
 import optparse
 import os
 import re
 import sys
 from ast import literal_eval
-from logging import error, info, warning
+from io import StringIO
+from logging import error
 from optparse import OptionParser
+from pathlib import Path
 
-# Python 3 fix
-try:
-    import configparser
-except ImportError:
-    import ConfigParser as configparser
+from . import __version__
 
-try:
-    from StringIO import StringIO
-except ImportError:
-    from io import StringIO
+THIS_DIR = os.path.dirname(os.path.realpath(__file__))
+ARC_DEFAULT = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "data", "arc", "rcsr_0.6.0.arc"
+)
+SBU_DEFAULT = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)),
+    "data",
+    "sbu",
+)
+
+__all__ = ["Options", "ARC_DEFAULT", "SBU_DEFAULT"]
 
 
-class Options(object):
+class Options:
     def __init__(self):
 
         self._command_options()
@@ -33,14 +35,16 @@ class Options(object):
         self._load_defaults()
         self._load_job()
         self._set_attr()
+        self.sbu_files = [SBU_DEFAULT]
+        self.topology_files = [ARC_DEFAULT]
 
     def _set_paths(self):
         if __name__ != "__main__":
-            self.script_dir = os.path.dirname(__file__)
+            self.script_dir = THIS_DIR
         else:
             self.script_dir = os.path.abspath(sys.path[0])
         self.job_dir = os.getcwd()
-        self.jobname = os.path.splitext(os.path.basename(self.input_file))[0]
+        self.jobname = Path(self.input_file).stem
         # TODO: add command line argument to search here for database files
         self.dot_dir = os.path.join(os.path.expanduser("~"), ".sbus")
 
@@ -48,7 +52,7 @@ class Options(object):
         """Load data from the command line."""
 
         usage = "%prog [options] input_file"
-        version = "%prog " + "%f" % (_version_)
+        version = "%prog " + "%f" % (__version__)
         parser = OptionParser(usage=usage, version=version)
         group = optparse.OptionGroup(parser, "Verbosity Options")
         group.add_option(
@@ -87,9 +91,8 @@ class Options(object):
     def _load_defaults(self):
         default_path = os.path.join(self.script_dir, "defaults.ini")
         try:
-            filetemp = open(default_path, "r")
-            default = filetemp.read()
-            filetemp.close()
+            with open(default_path, "r") as handle:
+                default = handle.read()
             if not "[defaults]" in default.lower():
                 default = "[defaults]\n" + default
             default = StringIO(default)
@@ -102,9 +105,8 @@ class Options(object):
         """Load data from the local job name."""
         if self.input_file is not None:
             try:
-                filetemp = open(self.input_file, "r")
-                job = filetemp.read()
-                filetemp.close()
+                with open(self.input_file, "r") as handle:
+                    job = handle.read()
                 if not "[job]" in job.lower():
                     job = "[job]\n" + job
                 job = StringIO(job)
@@ -216,13 +218,3 @@ class Options(object):
         else:
             val = self.job.get(section, key)
         return val
-
-
-def Terminate(errcode=None):
-    if errcode is None:
-        info("TopCryst terminated normally")
-    else:
-        warning("TopCryst terminated with errors!")
-    if comm is not None:
-        comm.Barrier()
-    sys.exit()

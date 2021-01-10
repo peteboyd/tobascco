@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 import itertools
-import os
-import sys
+import warnings
 
 import numpy as np
+import spglib as spg
 from scipy.spatial import distance
 
 from .cifer import CIF
@@ -11,7 +11,7 @@ from .element_properties import ATOMIC_NUMBER, Radii
 from .linalg import RAD2DEG, calc_angle
 
 
-class Structure(object):
+class Structure:
     """Structure class contains atom info for MOF."""
 
     def __init__(self, options, name=None, **kwargs):
@@ -40,10 +40,11 @@ class Structure(object):
             atom.coordinates = atom.in_cell(self.cell.lattice, self.cell.inverse)
         self.atoms += sbu_obj.atoms
         if any([i in self.bonds.keys() for i in sbu_obj.bonds.keys()]):
-            warning(
+            warnings.warn(
                 "Two bonds with the same indices found when forming"
                 + " the bonding table for the structure! Check the final"
-                + " atom bonding to determine any anomalies."
+                + " atom bonding to determine any anomalies.",
+                ValueError,
             )
         self.bonds.update(sbu_obj.bonds)
         self.sbu_count += 1
@@ -61,9 +62,10 @@ class Structure(object):
             self.fragments.append((sbu.name, order))
             self.atoms += sbu.atoms
             if any([i in self.bonds.keys() for i in sbu.bonds.keys()]):
-                warning(
+                warnings.warn(
                     "Two bonds with the same indices found when forming"
-                    + " the bonding table for the structure!"
+                    + " the bonding table for the structure!",
+                    ValueError,
                 )
             self.bonds.update(sbu.bonds)
             index_count += len(sbu)
@@ -265,7 +267,7 @@ class Structure(object):
         file.close()
 
 
-class Cell(object):
+class Cell:
     """contains periodic vectors for the structure."""
 
     def __init__(self):
@@ -349,13 +351,9 @@ class Cell(object):
         return self._params[5] * RAD2DEG
 
 
-class Symmetry(object):
+class Symmetry:
     def __init__(self, options):
         self.options = options
-        assert os.path.isdir(options.symmetry_dir)
-        sys.path.append(options.symmetry_dir)
-        self.spg = __import__("pyspglib._spglib")._spglib
-        # import pyspglib._spglib as spg
         self._symprec = options.symmetry_precision
         self._lattice = None
         self._inv_latt = None
@@ -409,15 +407,17 @@ class Symmetry(object):
             ref_pos[:num_atom] = _scaled_coords.copy()
             ref_numbers = np.zeros(num_atom * 4, dtype=int)
             ref_numbers[:num_atom] = _numbers.copy()
-            num_atom_bravais = self.spg.refine_cell(
+            num_atom_bravais = spg.refine_cell(
                 ref_lattice, ref_pos, ref_numbers, num_atom, _symprec, _angle_tol
             )
             for key, data in zip(
                 keys,
-                self.spg.dataset(
-                    ref_lattice.copy(),
-                    ref_pos[:num_atom_bravais].copy(),
-                    ref_numbers[:num_atom_bravais].copy(),
+                spg.get_symmetry_dataset(
+                    (
+                        ref_lattice.copy(),
+                        ref_pos[:num_atom_bravais].copy(),
+                        ref_numbers[:num_atom_bravais].copy(),
+                    ),
                     _symprec,
                     _angle_tol,
                 ),
@@ -431,7 +431,7 @@ class Symmetry(object):
         # thus a check is done after refining the structure.
 
         if dataset["number"] == 0:
-            warning("WARNING - Bad Symmetry found!")
+            warnings.warn("WARNING - Bad Symmetry found!", ValueError)
         else:
 
             self.dataset["number"] = dataset["number"]

@@ -1,0 +1,2 @@
+include versioneer.py
+include tobascco/_version.py

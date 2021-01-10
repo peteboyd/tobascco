@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 from datetime import date
 
+__all__ = ["CIF"]
 
-class CIF(object):
+
+class CIF:
     def __init__(self, name="structure", file=None):
         self.name = name
         self._data = {}

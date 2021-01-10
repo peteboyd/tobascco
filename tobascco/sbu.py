@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
+import configparser
 import itertools
-from logging import critical, debug, error, info, warning
+from logging import debug, error
 
 import numpy as np
 from numpy import arccos, cos, pi, sin
@@ -10,14 +11,8 @@ from .atoms import Atom
 from .connectpoints import ConnectPoint
 from .element_properties import Radii
 
-# Python 3 fix
-try:
-    import configparser
-except ImportError:
-    import ConfigParser as configparser
 
-
-class SBU_list(object):
+class SBU_list:
     def __init__(self, sbu_list):
         self.list = sbu_list
         self._truncate()
@@ -51,7 +46,7 @@ class SBU_list(object):
         raise Exception("Could not find the SBU with the identifier %s" % (identifier))
 
 
-class SBU(object):
+class SBU:
     """Contains atom information, connectivity of a Secondary Building Unit."""
 
     def __init__(self, name=None):

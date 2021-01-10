@@ -6,9 +6,9 @@ import logging
 import os
 import sys
 import textwrap
-from logging import debug, error, info, warning
+from logging import error, info, warning
 
-import config
+from . import config
 
 
 class Log:

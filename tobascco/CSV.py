@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 import os
 
+__all__ = ["CSV"]
 
-class CSV(object):
+
+class CSV:
     def __init__(self, name, _READ=False):
         self._data = {}
         self._headings = []

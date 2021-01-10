@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 
-from element_properties import WEIGHT
+from .element_properties import WEIGHT
+
+__all__ = ["Atom"]
 
 
-class Atom(object):
+class Atom:
     """Basic atom class for the generation of structures."""
 
     def __init__(self, element=None):

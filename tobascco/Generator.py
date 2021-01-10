@@ -4,7 +4,7 @@ import itertools
 from .sbu import SBU_list
 
 
-class Generate(object):
+class Generate:
     """Takes as input a sequence of sbus, and returns
     build orders to make structures.
 

@@ -1,3 +1,4 @@
 sympy
 networkx
 matplotlib
+spglib

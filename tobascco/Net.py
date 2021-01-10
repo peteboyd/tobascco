@@ -7,26 +7,15 @@ from os.path import dirname, join, realpath
 from sys import version_info
 from uuid import uuid4
 
+import _nloptimize as nl
 import networkx as nx
 import numpy as np
 import sympy as sy
 
-import _nloptimize as nl
-
 from .config import Terminate
 from .linalg import DEG2RAD
 
-platform = du.get_platform()
-
-sys.path.insert(
-    1,
-    join(
-        dirname(realpath(__file__)),
-        "src",
-        "build",
-        "lib.%s-%i.%i" % (platform, version_info.major, version_info.minor),
-    ),
-)
+ƒ
 
 sys.setrecursionlimit(100000)
 
@@ -53,26 +42,26 @@ class SystreDB(dict):
         if file is None:
             return
 
-        f = open(file, "r")
-        block = []
-        while True:
-            line = f.readline()
-            if not line:
-                break
+        with open(file, "r") as handle:
+            block = []
+            while True:
+                line = handle.readline()
+                if not line:
+                    break
 
-            l = line.strip().split()
-            if l and l[0].lower() != "end":
-                block.append(" ".join(l))
-            elif l and l[0].lower() == "end":
-                name = self.get_name(block)
-                ndim, systre_key = self.get_key(block)
-                # g, v = self.gen_sage_graph_format(systre_key) # SAGE compliant
-                g, v = self.gen_networkx_graph_format(
-                    systre_key, ndim
-                )  # networkx compliant
-                self[name] = g
-                self.voltages[name] = np.array(v)
-                block = []
+                l = line.strip().split()
+                if l and l[0].lower() != "end":
+                    block.append(" ".join(l))
+                elif l and l[0].lower() == "end":
+                    name = self.get_name(block)
+                    ndim, systre_key = self.get_key(block)
+                    # g, v = self.gen_sage_graph_format(systre_key) # SAGE compliant
+                    g, v = self.gen_networkx_graph_format(
+                        systre_key, ndim
+                    )  # networkx compliant
+                    self[name] = g
+                    self.voltages[name] = np.array(v)
+                    block = []
 
     def get_key(self, block):
         for j in block:
@@ -159,7 +148,7 @@ class SystreDB(dict):
         return (sage_dict, voltages)
 
 
-class Net(object):
+class Net:
     def __init__(self, graph=None, dim=3, options=None):
         self.name = None
         self.lattice_basis = None

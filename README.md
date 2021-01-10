@@ -20,15 +20,13 @@ This automatically installs a runscript that is appropriate for most use cases
 
 ### Assembling MOFs
 
-
-
 ### SBU databases
 
-A key part of the code are the SBU databases (metal nodes, organic linkers)
+A key part of the code are the SBU databases (metal nodes, organic linkers) some defaults are shipped with the package. Those databases are currently file based, i.e., plain text files that need to be parsed for every run of the code and to which new SBUs need to be appended.
 
 #### Extending the SBU database
 
-New entries to the SBU database can be added using the code in `createinput.py` module (or job type `create_sbu_input_files=True` in an input file
+New entries to the SBU database can be added using the code in `createinput.py` module (or job type `create_sbu_input_files=True` in an input file).
 
 ## Reference
 

@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import itertools
 import math
-import sys
 from copy import deepcopy
 from functools import reduce
 from logging import debug, error, info, warning
@@ -22,12 +21,13 @@ from .linalg import (
     rotation_from_vectors,
 )
 from .net import Net
-from .sbu import SBU
 from .structure import Cell, Structure
 from .visualizer import GraphPlot
 
+__all__ = ["Build"]
 
-class Build(object):
+
+class Build:
     """Build a MOF from SBUs and a Net."""
 
     def __init__(self, options=None):

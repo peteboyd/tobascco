@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
-import numpy as np
 import warnings
 
+import numpy as np
 
-class ConnectPoint(object):
+__all__ = ["ConnectPoint"]
+
+
+class ConnectPoint:
     def __init__(self):
         """Origin describes the point of intersection of two parameters,
         z describes the vector pointing along the bond (parallel),

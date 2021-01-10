@@ -1,17 +1,13 @@
 # -*- coding: utf-8 -*-
-try:
 
-    import matplotlib.pyplot as plt
-    from mpl_toolkits.mplot3d import Axes3D
-except:
-    pass
 import itertools
-from logging import debug, error, info, warning
+from logging import info
 
+import matplotlib.pyplot as plt
 import numpy as np
 
 
-class GraphPlot(object):
+class GraphPlot:
     def __init__(self, net, two_dimensional=False):
         self.fig, self.ax = plt.subplots()
         self.net = net

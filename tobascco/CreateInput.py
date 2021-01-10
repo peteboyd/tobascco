@@ -3,12 +3,11 @@ import os
 from logging import info
 from sys import version_info
 
+from openbabel import openbabel as ob
+
 from .element_properties import ATOMIC_NUMBER
 
-try:
-    from openbabel import openbabel as ob
-except ImportError:
-    print("Could not load the openbabel libraries!")
+__all__ = ["InputSBU"]
 
 
 def clean(name, ext):
@@ -18,7 +17,7 @@ def clean(name, ext):
     return name
 
 
-class InputSBU(object):
+class InputSBU:
     """Contains the necessary information to produce an input for
     Genstruct. This input file is a necessary step in case bonding
     flags or symmetry are incorrect."""
@@ -219,7 +218,7 @@ class InputSBU(object):
         return line
 
 
-class SBUFileRead(object):
+class SBUFileRead:
     def __init__(self, options):
         self.options = options
         self.sbus = []
@@ -275,7 +274,6 @@ class SBUFileRead(object):
     def write_file(self):
         filename = os.path.join(self.options.job_dir, self.options.jobname) + ".out"
         info("writing SBU file to %s" % (filename))
-        f = open(filename, "w")
-        for sbu in self.sbus:
-            f.writelines(str(sbu))
-        f.close()
+        with open(filename, "w") as handle:
+            for sbu in self.sbus:
+                handle.writelines(str(sbu))

@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
+import configparser
 import os
 import pickle
 from copy import deepcopy
-from logging import critical, debug, error, info, warning
-from os.path import dirname, join, realpath
+from logging import debug, info, warning
 from time import time
 
 import numpy as np
 
-from . import config, glog
+from . import __version__, config, glog
 from .builder import Build
 from .config import Terminate
 from .createinput import SBUFileRead
@@ -18,20 +18,8 @@ from .net import Net, SystreDB
 from .sbu import SBU
 from .visualizer import GraphPlot
 
-# Python 3 fix
-try:
-    import configparser
-except ImportError:
-    import ConfigParser as configparser
 
-try:
-    __version_info__ = (0, 0, 1, int("$Revision$".strip("$Revision: ")))
-except ValueError:
-    __version_info__ = (0, 0, 0, 0)
-__version__ = "%i.%i.%i.%i" % __version_info__
-
-
-class JobHandler(object):
+class JobHandler:
     """determines what job(s) to run based on arguments from the
     options class."""
 
@@ -657,15 +645,6 @@ def main():
     global MPIrank
     MPIsize = 0
     MPIrank = 0
-    # try:
-    #    from mpi4py import MPI
-    #    comm = MPI.COMM_WORLD
-    #    MPIsize = comm.size
-    #    MPIrank = comm.rank
-    # except ImportError:
-    #    warning("No MPI routines found! Defaulting to serial")
-    #    MPIsize = 0
-    #    MPIrank = 0
     jerb = JobHandler(options)
     jerb.direct_job()
 

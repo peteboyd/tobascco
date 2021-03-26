@@ -1,1 +1,2 @@
 *.arc linguist-vendored
+tobascco/_version.py export-subst

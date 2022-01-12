@@ -2,3 +2,4 @@ sympy
 networkx
 matplotlib
 spglib
+openbabel

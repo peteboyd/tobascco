@@ -11,7 +11,7 @@ import numpy as np
 from . import __version__, config, glog
 from .builder import Build
 from .config import Terminate
-from .createinput import SBUFileRead
+#from .createinput import SBUFileRead
 from .csv import CSV
 from .generator import Generate
 from .net import Net, SystreDB
@@ -66,15 +66,13 @@ class JobHandler:
     def direct_job(self):
         """Reads the options and decides what to do next."""
 
-        # TODO(pboyd): problem reading in openbabel libraries for the inputfile
-        #  creation due to the use of a custom python implemented for sage.
-
         if self.options.create_sbu_input_files:
+            # Currently borked. Why is openbabel such a pain to compile?
             info("Creating input files")
-            job = SBUFileRead(self.options)
-            job.read_sbu_files()
-            job.sort_sbus()
-            job.write_file()
+            #job = SBUFileRead(self.options)
+            #job.read_sbu_files()
+            #job.sort_sbus()
+            #job.write_file()
             Terminate()
 
         self._read_sbu_database_files()

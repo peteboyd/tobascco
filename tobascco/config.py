@@ -218,3 +218,10 @@ class Options:
         else:
             val = self.job.get(section, key)
         return val
+
+def Terminate(errcode=None):
+    if errcode is None:
+        info("TopCryst terminated normally")
+    else:
+        warning("TopCryst terminated with errors!")
+    sys.exit()

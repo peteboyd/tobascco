@@ -15,8 +15,6 @@ import sympy as sy
 from .config import Terminate
 from .linalg import DEG2RAD
 
-ƒ
-
 sys.setrecursionlimit(100000)
 
 

@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 import os
 
+from setuptools import find_packages, setup
 from numpy.distutils.core import Extension
 from numpy.distutils.misc_util import get_numpy_include_dirs
-from setuptools import find_packages, setup
 
 import versioneer
 
@@ -72,6 +72,6 @@ setup(
             language="c++",
             libraries=["nlopt"],
             extra_link_args=["-O"],
-        ),
-    ],
+        )
+     ],
 )

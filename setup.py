@@ -44,7 +44,7 @@ setup(
         ],
         "dev": [
             "versioneer==0.*",
-            "black==20.*",
+            "black>=20,<23",
         ],
     },
     author="Peter Boyd",

@@ -32,7 +32,7 @@ setup(
     extras_require={
         "testing": ["pytest==6.*", "pytest-cov>=2,<4"],
         "docs": [
-            "sphinx==3.*",
+            "sphinx>=3,<5",
             "sphinx-book-theme==0.*",
             "sphinx-autodoc-typehints==1.*",
             "sphinx-copybutton==0.*",

@@ -11,7 +11,8 @@ from .element_properties import ATOMIC_NUMBER, Radii
 from .linalg import RAD2DEG, calc_angle
 
 
-class Structure:
+# Inherit ASE object?
+class Structure(object):
     """Structure class contains atom info for MOF."""
 
     def __init__(self, options, name=None, **kwargs):
@@ -267,7 +268,7 @@ class Structure:
         file.close()
 
 
-class Cell:
+class Cell(object):
     """contains periodic vectors for the structure."""
 
     def __init__(self):
@@ -351,7 +352,7 @@ class Cell:
         return self._params[5] * RAD2DEG
 
 
-class Symmetry:
+class Symmetry(object):
     def __init__(self, options):
         self.options = options
         self._symprec = options.symmetry_precision

@@ -4,7 +4,7 @@ from datetime import date
 __all__ = ["CIF"]
 
 
-class CIF:
+class CIF(object):
     def __init__(self, name="structure", file=None):
         self.name = name
         self._data = {}

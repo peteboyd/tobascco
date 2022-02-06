@@ -17,7 +17,7 @@ def clean(name, ext):
     return name
 
 
-class InputSBU:
+class InputSBU(object):
     """Contains the necessary information to produce an input for
     Genstruct. This input file is a necessary step in case bonding
     flags or symmetry are incorrect."""
@@ -218,7 +218,7 @@ class InputSBU:
         return line
 
 
-class SBUFileRead:
+class SBUFileRead(object):
     def __init__(self, options):
         self.options = options
         self.sbus = []

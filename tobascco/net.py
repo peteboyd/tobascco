@@ -7,6 +7,7 @@ from os.path import dirname, join, realpath
 from sys import version_info
 from uuid import uuid4
 
+import nlopt as nl
 import _nloptimize as nl
 import networkx as nx
 import numpy as np
@@ -145,8 +146,8 @@ class SystreDB(dict):
             sage_dict[n1][n2].append(ename)  # SAGE compliant
         return (sage_dict, voltages)
 
-
-class Net:
+# Net should be inheriting networkx.Graph?
+class Net(object):
     def __init__(self, graph=None, dim=3, options=None):
         self.name = None
         self.lattice_basis = None
@@ -617,7 +618,18 @@ class Net:
         cocycle_rep = np.reshape(cocycle, (cocycle_size, ndim))
         return mt, cocycle_rep
 
+    def nlopt_net_embedding(self):
+        '''Using the python api provided by the developers of nlopt, instead of my own c interface.
+
+        '''
+
+        # TODO(pboyd): define the objective function, which is currently written in c, and the 
+        #              gradient function.
+
     def net_embedding(self):
+        ''' DEPRECATED!!
+
+        '''
         f = math.factorial
         mtsize = self.ndim + f(self.ndim) / f(2) / f(self.ndim - 2)
         size = int(mtsize + self.cocycle_rep.shape[0] * self.ndim)

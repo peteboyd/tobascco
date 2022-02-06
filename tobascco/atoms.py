@@ -6,7 +6,7 @@ from .element_properties import WEIGHT
 __all__ = ["Atom"]
 
 
-class Atom:
+class Atom(object):
     """Basic atom class for the generation of structures."""
 
     def __init__(self, element=None):

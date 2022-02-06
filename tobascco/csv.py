@@ -4,7 +4,7 @@ import os
 __all__ = ["CSV"]
 
 
-class CSV:
+class CSV(object):
     def __init__(self, name, _READ=False):
         self._data = {}
         self._headings = []

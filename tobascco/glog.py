@@ -11,7 +11,7 @@ from logging import error, info, warning
 from . import config
 
 
-class Log:
+class Log(object):
     def __init__(self, options):
         self.options = options
         self._init_logging()

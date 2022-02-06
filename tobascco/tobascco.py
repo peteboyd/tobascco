@@ -19,7 +19,7 @@ from .sbu import SBU
 from .visualizer import GraphPlot
 
 
-class JobHandler:
+class JobHandler(object):
     """determines what job(s) to run based on arguments from the
     options class."""
 

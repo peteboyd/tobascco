@@ -6,7 +6,7 @@ import numpy as np
 __all__ = ["ConnectPoint"]
 
 
-class ConnectPoint:
+class ConnectPoint(object):
     def __init__(self):
         """Origin describes the point of intersection of two parameters,
         z describes the vector pointing along the bond (parallel),

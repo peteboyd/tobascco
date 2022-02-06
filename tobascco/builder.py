@@ -27,7 +27,7 @@ from .visualizer import GraphPlot
 __all__ = ["Build"]
 
 
-class Build:
+class Build(object):
     """Build a MOF from SBUs and a Net."""
 
     def __init__(self, options=None):

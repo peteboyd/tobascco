@@ -1,5 +1,6 @@
 sympy
 numpy
+rdkit-pypi
 networkx
 matplotlib
 spglib

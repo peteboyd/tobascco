@@ -25,7 +25,7 @@ SBU_DEFAULT = os.path.join(
 __all__ = ["Options", "ARC_DEFAULT", "SBU_DEFAULT"]
 
 
-class Options:
+class Options(object):
     def __init__(self):
 
         self._command_options()

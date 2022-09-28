@@ -30,7 +30,7 @@ setup(
     license="Apache 2.0",
     install_requires=REQUIREMENTS,
     extras_require={
-        "testing": ["pytest==6.*", "pytest-cov>=2,<4"],
+        "testing": ["pytest==6.*", "pytest-cov>=2,<5"],
         "docs": [
             "sphinx>=3,<5",
             "sphinx-book-theme==0.*",

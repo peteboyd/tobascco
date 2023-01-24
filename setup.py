@@ -38,7 +38,7 @@ setup(
             "sphinx-copybutton==0.*",
         ],
         "pre-commit": [
-            "pre-commit==2.*",
+            "pre-commit>=2,<4",
             "pylint==2.*",
             "isort==5.*",
         ],
